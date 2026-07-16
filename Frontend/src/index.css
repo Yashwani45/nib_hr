@@ -1,0 +1,31 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+body{
+  margin:0;
+  padding:0;
+  box-sizing:border-box;
+  font-family: Arial, Helvetica, sans-serif;
+  background:#0f172a;
+  color:white;
+}
+
+/* Sidebar Gradient Icon Styles */
+.sidebar-icon-inactive {
+  stroke: url(#inactive-icon-grad) !important;
+}
+.sidebar-icon-inactive circle,
+.sidebar-icon-inactive [fill="currentColor"] {
+  fill: url(#inactive-icon-grad) !important;
+  stroke: url(#inactive-icon-grad) !important;
+}
+
+.sidebar-icon-active {
+  stroke: url(#active-icon-grad) !important;
+}
+.sidebar-icon-active circle,
+.sidebar-icon-active [fill="currentColor"] {
+  fill: url(#active-icon-grad) !important;
+  stroke: url(#active-icon-grad) !important;
+}
