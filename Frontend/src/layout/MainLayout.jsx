@@ -1,14 +1,20 @@
 import { useEffect, useState } from "react";
-import { Outlet, useLocation } from "react-router-dom";
+import { Outlet, useLocation, Navigate } from "react-router-dom";
 import Sidebar from "./Sidebar";
 import Navbar from "./Navbar";
+import { useAuth } from "../auth/AuthProvider";
 
 const MainLayout = () => {
+  const { user } = useAuth();
   const [isPinned, setIsPinned] = useState(() => {
     return localStorage.getItem("sidebar_pinned") === "true";
   });
   const [isOpen, setIsOpen] = useState(isPinned);
   const location = useLocation();
+
+  if (!user) {
+    return <Navigate to="/login" replace />;
+  }
 
   useEffect(() => {
     localStorage.setItem("sidebar_pinned", isPinned);
@@ -22,6 +28,19 @@ const MainLayout = () => {
       setIsOpen(false);
     }
   }, [location.pathname]);
+
+  const userRole = typeof user?.role === "object" ? user?.role?.name : user?.role;
+  const isSuperAdmin = userRole?.toLowerCase() === "superadmin";
+
+  if (isSuperAdmin) {
+    return (
+      <div className="min-h-screen bg-slate-50">
+        <main className="min-w-0">
+          <Outlet />
+        </main>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gray-100">

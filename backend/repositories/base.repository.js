@@ -1,4 +1,3 @@
-// backend/repositories/base.repository.js
 class BaseRepository {
   constructor(model) {
     this.model = model;

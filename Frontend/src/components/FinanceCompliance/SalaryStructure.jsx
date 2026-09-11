@@ -1,146 +1,366 @@
-import React from "react";
-import { ReceiptPercentIcon } from "@heroicons/react/24/outline";
+import React, { useState, useEffect } from "react";
+import { apiFetch } from "../../services/hrApi";
 
-const SalaryStructure = ({
-  records = [],
-  selectedPayslipEmp,
-  setSelectedPayslipEmp,
-  computedPayslip = {},
-  hideList
-}) => {
+const SalaryStructure = ({ onRefreshData }) => {
+  const [structures, setStructures] = useState([]);
+  const [employees, setEmployees] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [activeView, setActiveView] = useState("list"); // 'list' | 'create' | 'assign'
+
+  // Forms
+  const [name, setName] = useState("");
+  const [description, setDescription] = useState("");
+  const [components, setComponents] = useState([
+    { name: "Basic", type: "Earning", calculationType: "Percentage", value: "50", referenceComponent: "Gross" },
+    { name: "HRA", type: "Earning", calculationType: "Percentage", value: "40", referenceComponent: "Basic" },
+    { name: "Special Allowance", type: "Earning", calculationType: "Fixed", value: "0", referenceComponent: "" },
+    { name: "PF (12% Basic)", type: "Deduction", calculationType: "Percentage", value: "12", referenceComponent: "Basic" },
+    { name: "ESI (0.75% Gross)", type: "Deduction", calculationType: "Percentage", value: "0.75", referenceComponent: "Gross" }
+  ]);
+
+  const [selectedEmployee, setSelectedEmployee] = useState("");
+  const [selectedStructure, setSelectedStructure] = useState("");
+  const [baseGross, setBaseGross] = useState("");
+  const [effectiveFrom, setEffectiveFrom] = useState("");
+
+  const loadData = async () => {
+    setLoading(true);
+    try {
+      const structRes = await apiFetch("/api/finance/salary-structures");
+      if (structRes?.data) {
+        setStructures(structRes.data);
+      }
+      const empRes = await apiFetch("/api/table/employees");
+      if (empRes?.data) {
+        setEmployees(empRes.data);
+      }
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadData();
+  }, []);
+
+  const handleAddComponent = () => {
+    setComponents([...components, { name: "", type: "Earning", calculationType: "Fixed", value: "0", referenceComponent: "" }]);
+  };
+
+  const handleRemoveComponent = (idx) => {
+    setComponents(components.filter((_, i) => i !== idx));
+  };
+
+  const handleComponentChange = (idx, field, val) => {
+    const updated = [...components];
+    updated[idx][field] = val;
+    setComponents(updated);
+  };
+
+  const handleCreateStructure = async (e) => {
+    e.preventDefault();
+    try {
+      await apiFetch("/api/finance/salary-structures", {
+        method: "POST",
+        body: JSON.stringify({ name, description, components })
+      });
+      alert("Salary Structure created successfully!");
+      setName("");
+      setDescription("");
+      setActiveView("list");
+      loadData();
+      if (onRefreshData) onRefreshData();
+    } catch (err) {
+      alert(err.message || "Failed to create structure.");
+    }
+  };
+
+  const handleAssignStructure = async (e) => {
+    e.preventDefault();
+    try {
+      await apiFetch("/api/finance/salary-structures/assign", {
+        method: "POST",
+        body: JSON.stringify({
+          employeeId: selectedEmployee,
+          salaryStructureId: selectedStructure,
+          effectiveFrom,
+          baseGross: parseFloat(baseGross)
+        })
+      });
+      alert("Salary Structure assigned successfully!");
+      setSelectedEmployee("");
+      setSelectedStructure("");
+      setBaseGross("");
+      setEffectiveFrom("");
+      setActiveView("list");
+      loadData();
+      if (onRefreshData) onRefreshData();
+    } catch (err) {
+      alert(err.message || "Failed to assign structure.");
+    }
+  };
+
   return (
-    <div className="space-y-6">
-      {/* Payslip & Compensation Calculator */}
-      <div className="p-5 border border-indigo-100 bg-gradient-to-r from-blue-50/30 to-indigo-50/30 rounded-xl">
-        <h3 className="text-sm font-bold text-indigo-950 mb-3 flex items-center gap-1.5">
-          <ReceiptPercentIcon className="h-5 w-5 text-indigo-600" />
-          Payslip Preview Generator
-        </h3>
-
-        <div className="flex flex-col md:flex-row gap-6">
-          <div className="w-full md:w-64 bg-white border p-3 rounded-lg shrink-0">
-            <label className="block text-xs font-semibold text-gray-500 mb-2">Select Employee</label>
-            <select
-              value={selectedPayslipEmp}
-              onChange={(e) => setSelectedPayslipEmp(e.target.value)}
-              className="w-full text-xs border rounded-md p-2 focus:ring-1 focus:ring-indigo-500 focus:outline-none"
+    <div className="space-y-6 font-sans">
+      <div className="flex items-center justify-between border-b pb-4">
+        <div>
+          <h2 className="text-lg font-bold text-slate-800">Salary Structures</h2>
+          <p className="text-xs text-slate-500">Configure salary bands, components, earnings, deductions, and assign them to employees.</p>
+        </div>
+        <div className="flex gap-2">
+          {activeView !== "list" && (
+            <button
+              onClick={() => setActiveView("list")}
+              className="px-3 py-1.5 text-xs font-semibold bg-white border rounded-xl text-slate-700 hover:bg-slate-50"
             >
-              {records.map(emp => (
-                <option key={emp.id} value={emp.empName}>
-                  {emp.empName}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          {/* Payslip Design */}
-          <div className="flex-1 bg-white border border-gray-200/80 rounded-xl p-5 shadow-sm space-y-4">
-            <div className="flex justify-between items-start border-b pb-3">
-              <div>
-                <h4 className="font-extrabold text-sm text-gray-900">NIB Technologies Pvt Ltd</h4>
-                <p className="text-[10px] text-gray-400">Okhla Phase III, New Delhi</p>
-              </div>
-              <div className="text-right">
-                <span className="text-xs font-bold text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded">PAYSLIP</span>
-                <p className="text-[9px] text-gray-400 mt-1">Month: July 2026</p>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-4 text-xs">
-              <div>
-                <span className="text-gray-400">Employee Name:</span>
-                <p className="font-semibold text-gray-800">{computedPayslip.empName || "--"}</p>
-              </div>
-              <div className="text-right">
-                <span className="text-gray-400">Currency:</span>
-                <p className="font-semibold text-gray-800">INR (₹)</p>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 border-t pt-3">
-              <div className="space-y-1.5">
-                <h5 className="font-semibold text-xs text-gray-700 pb-1 border-b">Earnings</h5>
-                <div className="flex justify-between text-xs">
-                  <span>Basic Salary</span>
-                  <span className="font-semibold">₹{computedPayslip.basic || 0}</span>
-                </div>
-                <div className="flex justify-between text-xs">
-                  <span>HRA</span>
-                  <span className="font-semibold">₹{computedPayslip.hra || 0}</span>
-                </div>
-                <div className="flex justify-between text-xs">
-                  <span>Dearness Allowance (DA)</span>
-                  <span className="font-semibold">₹{computedPayslip.da || 0}</span>
-                </div>
-                <div className="flex justify-between text-xs">
-                  <span>Special Allowance</span>
-                  <span className="font-semibold">₹{computedPayslip.special || 0}</span>
-                </div>
-                <div className="flex justify-between text-xs font-bold text-gray-900 border-t pt-1">
-                  <span>Gross Salary</span>
-                  <span>₹{computedPayslip.gross || 0}</span>
-                </div>
-              </div>
-
-              <div className="space-y-1.5">
-                <h5 className="font-semibold text-xs text-gray-700 pb-1 border-b text-right md:text-left">Deductions</h5>
-                <div className="flex justify-between text-xs">
-                  <span>PF Contribution</span>
-                  <span className="font-semibold text-red-600">₹{computedPayslip.pfDeduction || 0}</span>
-                </div>
-                <div className="flex justify-between text-xs">
-                  <span>ESI Contribution</span>
-                  <span className="font-semibold text-red-600">₹{computedPayslip.esiDeduction || 0}</span>
-                </div>
-                <div className="flex justify-between text-xs">
-                  <span>Professional Tax (PT)</span>
-                  <span className="font-semibold text-red-600">₹{computedPayslip.pt || 0}</span>
-                </div>
-                <div className="flex justify-between text-xs">
-                  <span>TDS</span>
-                  <span className="font-semibold text-red-600">₹{computedPayslip.tds || 0}</span>
-                </div>
-                <div className="flex justify-between text-xs font-bold text-gray-900 border-t pt-1">
-                  <span>Total Deductions</span>
-                  <span>₹{Number(computedPayslip.pfDeduction || 0) + Number(computedPayslip.esiDeduction || 0) + Number(computedPayslip.pt || 0) + Number(computedPayslip.tds || 0)}</span>
-                </div>
-              </div>
-            </div>
-
-            <div className="flex items-center justify-between border-t border-dashed pt-4">
-              <span className="text-sm font-extrabold text-gray-800">Net Take Home Pay:</span>
-              <span className="text-lg font-black text-indigo-700">₹{computedPayslip.netSalary || 0}</span>
-            </div>
-          </div>
+              Cancel
+            </button>
+          )}
+          {activeView === "list" && (
+            <>
+              <button
+                onClick={() => setActiveView("create")}
+                className="px-3 py-1.5 text-xs font-semibold bg-indigo-600 text-white rounded-xl hover:bg-indigo-700 shadow-2xs"
+              >
+                + Define Structure
+              </button>
+              <button
+                onClick={() => setActiveView("assign")}
+                className="px-3 py-1.5 text-xs font-semibold bg-emerald-600 text-white rounded-xl hover:bg-emerald-700 shadow-2xs"
+              >
+                Assign Structure
+              </button>
+            </>
+          )}
         </div>
       </div>
 
-      {/* Main Grid View */}
-      {!hideList && (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {records.map((item) => (
-            <div key={item.id} className="border border-gray-200/80 rounded-2xl p-5 bg-white shadow-sm flex flex-col justify-between space-y-3">
-              <div className="flex justify-between items-center border-b pb-2">
-                <span className="font-bold text-xs text-gray-800">Employee: {item.empName || "--"}</span>
-                <span className="px-2 py-0.5 bg-blue-50 text-blue-700 border border-blue-100 rounded text-[9px] font-bold">
-                  Net Take Home: ₹{item.netSalary || 0}
+      {loading && <div className="text-center text-xs text-slate-400 py-8">Loading Salary Structures data...</div>}
+
+      {!loading && activeView === "list" && (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          {structures.map((s) => (
+            <div key={s.id} className="bg-white border rounded-2xl p-5 shadow-xs space-y-4">
+              <div className="flex justify-between items-start border-b pb-2">
+                <div>
+                  <h3 className="font-extrabold text-sm text-slate-800">{s.name}</h3>
+                  <p className="text-[11px] text-slate-400 mt-0.5">{s.description || "No description"}</p>
+                </div>
+                <span className="px-2 py-0.5 bg-green-50 text-green-700 border border-green-200 rounded text-[9px] font-bold uppercase">
+                  Active
                 </span>
               </div>
-              <div className="grid grid-cols-2 gap-2 text-[11px] pt-1">
-                {Object.entries(item)
-                  .filter(([key]) => key !== "id" && key !== "status" && key !== "created_at" && key !== "updated_at")
-                  .map(([key, val]) => (
-                    <div key={key} className="space-y-0.5 truncate">
-                      <span className="text-gray-400 uppercase tracking-wider text-[8px] font-semibold">
-                        {key.replace(/([A-Z])/g, " $1").trim()}
-                      </span>
-                      <p className="font-bold text-gray-800 truncate">{String(val || "--")}</p>
+
+              <div className="space-y-2">
+                <h4 className="text-xs font-bold text-slate-600">Earnings Components</h4>
+                <div className="grid grid-cols-2 gap-2 text-[11px] bg-slate-50/50 p-2.5 rounded-lg border border-slate-100">
+                  {s.components?.filter(c => c.type === "Earning").map((c, i) => (
+                    <div key={i} className="flex justify-between">
+                      <span className="text-slate-600 font-semibold">{c.name}:</span>
+                      <span className="font-bold text-slate-800">{c.value}{c.calculationType === "Percentage" ? `% of ${c.referenceComponent || "Gross"}` : " Fixed"}</span>
                     </div>
                   ))}
+                </div>
+
+                <h4 className="text-xs font-bold text-slate-600 mt-3">Deductions Components</h4>
+                <div className="grid grid-cols-2 gap-2 text-[11px] bg-red-50/30 p-2.5 rounded-lg border border-red-50/50">
+                  {s.components?.filter(c => c.type === "Deduction").map((c, i) => (
+                    <div key={i} className="flex justify-between">
+                      <span className="text-slate-600 font-semibold">{c.name}:</span>
+                      <span className="font-bold text-red-600">{c.value}{c.calculationType === "Percentage" ? `% of ${c.referenceComponent || "Basic"}` : " Fixed"}</span>
+                    </div>
+                  ))}
+                </div>
               </div>
             </div>
           ))}
+
+          {structures.length === 0 && (
+            <div className="col-span-2 text-center text-xs text-slate-400 py-12">
+              No salary structures defined. Get started by defining one!
+            </div>
+          )}
         </div>
+      )}
+
+      {activeView === "create" && (
+        <form onSubmit={handleCreateStructure} className="bg-white border rounded-2xl p-6 space-y-6 max-w-2xl mx-auto shadow-sm">
+          <h3 className="font-bold text-sm text-slate-800 border-b pb-2">Define New Salary Structure</h3>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div className="col-span-2 space-y-1">
+              <label className="text-xs font-bold text-slate-700">Structure Name</label>
+              <input
+                type="text"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                placeholder="e.g. Standard Executive Band A"
+                className="w-full text-xs border rounded-lg p-2.5 bg-slate-50 focus:bg-white"
+                required
+              />
+            </div>
+
+            <div className="col-span-2 space-y-1">
+              <label className="text-xs font-bold text-slate-700">Description</label>
+              <textarea
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+                placeholder="Briefly describe who this structure is for..."
+                className="w-full text-xs border rounded-lg p-2.5 bg-slate-50 focus:bg-white h-20"
+              />
+            </div>
+          </div>
+
+          <div className="space-y-4">
+            <div className="flex justify-between items-center border-b pb-2">
+              <h4 className="text-xs font-bold text-slate-700">Breakdown Components</h4>
+              <button
+                type="button"
+                onClick={handleAddComponent}
+                className="text-[10px] bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-bold px-2 py-1 rounded"
+              >
+                + Add Row
+              </button>
+            </div>
+
+            {components.map((c, i) => (
+              <div key={i} className="flex gap-2 items-center bg-slate-50 p-3 rounded-lg border">
+                <input
+                  type="text"
+                  value={c.name}
+                  onChange={(e) => handleComponentChange(i, "name", e.target.value)}
+                  placeholder="Component Name"
+                  className="w-1/4 text-xs border rounded p-1.5 bg-white font-semibold"
+                  required
+                />
+                
+                <select
+                  value={c.type}
+                  onChange={(e) => handleComponentChange(i, "type", e.target.value)}
+                  className="w-1/6 text-xs border rounded p-1.5 bg-white"
+                >
+                  <option value="Earning">Earning</option>
+                  <option value="Deduction">Deduction</option>
+                </select>
+
+                <select
+                  value={c.calculationType}
+                  onChange={(e) => handleComponentChange(i, "calculationType", e.target.value)}
+                  className="w-1/6 text-xs border rounded p-1.5 bg-white"
+                >
+                  <option value="Fixed">Fixed Amount</option>
+                  <option value="Percentage">Percentage</option>
+                </select>
+
+                <input
+                  type="number"
+                  step="0.01"
+                  value={c.value}
+                  onChange={(e) => handleComponentChange(i, "value", e.target.value)}
+                  placeholder="Value"
+                  className="w-1/8 text-xs border rounded p-1.5 bg-white font-bold"
+                  required
+                />
+
+                <input
+                  type="text"
+                  value={c.referenceComponent}
+                  onChange={(e) => handleComponentChange(i, "referenceComponent", e.target.value)}
+                  placeholder="Ref (e.g. Basic/Gross)"
+                  className="w-1/6 text-xs border rounded p-1.5 bg-white"
+                  disabled={c.calculationType !== "Percentage"}
+                />
+
+                <button
+                  type="button"
+                  onClick={() => handleRemoveComponent(i)}
+                  className="text-red-500 hover:text-red-700 font-bold text-xs px-2"
+                >
+                  ✕
+                </button>
+              </div>
+            ))}
+          </div>
+
+          <button
+            type="submit"
+            className="w-full text-xs font-semibold bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl py-2.5 shadow-2xs"
+          >
+            Save Structure
+          </button>
+        </form>
+      )}
+
+      {activeView === "assign" && (
+        <form onSubmit={handleAssignStructure} className="bg-white border rounded-2xl p-6 space-y-6 max-w-md mx-auto shadow-sm">
+          <h3 className="font-bold text-sm text-slate-800 border-b pb-2">Assign Salary Structure to Employee</h3>
+
+          <div className="space-y-4">
+            <div className="space-y-1">
+              <label className="text-xs font-bold text-slate-700">Select Employee</label>
+              <select
+                value={selectedEmployee}
+                onChange={(e) => setSelectedEmployee(e.target.value)}
+                className="w-full text-xs border rounded-lg p-2.5 bg-white"
+                required
+              >
+                <option value="">-- Choose Employee --</option>
+                {employees.map(e => (
+                  <option key={e.id} value={e.id}>
+                    {e.employeeName || `${e.firstName} ${e.lastName}`} ({e.employeeCode || e.emp_code || "No Code"})
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="space-y-1">
+              <label className="text-xs font-bold text-slate-700">Select Structure</label>
+              <select
+                value={selectedStructure}
+                onChange={(e) => setSelectedStructure(e.target.value)}
+                className="w-full text-xs border rounded-lg p-2.5 bg-white"
+                required
+              >
+                <option value="">-- Choose Structure --</option>
+                {structures.map(s => (
+                  <option key={s.id} value={s.id}>{s.name}</option>
+                ))}
+              </select>
+            </div>
+
+            <div className="space-y-1">
+              <label className="text-xs font-bold text-slate-700">Base Monthly Gross (₹)</label>
+              <input
+                type="number"
+                value={baseGross}
+                onChange={(e) => setBaseGross(e.target.value)}
+                placeholder="e.g. 50000"
+                className="w-full text-xs border rounded-lg p-2.5 bg-slate-50 focus:bg-white"
+                required
+              />
+            </div>
+
+            <div className="space-y-1">
+              <label className="text-xs font-bold text-slate-700">Effective From Date</label>
+              <input
+                type="date"
+                value={effectiveFrom}
+                onChange={(e) => setEffectiveFrom(e.target.value)}
+                className="w-full text-xs border rounded-lg p-2.5 bg-slate-50 focus:bg-white"
+                required
+              />
+            </div>
+          </div>
+
+          <button
+            type="submit"
+            className="w-full text-xs font-semibold bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl py-2.5 shadow-2xs"
+          >
+            Assign Structure
+          </button>
+        </form>
       )}
     </div>
   );

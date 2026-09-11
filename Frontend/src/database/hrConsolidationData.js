@@ -67,6 +67,16 @@ export const hrSchemas = {
       { name: "reportingDesig", label: "Reporting Designation", type: "text" },
       { name: "status", label: "Status", type: "select", options: ["Active", "Inactive"] }
     ],
+    "Designation Master": [
+      { name: "desigCode", label: "Designation Code", type: "text", required: true },
+      { name: "desigName", label: "Designation Name", type: "text", required: true },
+      { name: "department", label: "Department", type: "text" },
+      { name: "grade", label: "Grade", type: "text" },
+      { name: "jobLevel", label: "Job Level", type: "text" },
+      { name: "reportingTo", label: "Reporting To", type: "text" },
+      { name: "description", label: "Description", type: "textarea" },
+      { name: "status", label: "Status", type: "select", options: ["Active", "Inactive"] }
+    ],
     "Business Unit": [
       { name: "buCode", label: "BU Code", type: "text", required: true },
       { name: "buName", label: "BU Name", type: "text", required: true },
@@ -101,33 +111,22 @@ export const hrSchemas = {
   },
   "2. Employee Management": {
     "Employee Profile": [
-      { name: "empCode", label: "Employee Code", type: "text", required: true },
-      { name: "firstName", label: "First Name", type: "text", required: true },
-      { name: "lastName", label: "Last Name", type: "text", required: true },
-      { name: "gender", label: "Gender", type: "select", options: ["Male", "Female", "Other"] },
-      { name: "dob", label: "Date of Birth", type: "date" },
-      { name: "maritalStatus", label: "Marital Status", type: "select", options: ["Single", "Married", "Divorced", "Widowed"] },
-      { name: "nationality", label: "Nationality", type: "text" },
-      { name: "employmentStatus", label: "Employment Status", type: "select", options: ["Active", "Inactive"] },
-      { name: "employmentType", label: "Employment Type", type: "select", options: ["Permanent", "Contract", "Intern"] },
-      { name: "joiningDate", label: "Joining Date", type: "date" },
-      { name: "department", label: "Department", type: "text" },
-      { name: "designation", label: "Designation", type: "text" },
-      { name: "manager", label: "Reporting Manager", type: "text" },
-      { name: "branch", label: "Branch/Office Location", type: "text" },
-      { name: "shift", label: "Work Shift", type: "text" },
-      { name: "companyEmail", label: "Company Email", type: "email" },
-      { name: "personalEmail", label: "Personal Email", type: "email" },
-      { name: "phone", label: "Mobile Number", type: "text" },
-      { name: "bankName", label: "Bank Name", type: "text" },
-      { name: "accountNo", label: "Account Number", type: "text" },
-      { name: "ifscCode", label: "IFSC Code", type: "text" },
-      { name: "pan", label: "PAN Number", type: "text" },
-      { name: "aadhaar", label: "Aadhaar Number", type: "text" },
-      { name: "pfNum", label: "PF Number", type: "text" },
-      { name: "esicNum", label: "ESIC Number", type: "text" },
-      { name: "username", label: "Username", type: "text" },
-      { name: "role", label: "Role", type: "select", options: ["Employee", "Manager", "HR Admin", "System Admin"] }
+      { name: "firstName", label: "Employee Name", type: "text", required: true },
+      { name: "companyEmail", label: "Email", type: "email", required: true },
+      { name: "password", label: "Password", type: "password", required: true },
+      { name: "department", label: "Department", type: "text" }
+    ],
+    "Add Employee": [
+      { name: "firstName", label: "Employee Name", type: "text", required: true },
+      { name: "companyEmail", label: "Email", type: "email", required: true },
+      { name: "password", label: "Password", type: "password", required: true },
+      { name: "department", label: "Department", type: "text" }
+    ],
+    "Employee List": [
+      { name: "firstName", label: "Employee Name", type: "text", required: true },
+      { name: "companyEmail", label: "Email", type: "email", required: true },
+      { name: "password", label: "Password", type: "password", required: true },
+      { name: "department", label: "Department", type: "text" }
     ]
   },
   "3. Recruitment & Onboarding": {
@@ -169,14 +168,67 @@ export const hrSchemas = {
     ],
     "Asset Allocation": [
       { name: "allocationId", label: "Allocation ID", type: "text", required: true },
-      { name: "employee", label: "Employee Name", type: "text", required: true },
+      { name: "employee", label: "Employee Name", type: "select", required: true },
       { name: "empId", label: "Employee ID", type: "text" },
+      { name: "department", label: "Department", type: "select", options: ["IT", "Software Engineering", "Operations", "Finance", "Human Resources", "Sales & Marketing"] },
       { name: "assetCategory", label: "Asset Category", type: "select", options: ["Laptop", "Mobile", "SIM Card", "Access Card", "Software License"] },
       { name: "assetName", label: "Asset Name", type: "text" },
+      { name: "model", label: "Model", type: "text" },
+      { name: "processor", label: "Processor", type: "text" },
+      { name: "operatingSystem", label: "Operating System", type: "text" },
+      { name: "graphicsCard", label: "Graphics Card", type: "text" },
+      { name: "memory", label: "Memory", type: "text" },
+      { name: "storage", label: "Storage", type: "text" },
+      { name: "display", label: "Display", type: "text" },
+      { name: "color", label: "Color", type: "text" },
       { name: "assetCode", label: "Asset Code", type: "text" },
       { name: "serialNumber", label: "Serial Number", type: "text" },
       { name: "issueDate", label: "Issue Date", type: "date" },
       { name: "status", label: "Allocation Status", type: "select", options: ["Assigned", "Returned", "Scrap"] }
+    ],
+    "Job Posting": [
+      { name: "title", label: "Job Title", type: "text", required: true },
+      { name: "department", label: "Department", type: "text" },
+      { name: "location", label: "Location", type: "text" },
+      { name: "type", label: "Employment Type", type: "select", options: ["Full-Time", "Part-Time", "Contract", "Internship"] },
+      { name: "experience", label: "Experience Required", type: "text" },
+      { name: "description", label: "Description", type: "textarea" },
+      { name: "status", label: "Status", type: "select", options: ["Active", "Inactive"] }
+    ],
+    "Interview": [
+      { name: "candidateName", label: "Candidate Name", type: "text", required: true },
+      { name: "candidateEmail", label: "Candidate Email", type: "email", required: true },
+      { name: "jobTitle", label: "Job Title", type: "text", required: true },
+      { name: "interviewRound", label: "Interview Round", type: "text" },
+      { name: "dateTime", label: "Date & Time", type: "text" },
+      { name: "interviewer", label: "Interviewer", type: "text" },
+      { name: "score", label: "Score", type: "number" },
+      { name: "status", label: "Status", type: "select", options: ["Scheduled", "Completed", "Cancelled"] },
+      { name: "feedback", label: "Feedback", type: "textarea" }
+    ],
+    "Offer Letter": [
+      { name: "candidateName", label: "Candidate Name", type: "text", required: true },
+      { name: "candidateEmail", label: "Candidate Email", type: "email", required: true },
+      { name: "jobTitle", label: "Job Title", type: "text", required: true },
+      { name: "ctc", label: "CTC Package", type: "text" },
+      { name: "offerDate", label: "Offer Date", type: "date" },
+      { name: "joiningDate", label: "Expected Joining Date", type: "date" },
+      { name: "status", label: "Status", type: "select", options: ["Sent", "Accepted", "Rejected"] }
+    ],
+    "Onboarding": [
+      { name: "candidateName", label: "Candidate Name", type: "text", required: true },
+      { name: "candidateEmail", label: "Candidate Email", type: "email", required: true },
+      { name: "jobTitle", label: "Job Title", type: "text", required: true },
+      { name: "progress", label: "Progress (%)", type: "number" },
+      { name: "status", label: "Status", type: "select", options: ["Pending", "In Progress", "Completed"] }
+    ],
+    "Joining": [
+      { name: "candidateName", label: "Candidate Name", type: "text", required: true },
+      { name: "candidateEmail", label: "Candidate Email", type: "email", required: true },
+      { name: "jobTitle", label: "Job Title", type: "text", required: true },
+      { name: "joiningDate", label: "Expected Joining Date", type: "date" },
+      { name: "employeeCode", label: "Employee Code", type: "text" },
+      { name: "status", label: "Status", type: "select", options: ["Verified", "Synced", "Pending"] }
     ]
   },
   "4. Attendance & Shift": {
@@ -187,10 +239,42 @@ export const hrSchemas = {
       { name: "checkIn", label: "Check-In Time", type: "text" },
       { name: "checkOut", label: "Check-Out Time", type: "text" },
       { name: "workingHours", label: "Working Hours", type: "number" },
-      { name: "status", label: "Attendance Status", type: "select", options: ["Present", "Absent", "Half Day", "Leave", "Holiday"] },
+      { name: "status", label: "Attendance Status", type: "select", options: ["Present", "Absent", "Half Day", "Leave", "Holiday", "Late", "Early Exit", "Overtime"] },
       { name: "lateComing", label: "Late Coming (Min)", type: "number" },
       { name: "earlyLeaving", label: "Early Leaving (Min)", type: "number" },
-      { name: "overtime", label: "Overtime (Hrs)", type: "number" }
+      { name: "overtime", label: "Overtime (Hrs)", type: "number" },
+      { name: "company", label: "Company", type: "text" },
+      { name: "branch", label: "Branch", type: "text" },
+      { name: "department", label: "Department", type: "text" },
+      { name: "shift", label: "Shift", type: "text" },
+      { name: "ip_address", label: "IP Address", type: "text" },
+      { name: "device_info", label: "Device Info", type: "text" },
+      { name: "gps_location", label: "GPS Location", type: "text" },
+      { name: "selfie_url", label: "Selfie Image URL", type: "text" },
+      { name: "break_hours", label: "Break Duration (Hrs)", type: "number" },
+      { name: "remarks", label: "Remarks", type: "text" }
+    ],
+    "Attendance Regularization": [
+      { name: "empId", label: "Employee ID", type: "text", required: true },
+      { name: "employee", label: "Employee Name", type: "text", required: true },
+      { name: "date", label: "Date", type: "date", required: true },
+      { name: "punchType", label: "Punch Type", type: "select", options: ["Check-In", "Check-Out", "Both"] },
+      { name: "requestedCheckIn", label: "Requested Check-In Time", type: "text" },
+      { name: "requestedCheckOut", label: "Requested Check-Out Time", type: "text" },
+      { name: "reason", label: "Reason", type: "text", required: true },
+      { name: "status", label: "Status", type: "select", options: ["Pending", "Approved", "Rejected"] },
+      { name: "remarks", label: "Remarks", type: "text" },
+      { name: "approvedBy", label: "Approved By", type: "text" },
+      { name: "attachment", label: "Attachment URL", type: "text" }
+    ],
+    "Biometric Logs": [
+      { name: "deviceName", label: "Device Name", type: "text" },
+      { name: "machineId", label: "Machine ID", type: "text" },
+      { name: "empId", label: "Employee ID", type: "text", required: true },
+      { name: "employee", label: "Employee Name", type: "text" },
+      { name: "punchType", label: "Punch Type", type: "select", options: ["IN", "OUT"] },
+      { name: "punchTime", label: "Punch Time", type: "text" },
+      { name: "syncStatus", label: "Sync Status", type: "select", options: ["Pending", "Synced"] }
     ],
     "Shift Master": [
       { name: "shiftCode", label: "Shift Code", type: "text", required: true },
@@ -198,6 +282,14 @@ export const hrSchemas = {
       { name: "startTime", label: "Start Time", type: "text" },
       { name: "endTime", label: "End Time", type: "text" },
       { name: "graceTime", label: "Grace Time (Min)", type: "number" },
+      { name: "status", label: "Status", type: "select", options: ["Active", "Inactive"] }
+    ],
+    "Overtime Master": [
+      { name: "overtimeName", label: "Overtime Rule Name", type: "text", required: true },
+      { name: "rateMultiplier", label: "Rate Multiplier", type: "number" },
+      { name: "minHours", label: "Minimum Hours", type: "number" },
+      { name: "maxHours", label: "Maximum Hours", type: "number" },
+      { name: "applicableDept", label: "Applicable Department", type: "text" },
       { name: "status", label: "Status", type: "select", options: ["Active", "Inactive"] }
     ]
   },
@@ -208,6 +300,31 @@ export const hrSchemas = {
       { name: "category", label: "Category", type: "select", options: ["Paid", "Unpaid", "Special"] },
       { name: "maxDays", label: "Max Days/Year", type: "number" },
       { name: "carryForward", label: "Carry Forward", type: "select", options: ["Yes", "No"] },
+      { name: "status", label: "Status", type: "select", options: ["Active", "Inactive"] }
+    ],
+    "Leave Type Master": [
+      { name: "leaveCode", label: "Leave Code", type: "text", required: true },
+      { name: "leaveName", label: "Leave Name", type: "text", required: true },
+      { name: "paidType", label: "Paid / Unpaid", type: "select", options: ["Paid", "Unpaid"] },
+      { name: "maxDays", label: "Max Days / Year", type: "number" },
+      { name: "carryForward", label: "Carry Forward", type: "select", options: ["Yes", "No"] },
+      { name: "encashment", label: "Encashment Allowed", type: "select", options: ["Yes", "No"] },
+      { name: "status", label: "Status", type: "select", options: ["Active", "Inactive"] }
+    ],
+    "Holiday Calendar": [
+      { name: "holidayName", label: "Holiday Name", type: "text", required: true },
+      { name: "holidayDate", label: "Holiday Date", type: "date", required: true },
+      { name: "holidayType", label: "Holiday Type", type: "select", options: ["Public", "National", "Restricted", "Company Mandatory"] },
+      { name: "branch", label: "Branch", type: "text" },
+      { name: "description", label: "Description", type: "textarea" },
+      { name: "status", label: "Status", type: "select", options: ["Active", "Inactive"] }
+    ],
+    "Holiday Master": [
+      { name: "holidayName", label: "Holiday Name", type: "text", required: true },
+      { name: "holidayDate", label: "Holiday Date", type: "date", required: true },
+      { name: "holidayType", label: "Holiday Type", type: "select", options: ["Public", "National", "Restricted", "Company Mandatory"] },
+      { name: "branch", label: "Branch", type: "text" },
+      { name: "description", label: "Description", type: "textarea" },
       { name: "status", label: "Status", type: "select", options: ["Active", "Inactive"] }
     ],
     "Leave Requests": [
@@ -234,15 +351,150 @@ export const hrSchemas = {
       { name: "esiDeduction", label: "ESI Deduction (0.75%)", type: "number" },
       { name: "pt", label: "Professional Tax", type: "number" },
       { name: "tds", label: "TDS", type: "number" },
-      { name: "netSalary", label: "Net Pay", type: "number" }
+      { name: "netSalary", label: "Net Pay", type: "number" },
+      { name: "remarks", label: "Remarks", type: "textarea" },
+      { name: "is_active", label: "Is Active", type: "select", options: ["True", "False"] }
     ],
-    "Incentives & Claims": [
-      { name: "claimId", label: "Claim ID", type: "text", required: true },
-      { name: "empName", label: "Employee Name", type: "text", required: true },
-      { name: "type", label: "Type", type: "select", options: ["Performance Bonus", "Sales Commission", "Medical Claim", "Travel Reimbursement"] },
-      { name: "amount", label: "Amount", type: "number" },
-      { name: "claimDate", label: "Date", type: "date" },
-      { name: "status", label: "Status", type: "select", options: ["Pending", "Approved", "Paid", "Rejected"] }
+    "Payroll Process": [
+      { name: "payrollId", label: "Payroll ID", type: "text", readonly: true },
+      { name: "payrollMonth", label: "Payroll Month", type: "select", options: ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"], required: true },
+      { name: "payrollYear", label: "Payroll Year", type: "select", options: ["2024", "2025", "2026", "2027"], required: true },
+      { name: "company", label: "Company", type: "select", options: ["NIB Technologies Pvt Ltd", "National Insurance Broker", "Corporate HQ"] },
+      { name: "branch", label: "Branch", type: "select", options: ["Headquarters", "Delhi NCR", "Mumbai Regional", "Bangalore Tech Hub"] },
+      { name: "department", label: "Department", type: "select", options: ["IT", "Software Engineering", "Operations", "Finance", "Human Resources", "Sales & Marketing"] },
+      { name: "employee", label: "Employee", type: "select", required: true },
+      { name: "employeeCode", label: "Employee Code", type: "text" },
+      { name: "payrollType", label: "Payroll Type", type: "select", options: ["Monthly", "Weekly", "Daily"] },
+      { name: "salaryStructure", label: "Salary Structure", type: "select", options: ["Standard Band A", "Executive Band B", "Senior Band C", "Custom Band"] },
+      { name: "workingDays", label: "Working Days", type: "number" },
+      { name: "presentDays", label: "Present Days", type: "number" },
+      { name: "absentDays", label: "Absent Days", type: "number" },
+      { name: "paidLeave", label: "Paid Leave", type: "number" },
+      { name: "lopDays", label: "LOP Days", type: "number" },
+      { name: "overtimeHours", label: "Overtime Hours", type: "number" },
+      { name: "grossSalary", label: "Gross Salary (₹)", type: "number" },
+      { name: "totalAllowances", label: "Total Allowances (₹)", type: "number" },
+      { name: "totalDeductions", label: "Total Deductions (₹)", type: "number" },
+      { name: "bonus", label: "Bonus (₹)", type: "number" },
+      { name: "incentive", label: "Incentive (₹)", type: "number" },
+      { name: "taxDeduction", label: "Tax Deduction (₹)", type: "number" },
+      { name: "pfDeduction", label: "PF Deduction (₹)", type: "number" },
+      { name: "esiDeduction", label: "ESI Deduction (₹)", type: "number" },
+      { name: "professionalTax", label: "Professional Tax (₹)", type: "number" },
+      { name: "loanDeduction", label: "Loan Deduction (₹)", type: "number" },
+      { name: "advanceDeduction", label: "Advance Deduction (₹)", type: "number" },
+      { name: "netSalary", label: "Net Salary (₹)", type: "number" },
+      { name: "payrollStatus", label: "Payroll Status", type: "select", options: ["Draft", "Processing", "Completed"] },
+      { name: "paymentStatus", label: "Payment Status", type: "select", options: ["Pending", "Paid"] },
+      { name: "paymentDate", label: "Payment Date", type: "date" },
+      { name: "remarks", label: "Remarks", type: "textarea" },
+      { name: "approvedBy", label: "Approved By", type: "text" },
+      { name: "approvedDate", label: "Approved Date", type: "date" },
+      { name: "is_active", label: "Is Active", type: "select", options: ["True", "False"] }
+    ],
+    "Payslip": [
+      { name: "payslipId", label: "Payslip ID", type: "text", readonly: true },
+      { name: "payrollId", label: "Payroll ID (Lookup)", type: "text" },
+      { name: "employee", label: "Employee", type: "select", required: true },
+      { name: "employeeCode", label: "Employee Code", type: "text" },
+      { name: "department", label: "Department", type: "text" },
+      { name: "designation", label: "Designation", type: "text" },
+      { name: "bankAccount", label: "Bank Account", type: "select", options: ["Primary Bank A/C", "Secondary Account"] },
+      { name: "uanNumber", label: "UAN Number", type: "text" },
+      { name: "panNumber", label: "PAN Number", type: "text" },
+      { name: "salaryMonth", label: "Salary Month", type: "select", options: ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"] },
+      { name: "salaryYear", label: "Salary Year", type: "select", options: ["2024", "2025", "2026", "2027"] },
+      { name: "grossSalary", label: "Gross Salary (₹)", type: "number" },
+      { name: "earnings", label: "Earnings (₹)", type: "number" },
+      { name: "deductions", label: "Deductions (₹)", type: "number" },
+      { name: "netSalary", label: "Net Salary (₹)", type: "number" },
+      { name: "paymentDate", label: "Payment Date", type: "date" },
+      { name: "paymentMode", label: "Payment Mode", type: "select", options: ["Bank Transfer", "Cash", "Cheque"] },
+      { name: "payslipStatus", label: "Payslip Status", type: "select", options: ["Generated", "Sent", "Downloaded"] },
+      { name: "pdfFile", label: "PDF Attachment URL", type: "text" },
+      { name: "generatedBy", label: "Generated By", type: "text" },
+      { name: "generatedDate", label: "Generated Date", type: "date" },
+      { name: "remarks", label: "Remarks", type: "textarea" },
+      { name: "is_active", label: "Is Active", type: "select", options: ["True", "False"] }
+    ],
+    "Loan Management": [
+      { name: "loanId", label: "Loan ID", type: "text", readonly: true },
+      { name: "employee", label: "Employee", type: "select", required: true },
+      { name: "employeeCode", label: "Employee Code", type: "text" },
+      { name: "loanType", label: "Loan Type", type: "select", options: ["Personal", "Vehicle", "Home", "Emergency"], required: true },
+      { name: "loanAmount", label: "Loan Amount (₹)", type: "number", required: true },
+      { name: "interestRate", label: "Interest Rate (%)", type: "number" },
+      { name: "emiAmount", label: "EMI Amount (₹)", type: "number" },
+      { name: "numberOfInstallments", label: "Number of Installments", type: "number" },
+      { name: "startDate", label: "Start Date", type: "date" },
+      { name: "endDate", label: "End Date", type: "date" },
+      { name: "remainingBalance", label: "Remaining Balance (₹)", type: "number" },
+      { name: "totalPaid", label: "Total Paid (₹)", type: "number" },
+      { name: "outstandingAmount", label: "Outstanding Amount (₹)", type: "number" },
+      { name: "deductionFromPayroll", label: "Deduction From Payroll", type: "select", options: ["Yes", "No"] },
+      { name: "loanStatus", label: "Loan Status", type: "select", options: ["Pending", "Approved", "Rejected", "Closed"] },
+      { name: "approvedBy", label: "Approved By", type: "text" },
+      { name: "approvalDate", label: "Approval Date", type: "date" },
+      { name: "reason", label: "Reason", type: "textarea" },
+      { name: "attachment", label: "Attachment File", type: "text" },
+      { name: "remarks", label: "Remarks", type: "textarea" },
+      { name: "is_active", label: "Is Active", type: "select", options: ["True", "False"] }
+    ],
+    "ESI Management": [
+      { name: "recordId", label: "Record ID", type: "text", readonly: true },
+      { name: "employee", label: "Employee", type: "select", required: true },
+      { name: "employeeCode", label: "Employee Code", type: "text" },
+      { name: "esiNumber", label: "ESI Number", type: "text" },
+      { name: "employerContributionPercent", label: "Employer Contribution (%)", type: "number" },
+      { name: "employeeContributionPercent", label: "Employee Contribution (%)", type: "number" },
+      { name: "employerContributionAmount", label: "Employer Contribution Amount (₹)", type: "number" },
+      { name: "employeeContributionAmount", label: "Employee Contribution Amount (₹)", type: "number" },
+      { name: "wageMonth", label: "Wage Month", type: "select", options: ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"] },
+      { name: "wageYear", label: "Wage Year", type: "select", options: ["2024", "2025", "2026", "2027"] },
+      { name: "grossWage", label: "Gross Wage (₹)", type: "number" },
+      { name: "totalContribution", label: "Total Contribution (₹)", type: "number" },
+      { name: "challanNumber", label: "Challan Number", type: "text" },
+      { name: "paymentDate", label: "Payment Date", type: "date" },
+      { name: "status", label: "Status", type: "select", options: ["Pending", "Paid"] },
+      { name: "remarks", label: "Remarks", type: "textarea" },
+      { name: "is_active", label: "Is Active", type: "select", options: ["True", "False"] }
+    ],
+    "Professional Tax (PT)": [
+      { name: "ptId", label: "PT ID", type: "text", readonly: true },
+      { name: "employee", label: "Employee", type: "select", required: true },
+      { name: "employeeCode", label: "Employee Code", type: "text" },
+      { name: "state", label: "State", type: "select", options: ["Maharashtra", "Karnataka", "Tamil Nadu", "West Bengal", "Gujarat", "Delhi NCR", "Telangana", "Kerala", "Madhya Pradesh"] },
+      { name: "salaryMonth", label: "Salary Month", type: "select", options: ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"] },
+      { name: "salaryYear", label: "Salary Year", type: "select", options: ["2024", "2025", "2026", "2027"] },
+      { name: "grossSalary", label: "Gross Salary (₹)", type: "number" },
+      { name: "ptAmount", label: "PT Amount (₹)", type: "number" },
+      { name: "deductionDate", label: "Deduction Date", type: "date" },
+      { name: "paymentStatus", label: "Payment Status", type: "select", options: ["Pending", "Paid"] },
+      { name: "challanNumber", label: "Challan Number", type: "text" },
+      { name: "paymentDate", label: "Payment Date", type: "date" },
+      { name: "remarks", label: "Remarks", type: "textarea" },
+      { name: "is_active", label: "Is Active", type: "select", options: ["True", "False"] }
+    ],
+    "Reports": [
+      { name: "reportId", label: "Report ID", type: "text", readonly: true },
+      { name: "reportName", label: "Report Name", type: "text", required: true },
+      { name: "reportCategory", label: "Report Category", type: "select", options: ["Payroll", "Attendance", "Leave", "Finance", "Employee"] },
+      { name: "reportType", label: "Report Type", type: "select", options: ["Summary", "Detailed"] },
+      { name: "company", label: "Company", type: "select", options: ["NIB Technologies Pvt Ltd", "National Insurance Broker", "Corporate HQ"] },
+      { name: "branch", label: "Branch", type: "select", options: ["Headquarters", "Delhi NCR", "Mumbai Regional", "Bangalore Tech Hub"] },
+      { name: "department", label: "Department", type: "select", options: ["IT", "Software Engineering", "Operations", "Finance", "Human Resources", "Sales & Marketing"] },
+      { name: "employee", label: "Employee", type: "select" },
+      { name: "dateFrom", label: "Date From", type: "date" },
+      { name: "dateTo", label: "Date To", type: "date" },
+      { name: "exportFormat", label: "Export Format", type: "select", options: ["PDF", "Excel", "CSV"] },
+      { name: "scheduleReport", label: "Schedule Report", type: "select", options: ["Yes", "No"] },
+      { name: "frequency", label: "Frequency", type: "select", options: ["Daily", "Weekly", "Monthly"] },
+      { name: "emailTo", label: "Email To", type: "text" },
+      { name: "generatedBy", label: "Generated By", type: "text" },
+      { name: "generatedOn", label: "Generated On", type: "date" },
+      { name: "status", label: "Status", type: "select", options: ["Generated", "Scheduled"] },
+      { name: "remarks", label: "Remarks", type: "textarea" },
+      { name: "is_active", label: "Is Active", type: "select", options: ["True", "False"] }
     ]
   },
   "7. Statutory & Tax": {
@@ -256,6 +508,13 @@ export const hrSchemas = {
       { name: "employerContribution", label: "Employer Contrib (3.67%)", type: "number" },
       { name: "epsContribution", label: "EPS Contrib (8.33%)", type: "number" }
     ],
+    "TDS Master": [
+      { name: "financialYear", label: "Financial Year", type: "text", required: true },
+      { name: "taxRegime", label: "Tax Regime", type: "select", options: ["New Tax Regime (Sec 115BAC)", "Old Tax Regime"] },
+      { name: "standardDeduction", label: "Standard Deduction", type: "number" },
+      { name: "cessPercentage", label: "Cess Percentage", type: "number" },
+      { name: "status", label: "Status", type: "select", options: ["Active", "Inactive"] }
+    ],
     "Tax Declarations": [
       { name: "empName", label: "Employee Name", type: "text", required: true },
       { name: "regime", label: "Tax Regime", type: "select", options: ["New", "Old"] },
@@ -267,41 +526,194 @@ export const hrSchemas = {
     ]
   },
   "8. Performance Management": {
-    "KPI & OKR": [
-      { name: "goalId", label: "Goal ID", type: "text", required: true },
-      { name: "empName", label: "Employee Name", type: "text", required: true },
-      { name: "kpiName", label: "KPI Metric / Goal", type: "text", required: true },
-      { name: "target", label: "Target Value", type: "text" },
-      { name: "current", label: "Current Progress", type: "number" },
-      { name: "weightage", label: "Weightage (%)", type: "number" },
-      { name: "status", label: "Completion Status", type: "select", options: ["Not Started", "In Progress", "Achieved", "Missed"] }
+    "Dashboard": [],
+    "Performance Master": [
+      { name: "cycleName", label: "Cycle Name", type: "text", required: true },
+      { name: "reviewPeriod", label: "Review Period", type: "select", options: ["Annual", "Half-Yearly", "Quarterly", "Monthly"] },
+      { name: "startDate", label: "Start Date", type: "date" },
+      { name: "endDate", label: "End Date", type: "date" },
+      { name: "department", label: "Department", type: "text" },
+      { name: "ratingScale", label: "Rating Scale", type: "text" },
+      { name: "selfReviewWeight", label: "Self Review Weight (%)", type: "number" },
+      { name: "managerReviewWeight", label: "Manager Review Weight (%)", type: "number" },
+      { name: "status", label: "Status", type: "select", options: ["Active", "Draft", "Closed", "Inactive"] }
     ],
-    "Performance Reviews": [
-      { name: "empName", label: "Employee Name", type: "text", required: true },
-      { name: "reviewer", label: "Manager / Reviewer", type: "text" },
-      { name: "selfRating", label: "Self Rating (1-5)", type: "number" },
-      { name: "managerRating", label: "Manager Rating (1-5)", type: "number" },
-      { name: "overallRating", label: "Overall Score", type: "number" },
-      { name: "comments", label: "Review Feedback", type: "textarea" },
-      { name: "status", label: "Review Status", type: "select", options: ["Draft", "Submitted", "Completed"] }
-    ]
+    "KPI & OKR": [
+      { name: "employeeId", label: "Employee ID", type: "text" },
+      { name: "departmentId", label: "Department ID", type: "text" },
+      { name: "performanceMasterId", label: "Performance Master ID", type: "text" },
+      { name: "name", label: "KPI Metric Name", type: "text", required: true },
+      { name: "category", label: "Category", type: "text" },
+      { name: "target", label: "Target Value", type: "text" },
+      { name: "measurementType", label: "Measurement Type", type: "text" },
+      { name: "frequency", label: "Frequency", type: "select", options: ["Monthly", "Quarterly", "Half-Yearly", "Annual"] },
+      { name: "weight", label: "Weight (%)", type: "number" },
+      { name: "actualAchievement", label: "Actual Achievement", type: "number" },
+      { name: "calculatedScore", label: "Calculated Score", type: "number" },
+      { name: "status", label: "Completion Status", type: "select", options: ["Pending", "In Progress", "Achieved", "Missed"] }
+    ],
+    "Goals": [
+      { name: "employeeId", label: "Employee ID", type: "text", required: true },
+      { name: "performanceMasterId", label: "Performance Master ID", type: "text" },
+      { name: "title", label: "Goal Title", type: "text", required: true },
+      { name: "description", label: "Description / OKR Metrics", type: "textarea" },
+      { name: "target", label: "Target Value", type: "text" },
+      { name: "priority", label: "Priority", type: "select", options: ["Low", "Medium", "High"] },
+      { name: "weightage", label: "Weightage (%)", type: "number" },
+      { name: "progress", label: "Progress (%)", type: "number" },
+      { name: "status", label: "Status", type: "select", options: ["Not Started", "In Progress", "Completed", "Approved", "Rejected"] }
+    ],
+    "Appraisals": [
+      { name: "employeeId", label: "Employee ID", type: "text", required: true },
+      { name: "performanceMasterId", label: "Performance Master ID", type: "text", required: true },
+      { name: "selfRating", label: "Self Rating", type: "number" },
+      { name: "managerRating", label: "Manager Rating", type: "number" },
+      { name: "hrRating", label: "HR Rating", type: "number" },
+      { name: "finalRating", label: "Final Score", type: "number" },
+      { name: "selfComment", label: "Self Comments", type: "textarea" },
+      { name: "managerComment", label: "Manager Comments", type: "textarea" },
+      { name: "hrComment", label: "HR Comments", type: "textarea" },
+      { name: "strengths", label: "Strengths", type: "textarea" },
+      { name: "weaknesses", label: "Areas of Development", type: "textarea" },
+      { name: "achievements", label: "Key Achievements", type: "textarea" },
+      { name: "status", label: "Workflow Status", type: "select", options: ["Draft", "Submitted", "Manager_Reviewed", "HR_Reviewed", "Completed", "Acknowledged"] }
+    ],
+    "Promotions": [
+      { name: "employeeId", label: "Employee ID", type: "text", required: true },
+      { name: "currentDesignationId", label: "Current Designation ID", type: "text", required: true },
+      { name: "proposedDesignationId", label: "Proposed Designation ID", type: "text", required: true },
+      { name: "reason", label: "Reason / Performance Rating Summary", type: "textarea" },
+      { name: "effectiveDate", label: "Effective Date", type: "date", required: true },
+      { name: "status", label: "Approval Status", type: "select", options: ["Pending", "Approved", "Rejected", "Implemented"] }
+    ],
+    "Increments": [
+      { name: "employeeId", label: "Employee ID", type: "text", required: true },
+      { name: "currentSalary", label: "Current Salary", type: "number", required: true },
+      { name: "incrementPercentage", label: "Percentage Increase", type: "number" },
+      { name: "incrementAmount", label: "Fixed Increase", type: "number" },
+      { name: "newSalary", label: "Revised Salary", type: "number", required: true },
+      { name: "performanceScore", label: "Performance Rating Score", type: "number" },
+      { name: "effectiveDate", label: "Effective Date", type: "date", required: true },
+      { name: "status", label: "Approval Status", type: "select", options: ["Pending", "Approved", "Rejected", "Implemented"] }
+    ],
+    "Reports": []
   },
   "9. Learning & Development": {
-    "Courses": [
-      { name: "courseCode", label: "Course Code", type: "text", required: true },
-      { name: "courseName", label: "Course Name", type: "text", required: true },
-      { name: "category", label: "Category", type: "select", options: ["Technical", "Soft Skills", "Compliance", "Leadership"] },
-      { name: "duration", label: "Duration (Hrs)", type: "number" },
-      { name: "instructor", label: "Instructor", type: "text" },
-      { name: "status", label: "Status", type: "select", options: ["Active", "Archived"] }
+    "Learning Dashboard": [
+      { name: "dashboardName", label: "Dashboard Name", type: "text", required: true },
+      { name: "description", label: "Description", type: "textarea" },
+      { name: "totalCourses", label: "Total Courses", type: "number" },
+      { name: "totalLearners", label: "Total Learners", type: "number" },
+      { name: "avgCompletionRate", label: "Avg Completion Rate (%)", type: "number" },
+      { name: "status", label: "Status", type: "select", options: ["Active", "Inactive"] }
+    ],
+    "Training": [
+      { name: "trainingCode", label: "Training Code", type: "text", required: true },
+      { name: "trainingName", label: "Training Name", type: "text", required: true },
+      { name: "trainingCategory", label: "Training Category", type: "select", options: ["Technical", "Soft Skills", "Compliance", "Leadership", "Other"] },
+      { name: "trainingType", label: "Training Type", type: "select", options: ["Online", "Offline", "Hybrid"] },
+      { name: "company", label: "Company", type: "text" },
+      { name: "branch", label: "Branch", type: "text" },
+      { name: "department", label: "Department", type: "text" },
+      { name: "trainer", label: "Trainer", type: "text" },
+      { name: "trainingVenue", label: "Training Venue", type: "text" },
+      { name: "startDate", label: "Start Date", type: "date" },
+      { name: "endDate", label: "End Date", type: "date" },
+      { name: "duration", label: "Duration", type: "text" },
+      { name: "trainingCost", label: "Training Cost", type: "number" },
+      { name: "maxParticipants", label: "Maximum Participants", type: "number" },
+      { name: "trainingObjectives", label: "Training Objectives", type: "textarea" },
+      { name: "status", label: "Status", type: "select", options: ["Planned", "Ongoing", "Completed", "Cancelled"] },
+      { name: "remarks", label: "Remarks", type: "textarea" }
     ],
     "LMS Progress": [
-      { name: "empName", label: "Employee Name", type: "text", required: true },
+      { name: "lmsId", label: "LMS ID", type: "text", required: true },
+      { name: "courseId", label: "Course ID", type: "text" },
       { name: "courseName", label: "Course Name", type: "text" },
-      { name: "enrollDate", label: "Enrollment Date", type: "date" },
-      { name: "progress", label: "Progress (%)", type: "number" },
+      { name: "employeeId", label: "Employee ID", type: "select", required: true },
+      { name: "employeeName", label: "Employee Name", type: "text" },
+      { name: "company", label: "Company", type: "text" },
+      { name: "department", label: "Department", type: "text" },
+      { name: "learningPath", label: "Learning Path", type: "text" },
+      { name: "enrollmentDate", label: "Enrollment Date", type: "date" },
+      { name: "courseProgress", label: "Course Progress (%)", type: "number" },
+      { name: "startDate", label: "Start Date", type: "date" },
+      { name: "completionDate", label: "Completion Date", type: "date" },
+      { name: "timeSpent", label: "Time Spent", type: "text" },
       { name: "quizScore", label: "Quiz Score (%)", type: "number" },
-      { name: "status", label: "Completion Status", type: "select", options: ["Enrolled", "In Progress", "Completed"] }
+      { name: "assignmentScore", label: "Assignment Score (%)", type: "number" },
+      { name: "finalScore", label: "Final Score", type: "number" },
+      { name: "completionStatus", label: "Completion Status", type: "select", options: ["Enrolled", "In Progress", "Completed"] },
+      { name: "certificateGenerated", label: "Certificate Generated", type: "select", options: ["No", "Yes"] },
+      { name: "remarks", label: "Remarks", type: "textarea" }
+    ],
+    "Courses": [
+      { name: "courseId", label: "Course ID", type: "text", required: true },
+      { name: "courseCode", label: "Course Code", type: "text", required: true },
+      { name: "courseName", label: "Course Name", type: "text", required: true },
+      { name: "courseCategory", label: "Course Category", type: "select", options: ["Technical", "Soft Skills", "Compliance", "Leadership"] },
+      { name: "courseDescription", label: "Course Description", type: "textarea" },
+      { name: "skillLevel", label: "Skill Level", type: "select", options: ["Beginner", "Intermediate", "Advanced"] },
+      { name: "courseDuration", label: "Course Duration", type: "text" },
+      { name: "language", label: "Language", type: "text" },
+      { name: "instructor", label: "Instructor", type: "text" },
+      { name: "deliveryMode", label: "Delivery Mode", type: "select", options: ["Self-Paced", "Instructor-Led"] },
+      { name: "courseMaterial", label: "Course Material", type: "textarea" },
+      { name: "passingMarks", label: "Passing Marks", type: "number" },
+      { name: "validityPeriod", label: "Validity Period", type: "text" },
+      { name: "certificateAvailable", label: "Certificate Available", type: "select", options: ["No", "Yes"] },
+      { name: "courseStatus", label: "Course Status", type: "select", options: ["Active", "Inactive", "Archived"] },
+      { name: "remarks", label: "Remarks", type: "textarea" }
+    ],
+    "Skill Development": [
+      { name: "skillId", label: "Skill ID", type: "text", required: true },
+      { name: "employeeId", label: "Employee ID", type: "select", required: true },
+      { name: "employeeName", label: "Employee Name", type: "text" },
+      { name: "skillName", label: "Skill Name", type: "text", required: true },
+      { name: "skillCategory", label: "Skill Category", type: "text" },
+      { name: "currentSkillLevel", label: "Current Skill Level", type: "select", options: ["Beginner", "Intermediate", "Advanced"] },
+      { name: "targetSkillLevel", label: "Target Skill Level", type: "select", options: ["Beginner", "Intermediate", "Advanced"] },
+      { name: "trainingAssigned", label: "Training Assigned", type: "text" },
+      { name: "assessmentDate", label: "Assessment Date", type: "date" },
+      { name: "assessmentScore", label: "Assessment Score (%)", type: "number" },
+      { name: "improvementPlan", label: "Improvement Plan", type: "textarea" },
+      { name: "manager", label: "Manager", type: "text" },
+      { name: "status", label: "Status", type: "select", options: ["Identified", "In Progress", "Achieved", "Gap Exist"] },
+      { name: "remarks", label: "Remarks", type: "textarea" }
+    ],
+    "Certification": [
+      { name: "certificationId", label: "Certification ID", type: "text", required: true },
+      { name: "employeeId", label: "Employee ID", type: "select", required: true },
+      { name: "employeeName", label: "Employee Name", type: "text" },
+      { name: "certificationName", label: "Certification Name", type: "text", required: true },
+      { name: "certificationProvider", label: "Certification Provider", type: "text" },
+      { name: "certificateNumber", label: "Certificate Number", type: "text" },
+      { name: "courseName", label: "Course Name", type: "text" },
+      { name: "issueDate", label: "Issue Date", type: "date" },
+      { name: "expiryDate", label: "Expiry Date", type: "date" },
+      { name: "renewalRequired", label: "Renewal Required", type: "select", options: ["No", "Yes"] },
+      { name: "renewalDate", label: "Renewal Date", type: "date" },
+      { name: "certificateFile", label: "Certificate File Link", type: "text" },
+      { name: "verificationStatus", label: "Verification Status", type: "select", options: ["Pending", "Verified", "Rejected"] },
+      { name: "status", label: "Status", type: "select", options: ["Active", "Expired", "Renewed"] },
+      { name: "remarks", label: "Remarks", type: "textarea" }
+    ],
+    "Training Feedback": [
+      { name: "feedbackId", label: "Feedback ID", type: "text", required: true },
+      { name: "trainingId", label: "Training ID", type: "text", required: true },
+      { name: "courseName", label: "Course Name", type: "text" },
+      { name: "employeeId", label: "Employee ID", type: "select", required: true },
+      { name: "employeeName", label: "Employee Name", type: "text" },
+      { name: "trainer", label: "Trainer", type: "text" },
+      { name: "trainingDate", label: "Training Date", type: "date" },
+      { name: "contentRating", label: "Content Rating (1-5)", type: "number" },
+      { name: "trainerRating", label: "Trainer Rating (1-5)", type: "number" },
+      { name: "materialRating", label: "Material Rating (1-5)", type: "number" },
+      { name: "overallRating", label: "Overall Rating (1-5)", type: "number" },
+      { name: "suggestions", label: "Suggestions", type: "textarea" },
+      { name: "feedbackDate", label: "Feedback Date", type: "date" },
+      { name: "feedbackStatus", label: "Feedback Status", type: "select", options: ["Submitted", "Under Review", "Resolved"] },
+      { name: "remarks", label: "Remarks", type: "textarea" }
     ]
   },
   "11. Asset Management": {
@@ -311,6 +723,9 @@ export const hrSchemas = {
       { name: "brand", label: "Brand", type: "text" },
       { name: "model", label: "Model", type: "text" },
       { name: "serialNo", label: "Serial Number", type: "text" },
+      { name: "employee", label: "Allocated Employee", type: "select" },
+      { name: "empId", label: "Employee Code / ID", type: "text" },
+      { name: "department", label: "Department", type: "select", options: ["IT", "Software Engineering", "Operations", "Finance", "Human Resources", "Sales & Marketing"] },
       { name: "status", label: "Current Status", type: "select", options: ["Available", "Assigned", "Under Repair", "Scrapped"] }
     ]
   },
@@ -466,6 +881,88 @@ export const hrSchemas = {
       { name: "status", label: "Status", type: "text" },
       { name: "ip", label: "IP Address", type: "text" }
     ]
+  },
+  "Department Workspace": {
+    "Operation": [
+      { name: "deptCode", label: "Department Code", type: "text", required: true },
+      { name: "deptName", label: "Department Name", type: "text", required: true },
+      { name: "head", label: "Department Head", type: "text" },
+      { name: "parentDept", label: "Parent Department", type: "text" },
+      { name: "company", label: "Company", type: "text" },
+      { name: "branch", label: "Branch", type: "text" },
+      { name: "description", label: "Description", type: "textarea" },
+      { name: "status", label: "Status", type: "select", options: ["Active", "Inactive"] }
+    ],
+    "Sales": [
+      { name: "deptCode", label: "Department Code", type: "text", required: true },
+      { name: "deptName", label: "Department Name", type: "text", required: true },
+      { name: "head", label: "Department Head", type: "text" },
+      { name: "parentDept", label: "Parent Department", type: "text" },
+      { name: "company", label: "Company", type: "text" },
+      { name: "branch", label: "Branch", type: "text" },
+      { name: "description", label: "Description", type: "textarea" },
+      { name: "status", label: "Status", type: "select", options: ["Active", "Inactive"] }
+    ],
+    "Supporting": [
+      { name: "deptCode", label: "Department Code", type: "text", required: true },
+      { name: "deptName", label: "Department Name", type: "text", required: true },
+      { name: "head", label: "Department Head", type: "text" },
+      { name: "parentDept", label: "Parent Department", type: "text" },
+      { name: "company", label: "Company", type: "text" },
+      { name: "branch", label: "Branch", type: "text" },
+      { name: "description", label: "Description", type: "textarea" },
+      { name: "status", label: "Status", type: "select", options: ["Active", "Inactive"] }
+    ],
+    "Marketing": [
+      { name: "deptCode", label: "Department Code", type: "text", required: true },
+      { name: "deptName", label: "Department Name", type: "text", required: true },
+      { name: "head", label: "Department Head", type: "text" },
+      { name: "parentDept", label: "Parent Department", type: "text" },
+      { name: "company", label: "Company", type: "text" },
+      { name: "branch", label: "Branch", type: "text" },
+      { name: "description", label: "Description", type: "textarea" },
+      { name: "status", label: "Status", type: "select", options: ["Active", "Inactive"] }
+    ],
+    "Calim": [
+      { name: "deptCode", label: "Department Code", type: "text", required: true },
+      { name: "deptName", label: "Department Name", type: "text", required: true },
+      { name: "head", label: "Department Head", type: "text" },
+      { name: "parentDept", label: "Parent Department", type: "text" },
+      { name: "company", label: "Company", type: "text" },
+      { name: "branch", label: "Branch", type: "text" },
+      { name: "description", label: "Description", type: "textarea" },
+      { name: "status", label: "Status", type: "select", options: ["Active", "Inactive"] }
+    ],
+    "TI": [
+      { name: "deptCode", label: "Department Code", type: "text", required: true },
+      { name: "deptName", label: "Department Name", type: "text", required: true },
+      { name: "head", label: "Department Head", type: "text" },
+      { name: "parentDept", label: "Parent Department", type: "text" },
+      { name: "company", label: "Company", type: "text" },
+      { name: "branch", label: "Branch", type: "text" },
+      { name: "description", label: "Description", type: "textarea" },
+      { name: "status", label: "Status", type: "select", options: ["Active", "Inactive"] }
+    ],
+    "Account": [
+      { name: "deptCode", label: "Department Code", type: "text", required: true },
+      { name: "deptName", label: "Department Name", type: "text", required: true },
+      { name: "head", label: "Department Head", type: "text" },
+      { name: "parentDept", label: "Parent Department", type: "text" },
+      { name: "company", label: "Company", type: "text" },
+      { name: "branch", label: "Branch", type: "text" },
+      { name: "description", label: "Description", type: "textarea" },
+      { name: "status", label: "Status", type: "select", options: ["Active", "Inactive"] }
+    ],
+    "Enmentory": [
+      { name: "deptCode", label: "Department Code", type: "text", required: true },
+      { name: "deptName", label: "Department Name", type: "text", required: true },
+      { name: "head", label: "Department Head", type: "text" },
+      { name: "parentDept", label: "Parent Department", type: "text" },
+      { name: "company", label: "Company", type: "text" },
+      { name: "branch", label: "Branch", type: "text" },
+      { name: "description", label: "Description", type: "textarea" },
+      { name: "status", label: "Status", type: "select", options: ["Active", "Inactive"] }
+    ]
   }
 };
 
@@ -607,5 +1104,13 @@ export const initialHrData = {
   ],
   "Login History": [
     { id: 1, username: "rsharma", time: "2026-07-14 09:02 AM", status: "Success (2FA Verified)", ip: "192.168.1.45" }
-  ]
+  ],
+  "Operation": [],
+  "Sales": [],
+  "Supporting": [],
+  "Marketing": [],
+  "Calim": [],
+  "TI": [],
+  "Account": [],
+  "Enmentory": []
 };

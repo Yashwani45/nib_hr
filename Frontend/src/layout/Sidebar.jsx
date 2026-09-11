@@ -1,5 +1,9 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { Link, useLocation, useSearchParams } from "react-router-dom";
+import { useSelector, useDispatch } from "react-redux";
+import { setDbData } from "../redux/hrSlice";
+import { getTableData } from "../services/hrApi";
+import { useAuth } from "../auth/AuthProvider";
 import {
   HomeIcon,
   BuildingOffice2Icon,
@@ -8,29 +12,19 @@ import {
   ChatBubbleLeftRightIcon,
   ChevronDownIcon,
   ChevronRightIcon,
+  UserGroupIcon,
+  BriefcaseIcon,
+  CalendarDaysIcon,
+  BanknotesIcon,
+  ArrowRightOnRectangleIcon,
+  InboxStackIcon,
+  DocumentDuplicateIcon,
+  Cog6ToothIcon,
+  PresentationChartBarIcon,
+  CubeIcon,
+  DocumentTextIcon
 } from "@heroicons/react/24/outline";
-import nib from "../../public/NIB logo.webp";
-import short from "../../public/NIB short logo.jpg";
-
-const ConnectedNodesIcon = (props) => {
-  return (
-    <svg
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.5"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      {...props}
-    >
-      <rect x="3" y="3" width="18" height="18" rx="5" />
-      <circle cx="8" cy="16" r="2.5" fill="currentColor" />
-      <circle cx="16" cy="8" r="2.5" fill="currentColor" />
-      <line x1="9.4" y1="14.6" x2="14.6" y2="9.4" />
-    </svg>
-  );
-};
-
+import technoLogo from "../assets/shortlogo1.png";
 
 const PinIcon = ({ className, pinned }) => (
   <svg
@@ -52,8 +46,12 @@ const PinIcon = ({ className, pinned }) => (
 );
 
 const Sidebar = ({ isOpen, setIsOpen, isPinned, setIsPinned }) => {
+  const dispatch = useDispatch();
+  const { logout, user } = useAuth();
   const location = useLocation();
   const [searchParams] = useSearchParams();
+  const dbData = useSelector((state) => state.hr.dbData) || {};
+  const departmentsList = dbData.Department || [];
   const [openMenus, setOpenMenus] = useState(() => {
     try {
       const saved = localStorage.getItem("sidebar_open_menus");
@@ -68,88 +66,201 @@ const Sidebar = ({ isOpen, setIsOpen, isPinned, setIsPinned }) => {
     localStorage.setItem("sidebar_open_menus", JSON.stringify(openMenus));
   }, [openMenus]);
 
-  const menuItems = [
-    { path: "/", name: "Dashboard", icon: HomeIcon },
-    {
-      name: "Core & Setup",
-      categoryKey: "CORE",
-      icon: BuildingOffice2Icon,
-      children: [
-        { name: "Company", tab: "Company" },
-        { name: "Branch", tab: "Branch" },
-        { name: "Department", tab: "Department" },
-        { name: "Designation", tab: "Designation" },
-        // { name: "Business Unit", tab: "Business Unit" },
-        { name: "Cost Center", tab: "Cost Center" },
-        { name: "Reporting Hierarchy", tab: "Reporting Hierarchy" },
-        { name: "Organizational Chart", tab: "Organizational Chart" },
-        { name: "Employee Profile", tab: "Employee Profile" },
-        { name: "Asset Allocation", tab: "Asset Allocation" },
-      ],
-    },
-    {
-      name: "Talent & LMS",
-      categoryKey: "TALENT",
-      icon: AcademicCapIcon,
-      children: [
-        { name: "Job Requisition", tab: "Job Requisition" },
-        { name: "Candidate Database", tab: "Candidate Database" },
-        { name: "ATS (Applicant Tracking)", tab: "ATS (Applicant Tracking)" },
-        { name: "KPI & OKR", tab: "KPI & OKR" },
-        { name: "Performance Reviews", tab: "Performance Reviews" },
-        { name: "Courses", tab: "Courses" },
-        { name: "LMS Progress", tab: "LMS Progress" },
-      ],
-    },
-    {
-      name: "Operations & Assets",
-      categoryKey: "OPERATIONS",
-      icon: ClockIcon,
-      children: [
-        { name: "Daily Attendance", tab: "Daily Attendance" },
-        { name: "Shift Master", tab: "Shift Master" },
-        { name: "Leave Types", tab: "Leave Types" },
-        { name: "Leave Requests", tab: "Leave Requests" },
-        { name: "Inventory", tab: "Inventory" },
-      ],
-    },
-    {
-      name: "Finance & Compliance",
-      categoryKey: "FINANCE",
-      icon: ConnectedNodesIcon,
-      children: [
-        { name: "Salary Structure", tab: "Salary Structure" },
-        { name: "Incentives & Claims", tab: "Incentives & Claims" },
-        { name: "PF Registry", tab: "PF Registry" },
-        { name: "Tax Declarations", tab: "Tax Declarations" },
-        { name: "Expense Claims", tab: "Expense Claims" },
-        { name: "Exit Logs", tab: "Exit Logs" },
-        { name: "Approvals Pending", tab: "Approvals Pending" },
-      ],
-    },
-    {
-      name: "Support & Engagement",
-      categoryKey: "SUPPORT",
-      icon: ChatBubbleLeftRightIcon,
-      children: [
-        { name: "Document Log", tab: "Document Log" },
-        { name: "Announcements & Surveys", tab: "Announcements & Surveys" },
-        { name: "HR Tickets", tab: "HR Tickets" },
-        { name: "Complaint Management", tab: "Complaint Management" },
-        { name: "Query Resolution", tab: "Query Resolution" },
-        { name: "Service Requests", tab: "Service Requests" },
-        { name: "Ticket Tracking", tab: "Ticket Tracking" },
-        { name: "Logs", tab: "Logs" },
-        { name: "Email Notifications", tab: "Email Notifications" },
-        { name: "SMS Notifications", tab: "SMS Notifications" },
-        { name: "Push Notifications", tab: "Push Notifications" },
-        { name: "Approval Alerts", tab: "Approval Alerts" },
-        { name: "RBAC Roles", tab: "RBAC Roles" },
-        { name: "Audit Logs", tab: "Audit Logs" },
-        { name: "Login History", tab: "Login History" },
-      ],
-    },
-  ];
+  // Load department table if not populated yet
+  useEffect(() => {
+    if (!departmentsList || departmentsList.length === 0) {
+      getTableData("department").then((data) => {
+        if (data && Array.isArray(data) && data.length > 0) {
+          dispatch(setDbData({ ...dbData, Department: data }));
+        }
+      }).catch(err => console.error("Error loading departments in sidebar:", err));
+    }
+  }, [dispatch]);
+
+  const menuItems = useMemo(() => {
+    return [
+      { path: "/admin/dashboard", name: "Dashboard Overview", icon: HomeIcon },
+      {
+        name: "Organization Setup",
+        categoryKey: "ORG_SETUP",
+        icon: BuildingOffice2Icon,
+        children: [
+          { name: "Company", tab: "Company" },
+          { name: "Branch", tab: "Branch" },
+          { name: "Department", tab: "Department" },
+          { name: "Designation Master", tab: "Designation" }
+        ]
+      },
+      {
+        name: "Employee Management",
+        categoryKey: "EMPLOYEE_MGMT",
+        icon: UserGroupIcon,
+        children: [
+          { name: "Employee Dashboard", tab: "Employee Dashboard" },
+          { name: "Add Employee", tab: "Add Employee" },
+          { name: "Fill Details", tab: "Employee Profile" },
+          { name: "Documents", tab: "Document Log" },
+          { name: "Assets", tab: "Asset Allocation" },
+          { name: "Bank Details", tab: "Bank Details" },
+          { name: "Salary Details", tab: "Salary Structure" },
+          { name: "Reporting Manager", tab: "Reporting Hierarchy" }
+        ]
+      },
+      {
+        name: "Recruitment & Onboarding",
+        categoryKey: "RECRUITMENT",
+        icon: BriefcaseIcon,
+        children: [
+          { name: "Dashboard", tab: "Recruitment Dashboard" },
+          { name: "Job Requisition", tab: "Job Requisition" },
+          { name: "Job Posting", tab: "Job Posting" },
+          { name: "Candidate Database", tab: "Candidate Database" },
+          { name: "ATS", tab: "ATS (Applicant Tracking)" },
+          { name: "Interview", tab: "Interview" },
+          { name: "Offer Letter", tab: "Offer Letter" },
+          { name: "Onboarding", tab: "Onboarding" },
+          { name: "Joining", tab: "Joining" }
+        ]
+      },
+      {
+        name: "Attendance",
+        categoryKey: "ATTENDANCE",
+        icon: ClockIcon,
+        children: [
+          { name: "Dashboard", tab: "Attendance Dashboard" },
+          { name: "Daily Attendance", tab: "Daily Attendance" },
+          { name: "Monthly Attendance", tab: "Monthly Attendance" },
+          { name: "Shift Management", tab: "Shift Master" },
+          { name: "Biometric", tab: "Biometric" },
+          { name: "Attendance Regularization", tab: "Attendance Regularization" },
+          { name: "Overtime Master", tab: "Overtime" },
+          { name: "Reports", tab: "Reports" }
+        ]
+      },
+      {
+        name: "Leave Management",
+        categoryKey: "LEAVE_MGMT",
+        icon: CalendarDaysIcon,
+        children: [
+          { name: "Leave Type Master", tab: "Leave Types" },
+          { name: "Holiday Master", tab: "Holiday Calendar" },
+          { name: "Leave Request", tab: "Leave Requests" },
+          { name: "Leave Approval", tab: "Approvals Pending" },
+          { name: "Leave Balance", tab: "Leave Balance" },
+          { name: "Reports", tab: "Reports" }
+        ]
+      },
+      {
+        name: "Payroll",
+        categoryKey: "PAYROLL",
+        icon: BanknotesIcon,
+        children: [
+          { name: "Payroll Process", tab: "Payroll Process" },
+          { name: "Payslip", tab: "Payslip" },
+          { name: "Loan Management", tab: "Loan Management" },
+          { name: "ESI Management", tab: "ESI Management" },
+          { name: "Professional Tax (PT)", tab: "Professional Tax (PT)" },
+          { name: "Reports", tab: "Reports" },
+          { name: "Salary Structure", tab: "Salary Structure" }
+        ]
+      },
+      {
+        name: "Performance",
+        categoryKey: "PERFORMANCE",
+        icon: PresentationChartBarIcon,
+        children: [
+          { name: "Dashboard", tab: "Performance Dashboard" },
+          { name: "Performance Master", tab: "Performance Reviews" },
+          { name: "KPI", tab: "KPI & OKR" },
+          { name: "Goals", tab: "Goals" },
+          { name: "Appraisal", tab: "Performance Reviews" },
+          { name: "Promotion", tab: "Promotion" },
+          { name: "Increment", tab: "Increment" },
+          { name: "Reports", tab: "Reports" }
+        ]
+      },
+      {
+        name: "Learning",
+        categoryKey: "LEARNING",
+        icon: AcademicCapIcon,
+        children: [
+          { name: "Dashboard", tab: "Learning Dashboard" }
+        ]
+      },
+      {
+        name: "Asset Management",
+        categoryKey: "ASSET_MGMT",
+        icon: BuildingOffice2Icon,
+        children: [
+          { name: "Dashboard", tab: "Asset Dashboard" },
+          { name: "Asset List", tab: "Inventory" },
+          { name: "Asset Allocation", tab: "Asset Allocation" },
+          { name: "Asset Return", tab: "Asset Return" },
+          { name: "Asset History", tab: "Asset History" },
+          { name: "Maintenance", tab: "Maintenance" },
+          { name: "Reports", tab: "Reports" }
+        ]
+      },
+      {
+        name: "Document Management",
+        categoryKey: "DOCUMENT_MGMT",
+        icon: DocumentDuplicateIcon,
+        children: [
+          { name: "Letter Workspace", tab: "Letter Workspace" }
+        ]
+      },
+      {
+        name: "Exit Management",
+        categoryKey: "EXIT_MGMT",
+        icon: ArrowRightOnRectangleIcon,
+        children: [
+          { name: "Dashboard", tab: "Exit Dashboard" }
+        ]
+      },
+      {
+        name: "Workflow & Approval",
+        categoryKey: "WORKFLOW",
+        icon: InboxStackIcon,
+        children: [
+          { name: "Dashboard", tab: "Workflow Dashboard" }
+        ]
+      },
+      {
+        name: "Helpdesk",
+        categoryKey: "HELPDESK",
+        icon: ChatBubbleLeftRightIcon,
+        children: [
+          { name: "Dashboard", tab: "Helpdesk Dashboard" }
+        ]
+      },
+      {
+        name: "Reports",
+        categoryKey: "REPORTS",
+        icon: PresentationChartBarIcon,
+        children: [
+          { name: "Dashboard", tab: "Reports Dashboard" }
+        ]
+      },
+      {
+        name: "Settings",
+        categoryKey: "SETTINGS",
+        icon: Cog6ToothIcon,
+        children: [
+          { name: "Dashboard", tab: "Settings Dashboard" },
+          { name: "Company Settings", tab: "Company Settings" },
+          { name: "Attendance Settings", tab: "Attendance Settings" },
+          { name: "Leave Settings", tab: "Leave Settings" },
+          { name: "Payroll Settings", tab: "Payroll Settings" },
+          { name: "Shift Settings", tab: "Shift Settings" },
+          { name: "Notification Settings", tab: "Notification Settings" },
+          { name: "Email Templates", tab: "Email Templates" },
+          { name: "Document Templates", tab: "Document Templates" },
+          { name: "Security", tab: "Security" },
+          { name: "Audit Logs", tab: "Audit Logs" }
+        ]
+      }
+    ];
+  }, []);
 
   // Auto-expand category accordions on mount or query updates
   useEffect(() => {
@@ -160,7 +271,7 @@ const Sidebar = ({ isOpen, setIsOpen, isPinned, setIsPinned }) => {
         setOpenMenus((prev) => ({ ...prev, [match.name]: true }));
       }
     }
-  }, [searchParams]);
+  }, [searchParams, menuItems]);
 
   const toggleMenu = (name) => {
     setOpenMenus((prev) => ({
@@ -175,6 +286,10 @@ const Sidebar = ({ isOpen, setIsOpen, isPinned, setIsPinned }) => {
     }
   };
 
+  const activeMenuItems = useMemo(() => {
+    return menuItems;
+  }, [menuItems]);
+
   return (
     <aside
       onMouseEnter={() => setIsOpen(true)}
@@ -183,85 +298,90 @@ const Sidebar = ({ isOpen, setIsOpen, isPinned, setIsPinned }) => {
           setIsOpen(false);
         }
       }}
-      className={`fixed left-0 top-0 h-screen bg-white shadow-lg z-30 transition-all duration-300 overflow-hidden border-r flex flex-col ${
+      className={`fixed left-0 top-0 h-screen bg-white shadow-lg z-30 transition-all duration-300 overflow-hidden border-r border-gray-100 flex flex-col ${
         isOpen
           ? "w-64 translate-x-0"
           : "w-64 -translate-x-full lg:w-20 lg:translate-x-0"
       }`}
     >
-      {/* Logo Section with Image - Using standard img tag for React */}
-      <div className="h-20 flex items-center justify-center border-b px-3 shrink-0">
-        {isOpen ? (
+      {/* 1. Header Brand Section with Diamond Logo + Solid TechnoVani Text */}
+      <div
+        className={`h-16 flex items-center border-b border-gray-100 shrink-0 transition-all duration-300 ${
+          isOpen ? "px-5 justify-start" : "px-0 justify-center"
+        }`}
+      >
+        <Link to="/" className="flex items-center gap-2.5 min-w-0">
           <img 
-            src={nib} 
-            alt="NIB HR Logo" 
-            className="h-16 w-auto max-w-full object-contain"
+            src={technoLogo} 
+            alt="TechnoVani" 
+            className="h-9 w-9 object-contain shrink-0"
           />
-        ) : (
-          <img 
-            src={short} 
-            alt="NIB HR" 
-            className="h-12 w-auto max-w-full object-contain"
-          />
-        )}
+          {isOpen && (
+            <span className="text-xl font-bold tracking-tight text-slate-900 whitespace-nowrap truncate select-none">
+              TechnoVani
+            </span>
+          )}
+        </Link>
       </div>
 
-      <nav className={`flex-1 p-2 ${isOpen ? "space-y-1.5" : "space-y-4"} overflow-y-auto max-h-[calc(100vh-5rem)] scrollbar-thin scrollbar-thumb-slate-300`}>
-        {menuItems.map((item) => {
+      {/* 2. Menu Navigation */}
+      <nav className={`flex-1 p-2 ${isOpen ? "space-y-1" : "space-y-2"} overflow-y-auto max-h-[calc(100vh-4rem)] scrollbar-thin scrollbar-thumb-slate-200`}>
+        {activeMenuItems.map((item) => {
           const Icon = item.icon;
 
           if (!item.children) {
-            // Dashboard link
+            // Single Link (Dashboard Overview)
             const active = location.pathname === item.path;
             return (
               <Link
                 key={item.path}
                 to={item.path}
                 onClick={closeOnMobile}
+                title={!isOpen ? item.name : undefined}
                 className={
                   isOpen
-                    ? `flex items-center gap-3 px-3 py-2.5 rounded-lg font-bold text-sm transition group relative ${
+                    ? `w-full flex items-center justify-between gap-3 px-3 py-2.5 rounded-lg font-medium text-sm transition-all duration-150 group relative ${
                         active
-                          ? "bg-blue-600 text-white shadow-sm"
-                          : "text-gray-700 hover:bg-blue-50 hover:text-blue-600"
+                          ? "bg-blue-50 text-blue-600 font-semibold shadow-sm"
+                          : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"
                       }`
                     : `w-12 h-12 mx-auto flex items-center justify-center rounded-xl transition ${
                         active
-                          ? "bg-gradient-to-b from-blue-600 to-blue-500 text-white shadow-md"
-                          : "text-gray-700 hover:bg-blue-50 hover:text-blue-600"
+                          ? "bg-blue-50 text-blue-600 shadow-sm"
+                          : "hover:bg-blue-50/50 text-slate-700"
                       }`
                 }
               >
-                <Icon
-                  className={`w-6 h-6 shrink-0 ${
-                    active ? "sidebar-icon-active" : "sidebar-icon-inactive"
-                  }`}
-                />
-                {isOpen && (
+                {isOpen ? (
                   <>
-                    <span className="whitespace-nowrap overflow-hidden transition-all duration-300">
-                      {item.name}
-                    </span>
+                    <div className="flex items-center gap-3 min-w-0">
+                      <Icon className="w-6 h-6 shrink-0 sidebar-icon-inactive" />
+                      <span className="whitespace-nowrap overflow-hidden transition-all duration-300 truncate">
+                        {item.name}
+                      </span>
+                    </div>
                     <button
                       onClick={(e) => {
                         e.preventDefault();
                         e.stopPropagation();
                         setIsPinned(!isPinned);
                       }}
-                      className={`ml-auto p-1 rounded transition-all ${
+                      className={`ml-auto p-1 rounded transition-all shrink-0 ${
                         active
                           ? isPinned
-                            ? "text-blue-200 hover:bg-blue-700 hover:text-white"
-                            : "text-blue-200 opacity-0 group-hover:opacity-100 hover:bg-blue-700 hover:text-white"
+                            ? "text-blue-600 hover:bg-blue-100"
+                            : "text-blue-400 opacity-0 group-hover:opacity-100 hover:bg-blue-100 hover:text-blue-700"
                           : isPinned
-                            ? "text-blue-600 hover:bg-blue-50"
-                            : "text-gray-400 opacity-0 group-hover:opacity-100 hover:bg-gray-100 hover:text-gray-600"
+                            ? "text-slate-600 hover:bg-slate-200"
+                            : "text-slate-400 opacity-0 group-hover:opacity-100 hover:bg-slate-200 hover:text-slate-700"
                       }`}
                       title={isPinned ? "Unpin Sidebar" : "Pin Sidebar"}
                     >
                       <PinIcon pinned={isPinned} className="w-4 h-4" />
                     </button>
                   </>
+                ) : (
+                  <Icon className="w-6 h-6 shrink-0 sidebar-icon-inactive" />
                 )}
               </Link>
             );
@@ -269,80 +389,87 @@ const Sidebar = ({ isOpen, setIsOpen, isPinned, setIsPinned }) => {
 
           // Category accordion links
           const isCategoryExpanded = !!openMenus[item.name] && isOpen;
-          const isCategoryActive =
-            location.pathname === "/hr-hub" &&
-            searchParams.get("category") === item.categoryKey;
+          const isCategoryActive = location.pathname === "/hr-hub" && searchParams.get("category") === item.categoryKey;
 
           return (
-            <div key={item.name} className="space-y-1">
+            <div key={item.name} className="space-y-0.5">
               <button
                 onClick={() => {
                   if (!isOpen) setIsOpen(true);
                   toggleMenu(item.name);
                 }}
+                title={!isOpen ? item.name : undefined}
                 className={
                   isOpen
-                    ? `w-full flex items-center justify-between gap-3 px-3 py-2.5 rounded-lg font-bold text-sm transition ${
+                    ? `w-full flex items-center justify-between gap-3 px-3 py-2.5 rounded-lg font-medium text-sm transition-all duration-150 ${
                         isCategoryActive
-                          ? "bg-blue-50 text-blue-700"
-                          : "text-gray-700 hover:bg-blue-50/50 hover:text-blue-600"
+                          ? "bg-blue-50 text-blue-600 font-semibold shadow-sm"
+                          : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"
                       }`
                     : `w-12 h-12 mx-auto flex items-center justify-center rounded-xl transition ${
                         isCategoryActive
-                          ? "bg-gradient-to-b from-blue-600 to-blue-500 text-white shadow-md"
-                          : "text-gray-700 hover:bg-blue-50/50 hover:text-blue-600"
+                          ? "bg-blue-50 text-blue-600 shadow-sm"
+                          : "hover:bg-blue-50/50 text-slate-700"
                       }`
                 }
               >
                 {isOpen ? (
                   <>
-                    <div className="flex items-center gap-3">
-                      <Icon
-                        className="w-6 h-6 shrink-0 sidebar-icon-inactive"
-                      />
-                      <span className="whitespace-nowrap overflow-hidden transition-all duration-300 text-left">
+                    <div className="flex items-center gap-3 min-w-0">
+                      <Icon className="w-6 h-6 shrink-0 sidebar-icon-inactive" />
+                      <span className="whitespace-nowrap overflow-hidden transition-all duration-300 text-left truncate">
                         {item.name}
                       </span>
                     </div>
-                    <span className="text-gray-400">
+                    <span className="text-slate-400 shrink-0 ml-1">
                       {isCategoryExpanded ? (
-                        <ChevronDownIcon className="w-3.5 h-3.5" />
+                        <ChevronDownIcon className="w-4 h-4" />
                       ) : (
-                        <ChevronRightIcon className="w-3.5 h-3.5" />
+                        <ChevronRightIcon className="w-4 h-4" />
                       )}
                     </span>
                   </>
                 ) : (
-                  <Icon
-                    className={`w-6 h-6 shrink-0 ${
-                      isCategoryActive ? "sidebar-icon-active" : "sidebar-icon-inactive"
-                    }`}
-                  />
+                  <Icon className="w-6 h-6 shrink-0 sidebar-icon-inactive" />
                 )}
               </button>
 
-              {/* Sub-items list nested under expanded accordion - ENLARGED VERSION */}
+              {/* Sub-items list nested under expanded accordion */}
               {isCategoryExpanded && (
-                <div className="pl-4 pr-2 py-2 space-y-1.5 border-l border-blue-100 ml-5 bg-slate-50/50 rounded-lg">
+                <div className="pl-3 pr-1 py-1 space-y-0.5 border-l-2 border-slate-100 ml-5">
                   {item.children.map((child) => {
-                    const isChildActive =
-                      location.pathname === "/hr-hub" &&
-                      searchParams.get("category") === item.categoryKey &&
-                      searchParams.get("tab") === child.tab;
+                    if (child.name === "Logout") {
+                      return (
+                        <button
+                          key={child.name}
+                          onClick={() => {
+                            closeOnMobile();
+                            logout();
+                          }}
+                          className="w-full block text-left px-3 py-1.5 rounded-md text-xs font-medium transition text-rose-500 hover:bg-rose-50 hover:text-rose-700"
+                        >
+                          • {child.name}
+                        </button>
+                      );
+                    }
 
-                    const childPath = `/hr-hub?category=${item.categoryKey}&tab=${encodeURIComponent(
-                      child.tab
-                    )}`;
+                    const isChildActive = location.pathname === "/hr-hub" &&
+                      searchParams.get("category") === item.categoryKey &&
+                      (searchParams.get("tab") === (child.tab || child.name) || (!searchParams.get("tab") && item.children[0]?.tab === (child.tab || child.name)));
+
+                    const childPath = child.path 
+                      ? child.path 
+                      : `/hr-hub?category=${item.categoryKey}&tab=${encodeURIComponent(child.tab || child.name)}`;
 
                     return (
                       <Link
                         key={child.name}
                         to={childPath}
                         onClick={closeOnMobile}
-                        className={`block text-left px-3 py-2.5 rounded text-sm font-semibold transition ${
+                        className={`block text-left px-3 py-1.5 rounded-md text-xs transition-colors ${
                           isChildActive
-                            ? "text-blue-600 bg-blue-100/50 font-black"
-                            : "text-gray-500 hover:text-gray-900 hover:bg-gray-100/50"
+                            ? "text-blue-600 bg-blue-50/90 font-semibold"
+                            : "text-slate-500 hover:text-slate-900 hover:bg-slate-50"
                         }`}
                       >
                         • {child.name}
@@ -357,13 +484,13 @@ const Sidebar = ({ isOpen, setIsOpen, isPinned, setIsPinned }) => {
       </nav>
 
       {/* Gradients definition for sidebar icons */}
-      <svg className="absolute w-0 h-0 pointer-events-none" aria-hidden="true" width="0" height="0">
+      <svg className="absolute w-0 h-0 pointer-events-none overflow-hidden" aria-hidden="true" width="0" height="0">
         <defs>
-          <linearGradient id="active-icon-grad" x1="0%" y1="0%" x2="0%" y2="100%">
-            <stop offset="0%" stopColor="#ffffff" />
-            <stop offset="100%" stopColor="#93c5fd" />
+          <linearGradient id="active-icon-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" stopColor="#2563eb" />
+            <stop offset="100%" stopColor="#38bdf8" />
           </linearGradient>
-          <linearGradient id="inactive-icon-grad" x1="0%" y1="0%" x2="0%" y2="100%">
+          <linearGradient id="inactive-icon-grad" x1="0%" y1="0%" x2="100%" y2="100%">
             <stop offset="0%" stopColor="#2563eb" />
             <stop offset="100%" stopColor="#38bdf8" />
           </linearGradient>

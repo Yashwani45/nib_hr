@@ -55,7 +55,7 @@ const Modal = ({
             </button>
           )}
         </div>
-        <div className="p-4">{children}</div>
+        <div className="p-4 overflow-y-auto max-h-[70vh]">{children}</div>
         {footer && <div className="p-4 border-t bg-gray-50">{footer}</div>}
       </div>
     </div>

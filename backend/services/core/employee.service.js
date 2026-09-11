@@ -5,16 +5,30 @@ const { Op } = require('sequelize');
 
 class EmployeeService {
   async createEmployee(data, executorId) {
-    const existing = await employeeRepository.findOne({ empCode: data.empCode });
-    if (existing) {
-      throw new ApiError(400, `Employee code ${data.empCode} is already assigned.`);
+    if (data.email) {
+      const existing = await employeeRepository.findOne({ email: data.email });
+      if (existing) {
+        throw new ApiError(400, `Email ${data.email} is already assigned.`);
+      }
     }
 
     const payload = {
       ...data,
       createdBy: executorId,
     };
-    return await employeeRepository.create(payload);
+    const employee = await employeeRepository.create(payload);
+
+    // Auto-scaffold employee record inside Company/[Company]/[Department]/Employee/index.js
+    try {
+      const { scaffoldEmployeeRecord } = require('../../utils/companyFolderScaffolder');
+      const deptName = data.departmentName || data.department || 'General';
+      const companyCode = data.companyCode || 'NIB';
+      scaffoldEmployeeRecord(companyCode, deptName, employee);
+    } catch (scaffoldErr) {
+      console.warn('[Employee Scaffold Notice]', scaffoldErr.message);
+    }
+
+    return employee;
   }
 
   async getEmployeeById(id) {
@@ -62,10 +76,9 @@ class EmployeeService {
     if (search) {
       queryOptions.where = {
         [Op.or]: [
-          { firstName: { [Op.like]: `%${search}%` } },
-          { lastName: { [Op.like]: `%${search}%` } },
-          { empCode: { [Op.like]: `%${search}%` } },
-          { companyEmail: { [Op.like]: `%${search}%` } },
+          { employeeName: { [Op.like]: `%${search}%` } },
+          { email: { [Op.like]: `%${search}%` } },
+          { department: { [Op.like]: `%${search}%` } },
         ],
       };
     }

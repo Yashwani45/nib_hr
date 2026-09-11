@@ -4,21 +4,26 @@ const { sequelize } = require('../../config/database');
 
 const Permission = sequelize.define('Permission', {
   id: {
-    type: DataTypes.INTEGER,
-    autoIncrement: true,
+    type: DataTypes.UUID,
+    defaultValue: DataTypes.UUIDV4,
     primaryKey: true,
   },
-  name: {
+  module: {
     type: DataTypes.STRING,
     allowNull: false,
-    unique: true,
+  },
+  action: {
+    type: DataTypes.STRING,
+    allowNull: false,
   },
   description: {
     type: DataTypes.TEXT,
   },
 }, {
   tableName: 'permissions',
-  timestamps: false,
+  timestamps: true,
+  createdAt: 'created_at',
+  updatedAt: false,
 });
 
 module.exports = Permission;

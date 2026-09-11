@@ -1,84 +1,169 @@
-import React from "react";
+import React, { useState } from "react";
+import { ClockIcon, UserIcon, BriefcaseIcon, CalendarIcon } from "@heroicons/react/24/outline";
 
 const ATSApplicantTracking = ({ records = [], handleAtsMove, hideList }) => {
-  const stages = ["Screening", "Interview", "Selection", "Offered", "Hired"];
+  const stages = [
+    "Applied",
+    "Screening",
+    "Shortlisted",
+    "Interview",
+    "Selected",
+    "Offer",
+    "Offer Accepted",
+    "Onboarding",
+    "Joined"
+  ];
+
+  const [draggedCard, setDraggedCard] = useState(null);
+  const [historyLog, setHistoryLog] = useState({}); // Stores dummy/real history of stage movements
+
+  const handleDragStart = (e, app) => {
+    setDraggedCard(app);
+    e.dataTransfer.effectAllowed = "move";
+  };
+
+  const handleDragOver = (e) => {
+    e.preventDefault();
+  };
+
+  const handleDrop = async (e, targetStage) => {
+    e.preventDefault();
+    if (!draggedCard) return;
+    
+    const sourceStage = draggedCard.stage || "Applied";
+    if (sourceStage === targetStage) return;
+
+    // Call the parent update callback
+    if (handleAtsMove) {
+      await handleAtsMove(draggedCard.appId, draggedCard.id, targetStage);
+    }
+
+    // Log to history locally
+    const timestamp = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    const logEntry = `Moved from ${sourceStage} to ${targetStage} at ${timestamp}`;
+    
+    setHistoryLog(prev => ({
+      ...prev,
+      [draggedCard.id]: [...(prev[draggedCard.id] || []), logEntry]
+    }));
+
+    setDraggedCard(null);
+  };
 
   return (
     <div className="space-y-6">
-      {/* Kanban Pipeline Section */}
-      <div className="p-5 border border-amber-100 bg-amber-50/20 rounded-xl">
-        <h3 className="text-sm font-bold text-amber-900 mb-3">Kanban Applicant Pipeline</h3>
-        <div className="grid grid-cols-1 md:grid-cols-5 gap-3">
-          {stages.map(stage => {
-            const stageCandidates = records.filter(app => app.stage === stage);
-            return (
-              <div key={stage} className="bg-gray-100/70 border rounded-lg p-3 min-h-[180px] flex flex-col">
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-xs font-bold text-gray-700">{stage}</span>
-                  <span className="bg-gray-200 text-gray-700 text-[10px] px-1.5 py-0.5 rounded-full font-bold">
+      {/* Kanban Pipeline Header */}
+      <div className="bg-white p-4 rounded-2xl border border-slate-100 shadow-3xs">
+        <h3 className="text-sm font-black text-slate-800">ATS Kanban Pipeline</h3>
+        <p className="text-[10px] font-bold text-slate-400 mt-0.5">
+          Drag and drop candidates across stages to update recruitment status and log movement history
+        </p>
+      </div>
+
+      {/* Kanban Board Container */}
+      <div className="flex gap-4 overflow-x-auto pb-4 pt-1 px-1 scrollbar-thin select-none">
+        {stages.map((stage) => {
+          // Filter records by stage name case-insensitively or exactly
+          const stageCandidates = records.filter(
+            (app) => String(app.stage || "Applied").toLowerCase().trim() === stage.toLowerCase().trim()
+          );
+
+          return (
+            <div
+              key={stage}
+              onDragOver={handleDragOver}
+              onDrop={(e) => handleDrop(e, stage)}
+              className="bg-slate-50/50 border border-slate-150 rounded-2xl p-4 w-[280px] shrink-0 min-h-[500px] flex flex-col justify-between"
+            >
+              {/* Column Header */}
+              <div className="mb-4">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-black text-slate-700 tracking-wide">{stage}</span>
+                  <span className="bg-indigo-50 border border-indigo-100 text-indigo-700 text-[10px] px-2 py-0.5 rounded-full font-black">
                     {stageCandidates.length}
                   </span>
                 </div>
-                <div className="space-y-2 flex-1">
-                  {stageCandidates.map(c => (
-                    <div key={c.id} className="bg-white border rounded p-2.5 shadow-sm text-xs space-y-2">
-                      <div className="font-semibold text-gray-900">{c.candidate}</div>
-                      <div className="text-[10px] text-gray-500">{c.jobPosting}</div>
-                      <div className="flex items-center justify-between pt-1">
-                        <span className="text-[10px] text-blue-600 font-bold">⭐ {c.rating}/5</span>
-                        <select
-                          value={c.stage}
-                          onChange={(e) => handleAtsMove(c.appId, c.id, e.target.value)}
-                          className="text-[9px] border bg-gray-50 rounded px-1 py-0.5 focus:outline-none"
-                        >
-                          <option value="Screening">Move Screen</option>
-                          <option value="Interview">Move Interview</option>
-                          <option value="Selection">Move Select</option>
-                          <option value="Offered">Move Offer</option>
-                          <option value="Hired">Move Hire</option>
-                        </select>
-                      </div>
-                    </div>
-                  ))}
-                  {stageCandidates.length === 0 && (
-                    <div className="text-[10px] text-gray-400 text-center py-6 border border-dashed rounded bg-white/40">
-                      Empty
-                    </div>
-                  )}
-                </div>
+                <div className="h-1 bg-indigo-500 rounded-full mt-2 w-full"></div>
               </div>
-            );
-          })}
-        </div>
-      </div>
 
-      {/* Main Grid View */}
-      {!hideList && (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {records.map((item) => (
-            <div key={item.id} className="border border-gray-200/80 rounded-2xl p-5 bg-white shadow-sm flex flex-col justify-between space-y-3">
-              <div className="flex justify-between items-center border-b pb-2">
-                <span className="font-bold text-xs text-gray-800">Application ID: {item.appId || `#${item.id}`}</span>
-                <span className="px-2 py-0.5 bg-indigo-50 text-indigo-700 border border-indigo-100 rounded text-[9px] font-bold">
-                  {item.stage || "Screening"}
-                </span>
-              </div>
-              <div className="grid grid-cols-2 gap-2 text-[11px] pt-1">
-                {Object.entries(item)
-                  .filter(([key]) => key !== "id" && key !== "status" && key !== "created_at" && key !== "updated_at")
-                  .map(([key, val]) => (
-                    <div key={key} className="space-y-0.5 truncate">
-                      <span className="text-gray-400 uppercase tracking-wider text-[8px] font-semibold">
-                        {key.replace(/([A-Z])/g, " $1").trim()}
-                      </span>
-                      <p className="font-bold text-gray-800 truncate">{String(val || "--")}</p>
+              {/* Cards Container */}
+              <div className="space-y-3 flex-1 overflow-y-auto">
+                {stageCandidates.map((c) => {
+                  const id = c.id;
+                  const candidateName = c.candidate || c.candidateName || `${c.firstName || ""} ${c.lastName || ""}`.trim() || "Candidate";
+                  const jobTitle = c.jobPosting || c.jobTitle || "Web Developer";
+                  const experience = c.experience || "2 Years";
+                  const skills = c.skills || "React, JavaScript";
+                  const appliedDate = c.appliedDate || c.applicationDate || "10/08/2026";
+                  const rating = c.rating || 4;
+                  const history = historyLog[id] || [];
+
+                  return (
+                    <div
+                      key={id}
+                      draggable
+                      onDragStart={(e) => handleDragStart(e, c)}
+                      className="bg-white border border-slate-150 rounded-xl p-3.5 shadow-3xs hover:shadow-2xs transition duration-200 cursor-grab active:cursor-grabbing space-y-3 hover:border-indigo-400"
+                    >
+                      {/* Name & Rating */}
+                      <div className="flex justify-between items-start">
+                        <div className="font-extrabold text-slate-800 text-xs truncate max-w-[140px]">
+                          {candidateName}
+                        </div>
+                        <span className="bg-amber-50 text-amber-700 border border-amber-100 text-[9px] px-1.5 py-0.5 rounded-md font-black">
+                          ⭐ {rating}/5
+                        </span>
+                      </div>
+
+                      {/* Details list */}
+                      <div className="space-y-1.5 text-[10px] text-slate-500 font-semibold">
+                        <div className="flex items-center gap-1">
+                          <BriefcaseIcon className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                          <span className="truncate">{jobTitle} • {experience} exp</span>
+                        </div>
+                        <div className="flex items-center gap-1">
+                          <CalendarIcon className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                          <span>Applied on {appliedDate}</span>
+                        </div>
+                      </div>
+
+                      {/* Skills tags */}
+                      <div className="flex flex-wrap gap-1">
+                        {skills.split(",").slice(0, 3).map((tag, index) => (
+                          <span
+                            key={index}
+                            className="bg-slate-50 border border-slate-200 text-slate-500 text-[9px] px-1.5 py-0.5 rounded font-bold"
+                          >
+                            {tag.trim()}
+                          </span>
+                        ))}
+                      </div>
+
+                      {/* Stage History logs */}
+                      {history.length > 0 && (
+                        <div className="pt-2 border-t border-slate-100 space-y-1 text-[8px] font-bold text-slate-400">
+                          <span className="uppercase tracking-wider flex items-center gap-0.5 text-indigo-500">
+                            <ClockIcon className="w-2.5 h-2.5" /> Stage History:
+                          </span>
+                          {history.map((log, idx) => (
+                            <p key={idx} className="truncate">{log}</p>
+                          ))}
+                        </div>
+                      )}
                     </div>
-                  ))}
+                  );
+                })}
+
+                {stageCandidates.length === 0 && (
+                  <div className="text-[10px] text-slate-400 text-center py-10 border-2 border-dashed border-slate-150 rounded-xl bg-slate-50/20">
+                    Drag candidates here
+                  </div>
+                )}
               </div>
             </div>
-          ))}
-        </div>
-      )}
+          );
+        })}
+      </div>
     </div>
   );
 };

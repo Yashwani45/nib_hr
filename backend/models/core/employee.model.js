@@ -4,54 +4,59 @@ const { sequelize } = require('../../config/database');
 
 const Employee = sequelize.define('Employee', {
   id: {
-    type: DataTypes.INTEGER,
-    autoIncrement: true,
+    type: DataTypes.UUID,
+    defaultValue: DataTypes.UUIDV4,
     primaryKey: true,
   },
-  empCode: {
+  employeeName: {
     type: DataTypes.STRING,
-    allowNull: false,
+    allowNull: true,
+    field: 'employee_name',
+  },
+  email: {
+    type: DataTypes.STRING,
+    allowNull: true,
+
     unique: true,
+
   },
-  firstName: {
+  password: {
     type: DataTypes.STRING,
-    allowNull: false,
+    allowNull: true,
   },
-  lastName: DataTypes.STRING,
-  gender: DataTypes.STRING,
-  dob: DataTypes.STRING,
-  maritalStatus: DataTypes.STRING,
-  nationality: DataTypes.STRING,
-  employmentStatus: {
+  department: {
     type: DataTypes.STRING,
-    defaultValue: 'Active',
+    allowNull: true,
   },
-  employmentType: DataTypes.STRING,
-  joiningDate: DataTypes.STRING,
-  department: DataTypes.STRING,
-  departmentId: DataTypes.INTEGER, // association helper
-  designation: DataTypes.STRING,
-  manager: DataTypes.STRING,
-  managerId: DataTypes.INTEGER, // association helper
-  branch: DataTypes.STRING,
-  branchId: DataTypes.INTEGER, // association helper
-  shift: DataTypes.STRING,
-  companyEmail: DataTypes.STRING,
-  personalEmail: DataTypes.STRING,
-  phone: DataTypes.STRING,
-  bankName: DataTypes.STRING,
-  accountNo: DataTypes.STRING,
-  ifscCode: DataTypes.STRING,
-  pan: DataTypes.STRING,
-  aadhaar: DataTypes.STRING,
-  pfNum: DataTypes.STRING,
-  esicNum: DataTypes.STRING,
-  username: DataTypes.STRING,
-  role: DataTypes.STRING,
-  userId: DataTypes.INTEGER, // association helper
+  userId: {
+    type: DataTypes.UUID,
+    field: 'user_id',
+  },
+  companyId: {
+    type: DataTypes.UUID,
+    field: 'company_id',
+  },
+  branchId: {
+    type: DataTypes.UUID,
+    field: 'branch_id',
+  },
+  departmentId: {
+    type: DataTypes.UUID,
+    field: 'department_id',
+  },
+  managerId: {
+    type: DataTypes.UUID,
+    field: 'manager_id',
+  },
+  designationId: {
+    type: DataTypes.UUID,
+    field: 'designation_id',
+  },
 }, {
-  tableName: 'employee_profile',
-  timestamps: false,
+  tableName: 'employees',
+  timestamps: true,
+  createdAt: 'created_at',
+  updatedAt: 'updated_at',
 });
 
 module.exports = Employee;

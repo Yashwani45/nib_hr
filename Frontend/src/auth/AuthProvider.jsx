@@ -1,38 +1,58 @@
-import React, { createContext, useContext, useState } from "react";
+import React, { createContext, useContext } from "react";
 import { useNavigate } from "react-router-dom";
+import { useSelector, useDispatch } from "react-redux";
+import { loginSuccess, logoutSuccess } from "../redux/authSlice";
 
 const AuthContext = createContext(null);
 
 export const AuthProvider = ({ children }) => {
   const navigate = useNavigate();
-  const [token, setToken] = useState(() => localStorage.getItem("token"));
-  const [user, setUser] = useState(() => {
-    try {
-      return JSON.parse(localStorage.getItem("user"));
-    } catch {
-      return null;
-    }
-  });
+  const dispatch = useDispatch();
+  
+  const token = useSelector((state) => state.auth.token);
+  const user = useSelector((state) => state.auth.user);
 
   const login = (newToken, newUser) => {
-    setToken(newToken);
-    setUser(newUser);
-    localStorage.setItem("token", newToken);
-    localStorage.setItem("user", JSON.stringify(newUser));
+    dispatch(loginSuccess({ token: newToken, user: newUser }));
   };
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
   const logout = () => {
-    setToken(null);
-    setUser(null);
-    localStorage.removeItem("token");
-    localStorage.removeItem("user");
+    dispatch(logoutSuccess());
     navigate("/login");
   };
 
-  const fetchWithAuth = (url, options = {}) => {
+  const fetchWithAuth = async (url, options = {}) => {
     const headers = { ...(options.headers || {}) };
     if (token) headers["Authorization"] = `Bearer ${token}`;
-    return fetch(url, { ...options, headers });
+    
+    try {
+      const response = await fetch(url, { ...options, headers });
+      if (response.status === 401 || response.status === 403) {
+        // Auto-logout if token is expired, forbidden, or invalid
+        dispatch(logoutSuccess());
+        navigate("/login");
+      }
+      return response;
+    } catch (error) {
+      throw error;
+    }
   };
 
   return (

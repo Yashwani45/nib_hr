@@ -1,0 +1,16 @@
+{
+  "employee_name": "Abhishek",
+  "email": "abhishek@gmail.com",
+  "password": "$2a$10$scUpDAa7KJ4NOe3jcHRh8uCk1an/C80wE6Jk.xhQI1VY8O3nQCemC",
+  "department": "IT",
+  "profile_data": "{\"photo\":\"\",\"employeeId\":\"EMP-674273\",\"employeeCode\":\"\",\"firstName\":\"Abhishek\",\"middleName\":\"\",\"lastName\":\"\",\"gender\":\"Male\",\"dateOfBirth\":\"\",\"maritalStatus\":\"Single\",\"bloodGroup\":\"O+\",\"nationality\":\"Indian\",\"company\":\"NIB Insurance\",\"branch\":\"\",\"department\":\"IT\",\"designation\":\"\",\"reportingManager\":\"\",\"employeeType\":\"Full Time\",\"employmentStatus\":\"Active\",\"dateOfJoining\":\"\",\"probationEndDate\":\"\",\"confirmationDate\":\"\",\"workLocation\":\"\",\"shift\":\"General Shift (09:00 - 18:00)\",\"weeklyOff\":\"Sunday\",\"mobileNumber\":\"\",\"alternateMobile\":\"\",\"personalEmail\":\"\",\"officialEmail\":\"abhishek@gmail.com\",\"currentAddress\":\"\",\"permanentAddress\":\"\",\"city\":\"\",\"state\":\"\",\"country\":\"India\",\"pinCode\":\"\",\"aadhaarNumber\":\"\",\"panNumber\":\"\",\"passportNumber\":\"\",\"drivingLicense\":\"\",\"voterId\":\"\",\"uanNumber\":\"\",\"esicNumber\":\"\",\"bankName\":\"\",\"accountHolderName\":\"\",\"accountNumber\":\"\",\"ifscCode\":\"\",\"branchName\":\"\",\"salaryStructure\":\"Standard\",\"basicSalary\":\"\",\"grossSalary\":\"\",\"ctc\":\"\",\"pfApplicable\":false,\"esiApplicable\":false,\"tdsApplicable\":false,\"emergencyContactName\":\"\",\"emergencyRelationship\":\"\",\"emergencyMobile\":\"\",\"emergencyAddress\":\"\",\"education\":[],\"experience\":[],\"skills\":[],\"shiftPolicy\":\"General Shift\",\"workingHours\":\"8\",\"attendancePolicy\":\"Biometric Integration\",\"biometricId\":\"\",\"deviceId\":\"\",\"overtimeEligible\":false,\"leavePolicy\":\"Standard Policy\",\"casualLeave\":\"12\",\"sickLeave\":\"12\",\"earnedLeave\":\"15\",\"maternityLeave\":\"84\",\"paternityLeave\":\"15\",\"assets\":[],\"username\":\"\",\"password\":\"abhishek@123\",\"confirmPassword\":\"\",\"role\":\"Employee\",\"permissionGroup\":\"Standard\",\"twoFactorAuth\":false,\"documents\":{\"resume\":\"\",\"aadhaar\":\"\",\"pan\":\"\",\"photo\":\"\",\"educationCert\":\"\",\"experienceCert\":\"\",\"offerLetter\":\"\",\"appointmentLetter\":\"\",\"salarySlips\":\"\",\"others\":\"\"},\"kpis\":[],\"resignationDate\":\"\",\"lastWorkingDate\":\"\",\"exitReason\":\"\",\"exitInterview\":\"\",\"clearanceStatus\":\"Pending\",\"finalSettlement\":\"Pending\",\"createdBy\":\"System Admin\",\"createdDate\":\"8/1/2026\",\"updatedBy\":\"yashtech@gmail.com\",\"updatedDate\":\"8/1/2026\",\"lastLogin\":\"\",\"lastPasswordChange\":\"\",\"recordStatus\":\"Active\",\"activityTimeline\":[]}",
+  "user_id": "0cf7c70a-a902-49bf-a5e2-926f9dd5466e",
+  "branch_id": "01f9ade2-2428-481a-a6ef-218c16f8ed8c",
+  "department_id": "a0c9bf03-3dac-45e9-8c32-5eb2cc1f0914",
+  "employeeId": "EMP-345433",
+  "employeeCode": "EMP-820818",
+  "profileStatus": "Profile Incomplete",
+  "profileCompletion": 15,
+  "gender": "Male",
+  "id": "ee2331b9-098b-407a-a12a-58c230034e73"
+}

@@ -3,6 +3,7 @@ const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet');
 const apiRateLimiter = require('./middleware/rateLimiter.middleware');
+const tenantMiddleware = require('./middleware/tenant.middleware');
 const errorHandler = require('./middleware/error.middleware');
 const logger = require('./config/logger');
 const apiRoutes = require('./routes');
@@ -17,6 +18,9 @@ app.use(cors());
 
 // Limit API hits to protect against abuse/DDoS
 app.use('/api', apiRateLimiter);
+
+// Bind tenant routing middleware context
+app.use('/api', tenantMiddleware);
 
 // Body Parsers
 app.use(express.json());

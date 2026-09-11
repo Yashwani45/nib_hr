@@ -1,0 +1,109 @@
+Created At: 2026-09-05T12:01:40+05:30
+Completed At: 2026-09-05T12:01:40+05:30
+File Path: `file:///c:/Users/admin/Downloads/nib_hr/Frontend/src/layout/Sidebar.jsx`
+Total Lines: 913
+Total Bytes: 35670
+Showing lines 650 to 750
+The following code has been modified to include a line number before every line, in the format: <line_number>: <original_line>. Please note that any changes targeting the original code should remove the line number, colon, and leading space.
+650: 
+651:         if (item.categoryKey === "PROFILE") {
+652:           return item;
+653:         }
+654: 
+655:         // The category must be explicitly checked in the assigned modules list
+656:         const isCatAllowed = allowed.includes(itemNameLower);
+657:         if (!isCatAllowed) {
+658:           return null;
+659:         }
+660: 
+661:         return item;
+662:       }).filter(Boolean);
+663: 
+664:       // Dynamically add custom modules assigned to this user/department
+665:       const customAssigned = user.assignedModules.filter(mod => {
+666:         const modLower = String(mod).toLowerCase().trim();
+667:         const matchesStandard = menuItems.some(item => {
+668:           if (!item.children) return modLower === "dashboard" || modLower === "dashboard overview";
+669:           const categoryName = String(item.name).toLowerCase().trim();
+670:           return categoryName === modLower;
+671:         });
+672:         return !matchesStandard;
+673:       });
+674: 
+675:       if (customAssigned.length > 0) {
+676:         const customMenuItems = customAssigned.map(customMod => ({
+677:           name: customMod,
+678:           icon: CubeIcon,
+679:           children: [
+680:             {
+681:               name: `${customMod} Workspace`,
+682:               path: `/department/${customMod.toLowerCase().replace(/[^a-z0-9]/g, '-')}`,
+683:               icon: DocumentTextIcon
+684:             }
+685:           ]
+686:         }));
+687:         items = [...filteredStandard, ...customMenuItems];
+688:       } else {
+689:         items = filteredStandard;
+690:       }
+691:     } else {
+692:       items = [...menuItems];
+693:     }
+694:     return items;
+695:   }, [isEmployee, isSuperAdmin, hasAssignedModules, user?.assignedModules, employeeMenuItems, menuItems]);
+696: 
+697:   return (
+698:     <aside
+699:       onMouseEnter={() => setIsOpen(true)}
+700:       onMouseLeave={() => {
+701:         if (!isPinned) {
+702:           setIsOpen(false);
+703:         }
+704:       }}
+705:       className={`fixed left-0 top-0 h-screen bg-white shadow-lg z-30 transition-all duration-300 overflow-hidden border-r flex flex-col ${
+706:         isOpen
+707:           ? "w-64 translate-x-0"
+708:           : "w-64 -translate-x-full lg:w-20 lg:translate-x-0"
+709:       }`}
+710:     >
+711:       {/* Logo Section with Image - Using standard img tag for React */}
+712:       <div className="h-20 flex items-center justify-center border-b px-3 shrink-0">
+713:         {isOpen ? (
+714:           <img 
+715:             src={nib} 
+716:             alt="NIB HR Logo" 
+717:             className="h-16 w-auto max-w-full object-contain"
+718:           />
+719:         ) : (
+720:           <img 
+721:             src={short} 
+722:             alt="NIB HR" 
+723:             className="h-12 w-auto max-w-full object-contain"
+724:           />
+725:         )}
+726:       </div>
+727: 
+728:       <nav className={`flex-1 p-2 ${isOpen ? "space-y-1.5" : "space-y-4"} overflow-y-auto max-h-[calc(100vh-5rem)] scrollbar-thin scrollbar-thumb-slate-300`}>
+729:         {activeMenuItems.map((item) => {
+730:           const Icon = item.icon;
+731: 
+732:           if (!item.children) {
+733:             // Dashboard link
+734:             const active = location.pathname === item.path;
+735:             return (
+736:               <Link
+737:                 key={item.path}
+738:                 to={item.path}
+739:                 onClick={closeOnMobile}
+740:                 className={
+741:                   isOpen
+742:                     ? `flex items-center gap-3 px-3 py-2.5 rounded-lg font-bold text-sm transition group relative ${
+743:                         active
+744:                           ? "bg-blue-600 text-white shadow-sm"
+745:                           : "text-gray-700 hover:bg-blue-50 hover:text-blue-600"
+746:                       }`
+747:                     : `w-12 h-12 mx-auto flex items-center justify-center rounded-xl transition ${
+748:                         active
+749:                           ? "bg-gradient-to-b from-blue-600 to-blue-500 text-white shadow-md"
+750:                           : "text-gray-700 hover:bg-blue-50 hover:text-blue-600"
+The above content does NOT show the entire file contents. If you need to view any lines of the file which were not shown to complete your task, call this tool again to view those lines.

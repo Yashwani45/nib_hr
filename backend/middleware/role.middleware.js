@@ -4,13 +4,28 @@ const asyncHandler = require('../utils/asyncHandler');
 const { Role, Permission } = require('../models');
 
 // Restrict access to specific roles
-const authorizeRole = (allowedRoles) => {
+const authorizeRole = (allowedRoles = []) => {
   return (req, res, next) => {
-    if (!req.user || !req.user.role) {
+    if (!req.user) {
+      throw new ApiError(403, 'Access denied. User context missing.');
+    }
+
+    const rawRole = req.user.role || req.user.roleName;
+    const roleName = typeof rawRole === 'string' ? rawRole : (rawRole?.name || rawRole?.roleName || '');
+
+    if (!roleName) {
       throw new ApiError(403, 'Access denied. Role not assigned.');
     }
 
-    if (!allowedRoles.includes(req.user.role.name)) {
+    const normalizedAllowed = allowedRoles.map(r => String(r).toLowerCase().trim());
+    const normalizedUserRole = String(roleName).toLowerCase().trim();
+
+    if (!normalizedAllowed.includes(normalizedUserRole) && normalizedUserRole !== 'superadmin') {
+      console.warn('[Role Middleware Access Denied]', {
+        allowedRoles,
+        userRole: roleName,
+        userEmail: req.user.email
+      });
       throw new ApiError(403, 'Access forbidden. You do not have the required role.');
     }
 

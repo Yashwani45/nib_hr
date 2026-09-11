@@ -17,3 +17,4 @@ export { default as Textarea } from './Textarea';
 export { default as Switch } from './Switch';
 export { default as Dropdown } from './Dropdown';
 export { default as Tooltip } from './Tooltip';
+export { default as DynamicForm } from './DynamicForm';

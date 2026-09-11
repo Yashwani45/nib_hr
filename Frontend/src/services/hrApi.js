@@ -17,10 +17,28 @@ export const diffDays = (fromDate, toDate) => {
 
 // Base API fetch function
 export const apiFetch = async (path, options = {}) => {
+  const token = localStorage.getItem("token");
+  let companyCode = "NIB01";
+  
+  try {
+    const user = JSON.parse(localStorage.getItem("user"));
+    if (user && user.companyCode) {
+      companyCode = user.companyCode;
+    }
+  } catch (e) {}
+
   const headers = {
-    "Content-Type": "application/json",
+    "X-Company-Code": companyCode,
     ...(options.headers || {}),
   };
+
+  if (!(options.body instanceof FormData)) {
+    headers["Content-Type"] = "application/json";
+  }
+
+  if (token) {
+    headers["Authorization"] = `Bearer ${token}`;
+  }
 
   try {
     const response = await fetch(`${API_BASE}${path}`, {
@@ -28,12 +46,22 @@ export const apiFetch = async (path, options = {}) => {
       headers,
     });
 
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}));
-      throw new Error(errorData.message || `Request failed: ${response.status}`);
+    const text = await response.text();
+    const data = text ? JSON.parse(text) : {};
+
+    if (response.status === 401) {
+      localStorage.removeItem("token");
+      localStorage.removeItem("user");
+      if (!window.location.pathname.includes("/login")) {
+        window.location.href = "/login";
+      }
     }
 
-    return response.json();
+    if (!response.ok) {
+      throw new Error(data.message || data.error || `Request failed: ${response.status}`);
+    }
+
+    return data;
   } catch (error) {
     console.error(`API Error (${path}):`, error);
     throw error;
@@ -42,8 +70,13 @@ export const apiFetch = async (path, options = {}) => {
 
 // Generic MySQL Table CRUD Operations
 export const getTableData = async (tableName) => {
-  const response = await apiFetch(`/api/table/${tableName}`);
-  return response.success ? response.data : [];
+  try {
+    const response = await apiFetch(`/api/table/${tableName}`);
+    return response && response.success ? response.data : [];
+  } catch (err) {
+    console.warn(`[hrApi] Warning loading table '${tableName}' from backend:`, err.message);
+    return [];
+  }
 };
 
 export const createTableRecord = async (tableName, data) => {
@@ -67,6 +100,65 @@ export const deleteTableRecord = async (tableName, id) => {
     method: "DELETE",
   });
   return response.success;
+};
+
+// ==================== DEPARTMENT MASTER CORE APIS ====================
+
+export const fetchDepartmentsApi = async (params = {}) => {
+  try {
+    const query = new URLSearchParams(params).toString();
+    const response = await apiFetch(`/api/core/departments?${query}`);
+    if (response && response.data && Array.isArray(response.data.departments) && response.data.departments.length > 0) {
+      return response.data;
+    }
+  } catch (e) {}
+
+  // Resilient Fallback to direct table API
+  const tableData = await getTableData("department");
+  const depts = Array.isArray(tableData) ? tableData : [];
+  return {
+    totalItems: depts.length,
+    totalPages: 1,
+    currentPage: 1,
+    limit: 100,
+    departments: depts
+  };
+};
+
+export const fetchDepartmentByIdApi = async (id) => {
+  const response = await apiFetch(`/api/core/departments/${id}`);
+  return response.data;
+};
+
+export const createNewDepartmentApi = async (data) => {
+  const response = await apiFetch('/api/core/departments', {
+    method: 'POST',
+    body: JSON.stringify(data)
+  });
+  return response.data;
+};
+
+export const updateExistingDepartmentApi = async (id, data) => {
+  const response = await apiFetch(`/api/core/departments/${id}`, {
+    method: 'PUT',
+    body: JSON.stringify(data)
+  });
+  return response.data;
+};
+
+export const toggleDepartmentStatusApi = async (id, status) => {
+  const response = await apiFetch(`/api/core/departments/${id}/status`, {
+    method: 'PATCH',
+    body: JSON.stringify({ status })
+  });
+  return response.data;
+};
+
+export const deleteDepartmentApi = async (id) => {
+  const response = await apiFetch(`/api/core/departments/${id}`, {
+    method: 'DELETE'
+  });
+  return response.data;
 };
 
 // ==================== COMPATIBILITY ALIASES ====================
@@ -135,6 +227,14 @@ export const mapPass = (pass) => ({
   validTo: pass.checkOut || "",
 });
 
+export const uploadEmployeeFile = async (formData) => {
+  const response = await apiFetch(`/api/core/upload`, {
+    method: "POST",
+    body: formData,
+  });
+  return response.success ? response.data : null;
+};
+
 export default {
   apiFetch,
   formatDate,
@@ -145,6 +245,7 @@ export default {
   createTableRecord,
   updateTableRecord,
   deleteTableRecord,
+  uploadEmployeeFile,
 
   // Compatibility
   getAllDepartments,

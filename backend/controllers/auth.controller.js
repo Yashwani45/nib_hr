@@ -10,8 +10,11 @@ const register = asyncHandler(async (req, res) => {
 });
 
 const login = asyncHandler(async (req, res) => {
-  const { email, password } = req.body;
-  const result = await authService.login(email, password);
+  const { email, password, companyCode, companyId } = req.body;
+  const logger = require('../config/logger');
+  logger.info(`LOGIN REQUEST PARAMETERS: email=${email}, companyCode=${companyCode}, companyId=${companyId}`);
+  const targetCompanyCode = companyCode || companyId || req.headers['x-company-code'];
+  const result = await authService.login(email, password, targetCompanyCode);
   res.status(200).json(new ApiResponse(200, result, 'Logged in successfully.'));
 });
 
