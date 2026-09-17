@@ -261,6 +261,7 @@ const EmployeeDashboard = () => {
   const departmentName = currentUserProfile?.department || user?.departmentName || user?.department || "Operations";
 
   const [selectedDeptFilter, setSelectedDeptFilter] = useState("All Departments");
+  const [selectedMonthFilter, setSelectedMonthFilter] = useState("this_month");
   const [companyDepartmentsList, setCompanyDepartmentsList] = useState(["IT", "Software Engineering", "Operations", "Finance", "Human Resources", "Sales & Marketing"]);
 
   useEffect(() => {
@@ -521,10 +522,15 @@ const EmployeeDashboard = () => {
         
         // Filter attendance logs for current user
         const myEmpCode = profile.employeeCode || profile.emp_code || profile.employee_code || "";
-        const filteredAtt = attList.filter(a => 
-          (a.empId && myEmpCode && String(a.empId).toLowerCase().trim() === String(myEmpCode).toLowerCase().trim()) ||
-          (a.empId && String(a.empId).toLowerCase().trim() === String(profile.id).toLowerCase().trim())
-        ).map(l => ({
+        const fullName = `${profile.firstName || ''} ${profile.lastName || ''}`.trim().toLowerCase();
+        const filteredAtt = attList.filter(a => {
+          const empIdMatch = a.empId && myEmpCode && String(a.empId).toLowerCase().trim() === String(myEmpCode).toLowerCase().trim();
+          const empIdMatchProfile = a.empId && String(a.empId).toLowerCase().trim() === String(profile.id).toLowerCase().trim();
+          const employeeIdMatch = (a.employeeId || a.emp_id) && myEmpCode && String(a.employeeId || a.emp_id).toLowerCase().trim() === String(myEmpCode).toLowerCase().trim();
+          const employeeIdMatchProfile = (a.employeeId || a.emp_id) && String(a.employeeId || a.emp_id).toLowerCase().trim() === String(profile.id).toLowerCase().trim();
+          const nameMatch = fullName && a.name && String(a.name).trim().toLowerCase() === fullName;
+          return empIdMatch || empIdMatchProfile || employeeIdMatch || employeeIdMatchProfile || nameMatch;
+        }).map(l => ({
           id: l.id,
           date: l.date,
           checkIn: l.checkIn,
@@ -983,6 +989,99 @@ const EmployeeDashboard = () => {
       upcomingEvents
     };
   }, [allEmployeesList, allAttendanceList, allLeavesList, allTicketsList, allRegularizationsList, jobPostingsList, candidateList, interviewsList, offerLettersList, holidays, selectedDeptFilter]);
+
+  // Human-readable info and working days calculation for selected month filter
+  const selectedMonthInfo = useMemo(() => {
+    const now = new Date();
+    let targetYearMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+    let label = now.toLocaleString('default', { month: 'long', year: 'numeric' });
+    let year = now.getFullYear();
+    let monthIndex = now.getMonth();
+
+    if (selectedMonthFilter === "last_month") {
+      const prev = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+      targetYearMonth = `${prev.getFullYear()}-${String(prev.getMonth() + 1).padStart(2, '0')}`;
+      label = prev.toLocaleString('default', { month: 'long', year: 'numeric' });
+      year = prev.getFullYear();
+      monthIndex = prev.getMonth();
+    } else if (selectedMonthFilter === "this_month") {
+      // current month defaults
+    } else if (selectedMonthFilter === "all") {
+      return {
+        targetYearMonth: "all",
+        label: "All Records",
+        workingDays: 22,
+        isAll: true
+      };
+    } else if (selectedMonthFilter && selectedMonthFilter.includes("-")) {
+      const parts = selectedMonthFilter.split('-').map(Number);
+      const d = new Date(parts[0], parts[1] - 1, 1);
+      targetYearMonth = selectedMonthFilter;
+      label = d.toLocaleString('default', { month: 'long', year: 'numeric' });
+      year = parts[0];
+      monthIndex = parts[1] - 1;
+    }
+
+    // Dynamic weekdays calculation for target month minus holidays
+    const daysInMonth = new Date(year, monthIndex + 1, 0).getDate();
+    let workingDays = 0;
+    for (let day = 1; day <= daysInMonth; day++) {
+      const curDate = new Date(year, monthIndex, day);
+      const dayOfWeek = curDate.getDay();
+      if (dayOfWeek !== 0 && dayOfWeek !== 6) {
+        const iso = `${year}-${String(monthIndex + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+        const isHoliday = (holidays || []).some(h => String(h.holidayDate || h.date || '').startsWith(iso));
+        if (!isHoliday) {
+          workingDays++;
+        }
+      }
+    }
+
+    return {
+      targetYearMonth,
+      label,
+      workingDays: workingDays || 22,
+      isAll: false
+    };
+  }, [selectedMonthFilter, holidays]);
+
+  // Filtered attendance logs for the selected month, sorted descending by date
+  const monthlyAttendanceLogs = useMemo(() => {
+    if (!attendanceLogs || attendanceLogs.length === 0) return [];
+    if (selectedMonthInfo.isAll) {
+      return [...attendanceLogs].sort((a, b) => new Date(b.date) - new Date(a.date));
+    }
+    const filtered = attendanceLogs.filter(log => {
+      if (!log || !log.date) return false;
+      const logDate = String(log.date).split('T')[0];
+      return logDate.startsWith(selectedMonthInfo.targetYearMonth);
+    });
+    return filtered.sort((a, b) => new Date(b.date) - new Date(a.date));
+  }, [attendanceLogs, selectedMonthInfo]);
+
+  // Attendance metrics for selected month
+  const monthlyAttendanceKPIs = useMemo(() => {
+    const presentCount = monthlyAttendanceLogs.filter(l => 
+      (l.status || '').toLowerCase() === "present" || 
+      (l.status || '').toLowerCase() === "late" ||
+      (l.status || '').toLowerCase() === "half day"
+    ).length;
+
+    const lateCount = monthlyAttendanceLogs.filter(l => 
+      (l.status || '').toLowerCase() === "late" || Number(l.lateComing || 0) > 0
+    ).length;
+
+    const absentCount = monthlyAttendanceLogs.filter(l => 
+      (l.status || '').toLowerCase() === "absent" || (l.status || '').toLowerCase() === "leave"
+    ).length;
+
+    return {
+      workingDays: selectedMonthInfo.workingDays,
+      presentDays: presentCount,
+      lateMarks: lateCount,
+      absences: absentCount
+    };
+  }, [monthlyAttendanceLogs, selectedMonthInfo]);
 
   const handleSaveProfile = async (e) => {
     e.preventDefault();
@@ -1602,10 +1701,14 @@ const EmployeeDashboard = () => {
             <ClockIcon className="h-4 w-4 text-indigo-600 animate-spin-slow" />
             <span>{currentTime.toLocaleTimeString()}</span>
           </div>
-          <select className="bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold text-slate-700 shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer">
-            <option>This Month</option>
-            <option>Last Month</option>
-            <option>This Year</option>
+          <select 
+            value={selectedMonthFilter}
+            onChange={(e) => setSelectedMonthFilter(e.target.value)}
+            className="bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold text-slate-700 shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer"
+          >
+            <option value="this_month">This Month</option>
+            <option value="last_month">Last Month</option>
+            <option value="all">This Year</option>
           </select>
           <select 
             value={selectedDeptFilter}
@@ -3344,46 +3447,99 @@ const EmployeeDashboard = () => {
               {/* Monthly Attendance summary & logs */}
               {activeTab === "Monthly Attendance" && (
                 <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm space-y-6 animate-fadeIn">
-                  <div className="flex justify-between items-center pb-3 border-b border-slate-100">
-                    <h4 className="font-extrabold text-sm text-slate-800">
-                      📊 Monthly Attendance Summary
-                    </h4>
-                    <button 
-                      onClick={() => window.print()}
-                      className="px-3 py-1.5 bg-slate-800 hover:bg-slate-900 text-white rounded-lg text-xs font-bold transition flex items-center gap-1.5"
-                    >
-                      <span>🖨</span> Print Monthly Logs
-                    </button>
+                  <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 pb-3 border-b border-slate-100">
+                    <div>
+                      <h4 className="font-extrabold text-sm text-slate-800 flex items-center gap-2">
+                        <span>📊 Monthly Attendance Summary</span>
+                        <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-700 border border-indigo-100">
+                          {selectedMonthInfo.label}
+                        </span>
+                      </h4>
+                      <p className="text-[11px] text-slate-400 font-medium mt-0.5">
+                        Showing attendance telemetry and working hours for {selectedMonthInfo.label}
+                      </p>
+                    </div>
+                    
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <div className="inline-flex rounded-xl bg-slate-100 p-1 border border-slate-200">
+                        <button
+                          type="button"
+                          onClick={() => setSelectedMonthFilter("this_month")}
+                          className={`px-3 py-1 text-xs font-bold rounded-lg transition ${
+                            selectedMonthFilter === "this_month"
+                              ? "bg-white text-blue-600 shadow-xs"
+                              : "text-slate-600 hover:text-slate-900"
+                          }`}
+                        >
+                          This Month
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setSelectedMonthFilter("last_month")}
+                          className={`px-3 py-1 text-xs font-bold rounded-lg transition ${
+                            selectedMonthFilter === "last_month"
+                              ? "bg-white text-blue-600 shadow-xs"
+                              : "text-slate-600 hover:text-slate-900"
+                          }`}
+                        >
+                          Last Month
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setSelectedMonthFilter("all")}
+                          className={`px-3 py-1 text-xs font-bold rounded-lg transition ${
+                            selectedMonthFilter === "all"
+                              ? "bg-white text-blue-600 shadow-xs"
+                              : "text-slate-600 hover:text-slate-900"
+                          }`}
+                        >
+                          All Logs
+                        </button>
+                      </div>
+
+                      <button 
+                        onClick={() => window.print()}
+                        className="px-3 py-1.5 bg-slate-800 hover:bg-slate-900 text-white rounded-lg text-xs font-bold transition flex items-center gap-1.5"
+                      >
+                        <span>🖨</span> Print Monthly Logs
+                      </button>
+                    </div>
                   </div>
+
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-xs font-bold text-slate-600">
                     <div className="border p-3.5 rounded-xl bg-slate-50/30">
                       <span className="text-[9px] text-slate-400 block uppercase">Total Working Days</span>
-                      <span className="text-slate-800 font-black mt-0.5 block">22 Days</span>
+                      <span className="text-slate-800 font-black mt-0.5 block">{monthlyAttendanceKPIs.workingDays} Days</span>
                     </div>
                     <div className="border p-3.5 rounded-xl bg-slate-50/30">
                       <span className="text-[9px] text-slate-400 block uppercase">Present Days</span>
                       <span className="text-slate-800 font-black mt-0.5 block">
-                        {attendanceLogs.filter(l => l.status === "Present" || l.status === "Late").length} Days
+                        {monthlyAttendanceKPIs.presentDays} Days
                       </span>
                     </div>
                     <div className="border p-3.5 rounded-xl bg-slate-50/30">
                       <span className="text-[9px] text-slate-400 block uppercase">Late Marks</span>
                       <span className="text-slate-800 font-black mt-0.5 block">
-                        {attendanceLogs.filter(l => l.status === "Late").length} Times
+                        {monthlyAttendanceKPIs.lateMarks} Times
                       </span>
                     </div>
                     <div className="border p-3.5 rounded-xl bg-slate-50/30">
                       <span className="text-[9px] text-slate-400 block uppercase">Absences</span>
                       <span className="text-slate-800 font-black mt-0.5 block">
-                        {attendanceLogs.filter(l => l.status === "Absent").length} Days
+                        {monthlyAttendanceKPIs.absences} Days
                       </span>
                     </div>
                   </div>
 
                   <div className="pt-4 border-t border-slate-100">
-                    <h5 className="font-extrabold text-xs text-slate-700 uppercase tracking-wider mb-3">
-                      📜 Attendance Log Records
-                    </h5>
+                    <div className="flex justify-between items-center mb-3">
+                      <h5 className="font-extrabold text-xs text-slate-700 uppercase tracking-wider">
+                        📜 Attendance Log Records — {selectedMonthInfo.label}
+                      </h5>
+                      <span className="text-[11px] font-bold text-slate-500 bg-slate-100 px-2.5 py-0.5 rounded-full">
+                        {monthlyAttendanceLogs.length} Records
+                      </span>
+                    </div>
                     <div className="overflow-x-auto">
                       <table className="w-full text-left text-xs font-bold text-slate-600">
                         <thead>
@@ -3397,14 +3553,14 @@ const EmployeeDashboard = () => {
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-100">
-                          {attendanceLogs.length === 0 ? (
+                          {monthlyAttendanceLogs.length === 0 ? (
                             <tr>
                               <td colSpan="6" className="py-6 text-center text-xs text-slate-400 font-semibold">
-                                No attendance logs recorded for this month.
+                                No attendance logs recorded for {selectedMonthInfo.label}.
                               </td>
                             </tr>
                           ) : (
-                            attendanceLogs.map((log, idx) => (
+                            monthlyAttendanceLogs.map((log, idx) => (
                               <tr key={idx} className="hover:bg-slate-50/50 transition">
                                 <td className="py-3 text-slate-800">{log.date}</td>
                                 <td>{log.checkIn}</td>
@@ -3413,7 +3569,14 @@ const EmployeeDashboard = () => {
                                 <td>
                                   <Badge variant={getStatusVariant(log.status)}>{log.status}</Badge>
                                 </td>
-                                <td className="text-[10px] text-slate-400 font-semibold">{log.deviceInfo} ({log.ipAddress})</td>
+                                <td className="text-[10px] text-slate-400 font-semibold">
+                                  {log.deviceInfo} ({log.ipAddress})
+                                  {log.remarks && (
+                                    <span className="block text-[9px] text-slate-400 font-normal italic mt-0.5">
+                                      Note: {log.remarks}
+                                    </span>
+                                  )}
+                                </td>
                               </tr>
                             ))
                           )}
