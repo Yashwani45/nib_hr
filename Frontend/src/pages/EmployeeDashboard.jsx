@@ -282,8 +282,7 @@ const EmployeeDashboard = () => {
     "Information",
     "Contact Information",
     "Education",
-    "Experience",
-    "Documents"
+    "Experience"
   ];
 
   const currentSectionIdx = profileSectionsList.indexOf(profileTab);
@@ -383,7 +382,6 @@ const EmployeeDashboard = () => {
     if (activeTab === "Contact Details" || activeTab === "Address Details" || activeTab === "Contact Information") return "Contact Information";
     if (activeTab === "Education") return "Education";
     if (activeTab === "Experience") return "Experience";
-    if (activeTab === "Documents" || activeTab === "My Documents") return "Documents";
     return "Information";
   }, [activeTab]);
 
@@ -1482,6 +1480,59 @@ const EmployeeDashboard = () => {
       console.error("Failed to post attendance event:", err);
       alert("Error posting attendance event to database.");
     }
+  };
+
+  // Export Attendance CSV
+  const handleDownloadAttendanceCSV = () => {
+    if (!attendanceLogs || attendanceLogs.length === 0) {
+      alert("No attendance logs available to export.");
+      return;
+    }
+    const headers = ["Date", "Check In", "Check Out", "Working Hours", "Status", "IP Address", "Device Info", "Remarks"];
+    const rows = attendanceLogs.map(l => [
+      `"${l.date || ''}"`,
+      `"${l.checkIn || ''}"`,
+      `"${l.checkOut || ''}"`,
+      `"${l.workingHours || 0}"`,
+      `"${l.status || ''}"`,
+      `"${l.ipAddress || ''}"`,
+      `"${(l.deviceInfo || '').replace(/"/g, '""')}"`,
+      `"${(l.remarks || '').replace(/"/g, '""')}"`
+    ]);
+    const csvContent = [headers.join(","), ...rows.map(r => r.join(","))].join("\n");
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.setAttribute("href", url);
+    link.setAttribute("download", `attendance_report_${selectedMonthInfo?.label?.replace(/\s+/g, '_') || 'logs'}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  // Export Overtime CSV
+  const handleDownloadOvertimeCSV = () => {
+    const otLogs = (attendanceLogs || []).filter(l => Number(l.overtime || 0) > 0);
+    if (otLogs.length === 0) {
+      alert("No overtime logs available to export.");
+      return;
+    }
+    const headers = ["Date", "Overtime Hours", "Status", "Remarks"];
+    const rows = otLogs.map(l => [
+      `"${l.date || ''}"`,
+      `"${l.overtime || 0}"`,
+      `"Approved"`,
+      `"${(l.remarks || '').replace(/"/g, '""')}"`
+    ]);
+    const csvContent = [headers.join(","), ...rows.map(r => r.join(","))].join("\n");
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.setAttribute("href", url);
+    link.setAttribute("download", `overtime_statement_${selectedMonthInfo?.label?.replace(/\s+/g, '_') || 'logs'}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
   };
 
   // Submit Leave Action database integration
@@ -2748,76 +2799,7 @@ const EmployeeDashboard = () => {
                           </div>
                         </div>
                       )}
-
-                      {profileTab === "Documents" && (
-                        <div className="space-y-4">
-                          <h4 className="text-xs font-black uppercase text-indigo-950 tracking-wider border-b pb-2 border-slate-200">
-                            📂 Upload Documents
-                          </h4>
-                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                            {[
-                              "Aadhar Card",
-                              "PAN Card",
-                              "10th Marksheet",
-                              "12th Marksheet",
-                              "Degree Certificate",
-                              "Experience Letter",
-                              "Resume"
-                            ].map((docType) => {
-                              const val = (employeeForm.documents || {})[docType] || "";
-                              return (
-                                <div key={docType} className="border border-slate-100 p-4 rounded-xl bg-slate-50/40 space-y-3 flex flex-col justify-between font-bold">
-                                  <div>
-                                    <span className="text-[9px] font-black uppercase text-slate-400 block">{docType}</span>
-                                    <span className="text-xs text-slate-700 block mt-0.5 truncate max-w-[200px] font-mono">{val || "Not uploaded (Pending)"}</span>
-                                  </div>
-                                  <div className="flex gap-2 items-center justify-between mt-2">
-                                    <input
-                                      type="file"
-                                      onChange={async (e) => {
-                                        const file = e.target.files[0];
-                                        if (!file) return;
-                                        const fd = new FormData();
-                                        fd.append("file", file);
-                                        fd.append("employeeName", employeeName);
-                                        fd.append("employeeId", employeeForm.employeeId || employeeForm.id);
-                                        try {
-                                          const url = await uploadEmployeeFile(fd);
-                                          if (url) {
-                                            setEmployeeForm(prev => ({
-                                              ...prev,
-                                              documents: {
-                                                ...(prev.documents || {}),
-                                                [docType]: url
-                                              }
-                                            }));
-                                            alert(`${docType} uploaded successfully!`);
-                                          }
-                                        } catch (err) {
-                                          alert("Upload failed: " + err.message);
-                                        }
-                                      }}
-                                      className="text-[9px] text-slate-500 file:mr-2 file:py-1 file:px-2 file:rounded-md file:border-0 file:text-[9px] file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100 cursor-pointer"
-                                    />
-                                    {val && (
-                                      <a
-                                        href={val}
-                                        target="_blank"
-                                        rel="noopener noreferrer"
-                                        className="px-3 py-1 bg-indigo-50 hover:bg-indigo-100 text-indigo-600 rounded-lg text-[9px] font-black tracking-wide whitespace-nowrap"
-                                      >
-                                        Open Link
-                                      </a>
-                                    )}
-                                  </div>
-                                </div>
-                              );
-                            })}
-                          </div>
-                        </div>
-                      )}
-
-                      </div>
+                    </div>
 
                     {isNewRegistration && (
                       <div className="bg-amber-50 border border-amber-200 text-amber-900 px-4 py-2.5 rounded-xl text-xs font-bold flex items-center justify-between shadow-2xs">
@@ -3115,15 +3097,15 @@ const EmployeeDashboard = () => {
                       <span className="text-slate-800 font-black mt-0.5 block font-mono">{profileDetails.ifscCode || "--"}</span>
                     </div>
                     <div className="border p-3.5 rounded-xl bg-slate-50/30">
-                      <span className="text-[9px] text-slate-400 block uppercase">Basic Salary ($)</span>
+                      <span className="text-[9px] text-slate-400 block uppercase">Basic Salary (₹)</span>
                       <span className="text-slate-800 font-black mt-0.5 block">₹{Number(profileDetails.basicSalary || 0).toLocaleString()}</span>
                     </div>
                     <div className="border p-3.5 rounded-xl bg-slate-50/30">
-                      <span className="text-[9px] text-slate-400 block uppercase">Gross Salary ($)</span>
+                      <span className="text-[9px] text-slate-400 block uppercase">Gross Salary (₹)</span>
                       <span className="text-slate-800 font-black mt-0.5 block">₹{Number(profileDetails.grossSalary || 0).toLocaleString()}</span>
                     </div>
                     <div className="border p-3.5 rounded-xl bg-slate-50/30">
-                      <span className="text-[9px] text-slate-400 block uppercase">Annual CTC ($)</span>
+                      <span className="text-[9px] text-slate-400 block uppercase">Annual CTC (₹)</span>
                       <span className="text-slate-800 font-black mt-0.5 block">₹{Number(profileDetails.ctc || 0).toLocaleString()}</span>
                     </div>
                     <div className="border p-3.5 rounded-xl bg-slate-50/30">
@@ -3232,7 +3214,7 @@ const EmployeeDashboard = () => {
                       </div>
                       
                       <div className="space-y-1 bg-slate-50/50 p-3 rounded-xl border border-slate-100/80">
-                        <p className="text-xs text-slate-700 font-bold">General Shift (09:00 AM - 06:00 PM)</p>
+                        <p className="text-xs text-slate-700 font-bold">{currentUserProfile?.shift || "General Shift (09:00 AM - 06:00 PM)"}</p>
                         <p className="text-[10px] text-slate-400 font-semibold">Grace Period: 15 Minutes</p>
                       </div>
 
@@ -3324,7 +3306,13 @@ const EmployeeDashboard = () => {
                       </div>
                       <div className="border p-3.5 rounded-xl bg-slate-50/30">
                         <span className="text-[9px] text-slate-400 block uppercase">Lunch Break</span>
-                        <span className="text-slate-800 font-black mt-0.5 block">1.0 Hr</span>
+                        <span className="text-slate-800 font-black mt-0.5 block">
+                          {(() => {
+                            const todayStr = new Date().toISOString().split('T')[0];
+                            const t = attendanceLogs.find(a => a.date === todayStr);
+                            return t && t.breakHours ? `${t.breakHours} Hr` : "1.0 Hr";
+                          })()}
+                        </span>
                       </div>
                       <div className="border p-3.5 rounded-xl bg-slate-50/30">
                         <span className="text-[9px] text-slate-400 block uppercase">Overtime</span>
@@ -3347,11 +3335,25 @@ const EmployeeDashboard = () => {
                         </div>
                         <div>
                           <p className="text-[10px] text-slate-400 block uppercase tracking-wider">IP Address</p>
-                          <span className="text-slate-700 font-black block mt-0.5">127.0.0.1</span>
+                          <span className="text-slate-700 font-black block mt-0.5">
+                            {(() => {
+                              const todayStr = new Date().toISOString().split('T')[0];
+                              const t = attendanceLogs.find(a => a.date === todayStr);
+                              return (t && t.ipAddress && t.ipAddress !== "--") ? t.ipAddress : "192.168.1.104 (Office Network)";
+                            })()}
+                          </span>
                         </div>
                         <div>
                           <p className="text-[10px] text-slate-400 block uppercase tracking-wider">Location coordinates</p>
-                          <span className="text-slate-700 font-black block mt-0.5">19.0760° N, 72.8777° E (Mumbai HQ geofence matched)</span>
+                          <span className="text-slate-700 font-black block mt-0.5">
+                            {(() => {
+                              const todayStr = new Date().toISOString().split('T')[0];
+                              const t = attendanceLogs.find(a => a.date === todayStr);
+                              if (t && t.gpsLocation && t.gpsLocation !== "--") return t.gpsLocation;
+                              const loc = currentUserProfile?.workLocation || currentUserProfile?.branch || "Mumbai HQ";
+                              return `${loc} (Geofence Matched)`;
+                            })()}
+                          </span>
                         </div>
                         <div>
                           <p className="text-[10px] text-slate-400 block uppercase tracking-wider">Geofence validation</p>
@@ -3376,37 +3378,56 @@ const EmployeeDashboard = () => {
                       <div key={day} className="py-2 bg-slate-100 text-slate-600 rounded-lg">{day}</div>
                     ))}
                     
-                    {/* Render days of current month */}
-                    {Array.from({ length: 30 }).map((_, i) => {
-                      const dayNumber = i + 1;
-                      const dateStr = `2026-08-${String(dayNumber).padStart(2, '0')}`;
-                      const log = attendanceLogs.find(l => l.date === dateStr);
-                      
-                      let bgClass = "bg-white text-slate-600 hover:bg-slate-50 border-slate-100";
-                      let statusText = "";
-                      
-                      // Mocking weekend offs
-                      const isWeekend = [2, 8, 9, 15, 16, 22, 23, 29, 30].includes(dayNumber);
-                      
-                      if (log) {
-                        if (log.status === "Present") bgClass = "bg-emerald-50 text-emerald-700 border-emerald-200";
-                        else if (log.status === "Late") bgClass = "bg-yellow-50 text-yellow-700 border-yellow-200 font-black";
-                        else if (log.status === "Half Day") bgClass = "bg-amber-50 text-amber-700 border-amber-200";
-                        else if (log.status === "Absent") bgClass = "bg-red-50 text-red-700 border-red-200";
-                        else if (log.status === "Leave") bgClass = "bg-blue-50 text-blue-700 border-blue-200";
-                        statusText = log.status;
-                      } else if (isWeekend) {
-                        bgClass = "bg-slate-100 text-slate-400 border-slate-200";
-                        statusText = "Weekly Off";
+                    {/* Render days of selected or current month */}
+                    {(() => {
+                      const ym = selectedMonthInfo?.targetYearMonth || `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}`;
+                      const [yearStr, monthStr] = ym.split('-');
+                      const yearNum = parseInt(yearStr, 10);
+                      const monthNum = parseInt(monthStr, 10);
+                      const totalDaysInMonth = new Date(yearNum, monthNum, 0).getDate();
+                      const firstDayWeekday = new Date(yearNum, monthNum - 1, 1).getDay();
+
+                      const cells = [];
+                      for (let p = 0; p < firstDayWeekday; p++) {
+                        cells.push({ pad: true, key: `pad-${p}` });
                       }
 
-                      return (
-                        <div key={i} className={`p-4 border rounded-xl flex flex-col justify-between min-h-[80px] ${bgClass}`}>
-                          <span className="text-left font-black">{dayNumber}</span>
-                          {statusText && <span className="text-[8px] font-black uppercase tracking-wider block text-center mt-1">{statusText}</span>}
-                        </div>
-                      );
-                    })}
+                      for (let dayNumber = 1; dayNumber <= totalDaysInMonth; dayNumber++) {
+                        const dateStr = `${ym}-${String(dayNumber).padStart(2, '0')}`;
+                        const log = attendanceLogs.find(l => l.date === dateStr);
+                        const dayOfWeek = new Date(yearNum, monthNum - 1, dayNumber).getDay();
+                        const isWeekend = (dayOfWeek === 0 || dayOfWeek === 6);
+
+                        let bgClass = "bg-white text-slate-600 hover:bg-slate-50 border-slate-100";
+                        let statusText = "";
+
+                        if (log) {
+                          if (log.status === "Present") bgClass = "bg-emerald-50 text-emerald-700 border-emerald-200";
+                          else if (log.status === "Late") bgClass = "bg-yellow-50 text-yellow-700 border-yellow-200 font-black";
+                          else if (log.status === "Half Day") bgClass = "bg-amber-50 text-amber-700 border-amber-200";
+                          else if (log.status === "Absent") bgClass = "bg-red-50 text-red-700 border-red-200";
+                          else if (log.status === "Leave") bgClass = "bg-blue-50 text-blue-700 border-blue-200";
+                          statusText = log.status;
+                        } else if (isWeekend) {
+                          bgClass = "bg-slate-100 text-slate-400 border-slate-200";
+                          statusText = "Weekly Off";
+                        }
+
+                        cells.push({ pad: false, key: dateStr, dayNumber, bgClass, statusText });
+                      }
+
+                      return cells.map(cell => {
+                        if (cell.pad) {
+                          return <div key={cell.key} className="p-4 rounded-xl opacity-0 pointer-events-none min-h-[80px]" />;
+                        }
+                        return (
+                          <div key={cell.key} className={`p-4 border rounded-xl flex flex-col justify-between min-h-[80px] transition ${cell.bgClass}`}>
+                            <span className="text-left font-black">{cell.dayNumber}</span>
+                            {cell.statusText && <span className="text-[8px] font-black uppercase tracking-wider block text-center mt-1">{cell.statusText}</span>}
+                          </div>
+                        );
+                      });
+                    })()}
                   </div>
                 </div>
               )}
@@ -3616,11 +3637,11 @@ const EmployeeDashboard = () => {
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs font-bold text-slate-600 bg-slate-50 p-4 rounded-xl border border-slate-100">
                     <div>
                       <span className="text-[10px] text-slate-400 block uppercase tracking-wider">Shift Name</span>
-                      <span className="text-slate-800 font-black block mt-0.5">General Shift (GEN)</span>
+                      <span className="text-slate-800 font-black block mt-0.5">{currentUserProfile?.shift || "General Shift (GEN)"}</span>
                     </div>
                     <div>
                       <span className="text-[10px] text-slate-400 block uppercase tracking-wider">Working Hours</span>
-                      <span className="text-slate-800 font-black block mt-0.5">09:00 AM - 06:00 PM (9.0 Hrs)</span>
+                      <span className="text-slate-800 font-black block mt-0.5">{currentUserProfile?.workingHours || "09:00 AM - 06:00 PM (9.0 Hrs)"}</span>
                     </div>
                     <div>
                       <span className="text-[10px] text-slate-400 block uppercase tracking-wider">Grace Period</span>
@@ -3628,7 +3649,7 @@ const EmployeeDashboard = () => {
                     </div>
                     <div>
                       <span className="text-[10px] text-slate-400 block uppercase tracking-wider">Status</span>
-                      <span className="text-emerald-600 font-black block mt-0.5">Active</span>
+                      <span className="text-emerald-600 font-black block mt-0.5">{currentUserProfile?.employeeStatus || "Active"}</span>
                     </div>
                   </div>
                 </div>
@@ -3802,24 +3823,62 @@ const EmployeeDashboard = () => {
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-100">
-                        <tr className="hover:bg-slate-50/50 transition">
-                          <td className="py-3">Mumbai Gate A Reader</td>
-                          <td>M-902</td>
-                          <td>IN</td>
-                          <td>{new Date().toISOString().split('T')[0]} 08:58 AM</td>
-                          <td>
-                            <Badge variant="success">Synced</Badge>
-                          </td>
-                        </tr>
-                        <tr className="hover:bg-slate-50/50 transition">
-                          <td>Mumbai Gate A Reader</td>
-                          <td>M-902</td>
-                          <td>OUT</td>
-                          <td>{new Date().toISOString().split('T')[0]} 06:02 PM</td>
-                          <td>
-                            <Badge variant="success">Synced</Badge>
-                          </td>
-                        </tr>
+                        {(() => {
+                          const bioPunches = [];
+                          const devName = `${currentUserProfile?.branch || 'Office'} Main Biometric Reader`;
+                          const machId = currentUserProfile?.biometricId || currentUserProfile?.deviceId || "BIO-101";
+
+                          attendanceLogs.slice(0, 15).forEach((log, idx) => {
+                            if (log.checkIn && log.checkIn !== "--") {
+                              bioPunches.push({
+                                key: `in-${idx}`,
+                                device: devName,
+                                machineId: machId,
+                                punchType: "IN",
+                                syncTime: `${log.date} ${log.checkIn}`,
+                                status: "Synced"
+                              });
+                            }
+                            if (log.checkOut && log.checkOut !== "--") {
+                              bioPunches.push({
+                                key: `out-${idx}`,
+                                device: devName,
+                                machineId: machId,
+                                punchType: "OUT",
+                                syncTime: `${log.date} ${log.checkOut}`,
+                                status: "Synced"
+                              });
+                            }
+                          });
+
+                          if (bioPunches.length === 0) {
+                            return (
+                              <tr>
+                                <td colSpan={5} className="text-center py-6 text-slate-400 font-medium">
+                                  No biometric device punches recorded yet.
+                                </td>
+                              </tr>
+                            );
+                          }
+
+                          return bioPunches.map((punch) => (
+                            <tr key={punch.key} className="hover:bg-slate-50/50 transition">
+                              <td className="py-3 text-slate-800 font-bold">{punch.device}</td>
+                              <td className="font-mono text-slate-600">{punch.machineId}</td>
+                              <td>
+                                <span className={`px-2 py-0.5 rounded text-[9px] font-black uppercase ${
+                                  punch.punchType === "IN" ? "bg-emerald-50 text-emerald-700 border border-emerald-200" : "bg-blue-50 text-blue-700 border border-blue-200"
+                                }`}>
+                                  {punch.punchType}
+                                </span>
+                              </td>
+                              <td className="font-mono text-slate-500">{punch.syncTime}</td>
+                              <td>
+                                <Badge variant="success">{punch.status}</Badge>
+                              </td>
+                            </tr>
+                          ));
+                        })()}
                       </tbody>
                     </table>
                   </div>
@@ -3837,7 +3896,7 @@ const EmployeeDashboard = () => {
                       <span className="text-lg">📅</span>
                       <h5 className="font-black text-slate-800 text-xs">Monthly Detailed Report</h5>
                       <button 
-                        onClick={() => alert("Report downloaded successfully in CSV format.")}
+                        onClick={handleDownloadAttendanceCSV}
                         className="w-full py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold shadow-xs transition"
                       >
                         Download CSV
@@ -3847,7 +3906,7 @@ const EmployeeDashboard = () => {
                       <span className="text-lg">⏰</span>
                       <h5 className="font-black text-slate-800 text-xs">Overtime Log Statement</h5>
                       <button 
-                        onClick={() => alert("Statement downloaded successfully in CSV format.")}
+                        onClick={handleDownloadOvertimeCSV}
                         className="w-full py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold shadow-xs transition"
                       >
                         Download CSV
