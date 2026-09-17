@@ -22,9 +22,9 @@ app.use('/api', apiRateLimiter);
 // Bind tenant routing middleware context
 app.use('/api', tenantMiddleware);
 
-// Body Parsers
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+// Body Parsers with increased limit for rich employee profile payloads and base64 attachments
+app.use(express.json({ limit: '50mb' }));
+app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 
 // Log every incoming HTTP request details via winston
 app.use((req, res, next) => {

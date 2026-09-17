@@ -11,16 +11,9 @@ import {
 } from "@heroicons/react/24/outline";
 import { Badge, Card, DynamicTable } from "../components/ui";
 import { apiFetch } from "../services/hrApi";
-
-
-
-
-
-
-
-
-
-
+import { useAuth } from "../auth/AuthProvider";
+import { useSelector } from "react-redux";
+import DepartmentDashboard from "../components/Department/DepartmentDashboard";
 
 const getStatusVariant = (status) => {
   if (["Active", "Approved", "Processed", "Open", "Hired"].includes(status)) return "success";
@@ -30,6 +23,22 @@ const getStatusVariant = (status) => {
 };
 
 const AdminDashboard = () => {
+  const { user } = useAuth();
+  const dbData = useSelector((state) => state.hr.dbData) || {};
+
+  if (user?.role === "DepartmentHR") {
+    const deptDetail = {
+      id: user?.departmentId || "dept_hr",
+      deptName: user?.departmentName || "Department Operations",
+      deptCode: user?.departmentCode || "DEPT",
+      assignedModules: user?.assignedModules || [],
+      status: "Active",
+      description: `${user?.departmentName || "Department"} Operations Command Center.`
+    };
+
+    return <DepartmentDashboard deptDetail={deptDetail} dbData={dbData} />;
+  }
+
   const [currentTime, setCurrentTime] = useState(new Date());
 
   // Database Data States

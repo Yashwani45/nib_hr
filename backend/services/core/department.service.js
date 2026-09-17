@@ -167,7 +167,7 @@ class DepartmentService {
 
     // Check code uniqueness per company
     const [existingCode] = await activeDb.query(
-      "SELECT id FROM departments WHERE (company_id = ? OR company_id IS NULL) AND dept_code = ? AND deleted_at IS NULL LIMIT 1",
+      "SELECT id FROM departments WHERE (company_id = ? OR company_id IS NULL) AND dept_code = ? LIMIT 1",
       { replacements: [companyId, cleanCode], type: QueryTypes.SELECT }
     );
     if (existingCode) {
@@ -176,7 +176,7 @@ class DepartmentService {
 
     // Check name uniqueness per company
     const [existingName] = await activeDb.query(
-      "SELECT id FROM departments WHERE (company_id = ? OR company_id IS NULL) AND dept_name = ? AND deleted_at IS NULL LIMIT 1",
+      "SELECT id FROM departments WHERE (company_id = ? OR company_id IS NULL) AND dept_name = ? LIMIT 1",
       { replacements: [companyId, cleanName], type: QueryTypes.SELECT }
     );
     if (existingName) {
@@ -187,7 +187,7 @@ class DepartmentService {
     const parentId = departmentData.parentDeptId || departmentData.parent_dept_id;
     if (parentId) {
       const [parentDept] = await activeDb.query(
-        "SELECT id FROM departments WHERE id = ? AND deleted_at IS NULL LIMIT 1",
+        "SELECT id FROM departments WHERE id = ? LIMIT 1",
         { replacements: [parentId], type: QueryTypes.SELECT }
       );
       if (!parentDept) {
@@ -320,7 +320,7 @@ class DepartmentService {
     const { sequelize } = require('../../config/database');
 
     const [rows] = await sequelize.query(
-      "SELECT * FROM departments WHERE id = ? AND deleted_at IS NULL LIMIT 1",
+      "SELECT * FROM departments WHERE id = ? LIMIT 1",
       { replacements: [id], type: QueryTypes.SELECT }
     );
     const existing = rows;
@@ -351,7 +351,7 @@ class DepartmentService {
     if (updateData.deptCode && updateData.deptCode.trim().toUpperCase() !== existing_dept_code) {
       const cleanCode = updateData.deptCode.trim().toUpperCase();
       const [occupied] = await sequelize.query(
-        "SELECT id FROM departments WHERE (company_id = ? OR company_id IS NULL) AND dept_code = ? AND id != ? AND deleted_at IS NULL LIMIT 1",
+        "SELECT id FROM departments WHERE (company_id = ? OR company_id IS NULL) AND dept_code = ? AND id != ? LIMIT 1",
         { replacements: [companyId || company_id, cleanCode, id], type: QueryTypes.SELECT }
       );
       if (occupied) {
@@ -365,7 +365,7 @@ class DepartmentService {
     if (updateData.deptName && updateData.deptName.trim() !== existing_dept_name) {
       const cleanName = updateData.deptName.trim();
       const [occupied] = await sequelize.query(
-        "SELECT id FROM departments WHERE (company_id = ? OR company_id IS NULL) AND dept_name = ? AND id != ? AND deleted_at IS NULL LIMIT 1",
+        "SELECT id FROM departments WHERE (company_id = ? OR company_id IS NULL) AND dept_name = ? AND id != ? LIMIT 1",
         { replacements: [companyId || company_id, cleanName, id], type: QueryTypes.SELECT }
       );
       if (occupied) {
@@ -452,10 +452,36 @@ class DepartmentService {
 
     if (sqlUpdates.length > 0) {
       sqlUpdates.push("updated_at = NOW()");
-      await sequelize.query(
-        `UPDATE departments SET ${sqlUpdates.join(', ')} WHERE id = :id`,
-        { replacements }
-      );
+      const { masterSequelize } = require('../../config/database');
+      try {
+        await sequelize.query(
+          `UPDATE departments SET ${sqlUpdates.join(', ')} WHERE id = :id`,
+          { replacements }
+        );
+      } catch (upErr) {
+        try {
+          await sequelize.query(
+            `UPDATE department SET ${sqlUpdates.join(', ')} WHERE id = :id`,
+            { replacements }
+          );
+        } catch (upErr2) {}
+      }
+
+      if (masterSequelize && masterSequelize !== sequelize) {
+        try {
+          await masterSequelize.query(
+            `UPDATE departments SET ${sqlUpdates.join(', ')} WHERE id = :id`,
+            { replacements }
+          );
+        } catch (mErr) {
+          try {
+            await masterSequelize.query(
+              `UPDATE department SET ${sqlUpdates.join(', ')} WHERE id = :id`,
+              { replacements }
+            );
+          } catch (mErr2) {}
+        }
+      }
     }
 
     // Retrieve updated record
@@ -484,7 +510,7 @@ class DepartmentService {
     const { sequelize } = require('../../config/database');
 
     const [rows] = await sequelize.query(
-      "SELECT * FROM departments WHERE id = ? AND deleted_at IS NULL LIMIT 1",
+      "SELECT * FROM departments WHERE id = ? LIMIT 1",
       { replacements: [id], type: QueryTypes.SELECT }
     );
     const existing = rows;
@@ -526,13 +552,36 @@ class DepartmentService {
    */
   async deleteDepartment(id, currentUser, reqInfo = {}) {
     const companyId = this._resolveCompanyId(currentUser);
-    const { sequelize } = require('../../config/database');
+    const { sequelize, masterSequelize } = require('../../config/database');
 
-    const [rows] = await sequelize.query(
-      "SELECT * FROM departments WHERE id = ? LIMIT 1",
-      { replacements: [id], type: QueryTypes.SELECT }
-    );
-    const existing = rows;
+    let existing = null;
+    try {
+      const [rows] = await sequelize.query(
+        "SELECT * FROM departments WHERE id = ? LIMIT 1",
+        { replacements: [id], type: QueryTypes.SELECT }
+      );
+      existing = rows;
+    } catch (e) {}
+
+    if (!existing) {
+      try {
+        const [rows] = await sequelize.query(
+          "SELECT * FROM department WHERE id = ? LIMIT 1",
+          { replacements: [id], type: QueryTypes.SELECT }
+        );
+        existing = rows;
+      } catch (e) {}
+    }
+
+    if (!existing && masterSequelize) {
+      try {
+        const [rows] = await masterSequelize.query(
+          "SELECT * FROM departments WHERE id = ? LIMIT 1",
+          { replacements: [id], type: QueryTypes.SELECT }
+        );
+        existing = rows;
+      } catch (e) {}
+    }
 
     if (!existing) {
       throw new ApiError(404, 'Department record not found for deletion.');
@@ -540,6 +589,8 @@ class DepartmentService {
 
     const company_id = existing.company_id || existing.companyId;
     const deptName = existing.dept_name || existing.deptName || existing.name;
+    const hrEmail = existing.hr_email || existing.hrEmail;
+    const cleanHrEmail = hrEmail ? String(hrEmail).trim().toLowerCase() : null;
 
     if (companyId && company_id && company_id !== companyId) {
       throw new ApiError(403, 'Unauthorized deletion of department resource.');
@@ -547,17 +598,36 @@ class DepartmentService {
 
     // Auto-unassign active employees and sub-departments linked to this department
     try {
-      await sequelize.query(`UPDATE employees SET department_id = NULL WHERE department_id = ?`, { replacements: [id] });
-      await sequelize.query(`UPDATE departments SET parent_dept_id = NULL WHERE parent_dept_id = ?`, { replacements: [id] });
+      await sequelize.query(`UPDATE employees SET department_id = NULL WHERE department_id = ?`, { replacements: [id] }).catch(() => {});
+      await sequelize.query(`UPDATE departments SET parent_dept_id = NULL WHERE parent_dept_id = ?`, { replacements: [id] }).catch(() => {});
+      await sequelize.query(`UPDATE department SET parent_dept_id = NULL WHERE parent_dept_id = ?`, { replacements: [id] }).catch(() => {});
     } catch (unassignErr) {
       console.warn('[Department Unassign Warning]', unassignErr.message);
     }
 
     const previousValues = existing;
-    await sequelize.query(
-      "DELETE FROM departments WHERE id = ?",
-      { replacements: [id] }
-    );
+
+    // 1. Delete from active tenant DB (both departments and department tables)
+    await sequelize.query("DELETE FROM departments WHERE id = ?", { replacements: [id] }).catch(() => {});
+    await sequelize.query("DELETE FROM department WHERE id = ?", { replacements: [id] }).catch(() => {});
+
+    // 2. Delete from masterSequelize (both departments and department tables)
+    if (masterSequelize) {
+      await masterSequelize.query("DELETE FROM departments WHERE id = ?", { replacements: [id] }).catch(() => {});
+      await masterSequelize.query("DELETE FROM department WHERE id = ?", { replacements: [id] }).catch(() => {});
+    }
+
+    // 3. Purge HR email everywhere across both databases and linked user accounts
+    if (cleanHrEmail) {
+      await sequelize.query("DELETE FROM departments WHERE LOWER(hr_email) = ?", { replacements: [cleanHrEmail] }).catch(() => {});
+      await sequelize.query("DELETE FROM department WHERE LOWER(hr_email) = ?", { replacements: [cleanHrEmail] }).catch(() => {});
+      await sequelize.query("DELETE FROM users WHERE LOWER(email) = ?", { replacements: [cleanHrEmail] }).catch(() => {});
+      if (masterSequelize) {
+        await masterSequelize.query("DELETE FROM departments WHERE LOWER(hr_email) = ?", { replacements: [cleanHrEmail] }).catch(() => {});
+        await masterSequelize.query("DELETE FROM department WHERE LOWER(hr_email) = ?", { replacements: [cleanHrEmail] }).catch(() => {});
+        await masterSequelize.query("DELETE FROM users WHERE LOWER(email) = ?", { replacements: [cleanHrEmail] }).catch(() => {});
+      }
+    }
 
     // Auto-delete physical department folder and files from disk: Frontend/src/Company/[CompanyFolder]/Department/[DepartmentName]/
     try {

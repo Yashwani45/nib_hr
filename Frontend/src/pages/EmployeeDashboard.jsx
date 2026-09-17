@@ -43,6 +43,87 @@ const getStatusVariant = (status) => {
   return "neutral";
 };
 
+export const getEmptyEmployeeForm = () => ({
+  photo: "",
+  employeeId: "",
+  employeeCode: "",
+  firstName: "",
+  middleName: "",
+  lastName: "",
+  gender: "Male",
+  dateOfBirth: "",
+  maritalStatus: "Single",
+  bloodGroup: "",
+  nationality: "Indian",
+  company: "",
+  branch: "",
+  department: "",
+  designation: "",
+  reportingManager: "",
+  employeeType: "Full-Time",
+  employeeStatus: "Active",
+  officialEmail: "",
+  dateOfJoining: "",
+  mobileNumber: "",
+  alternateMobile: "",
+  personalEmail: "",
+  currentAddress: "",
+  permanentAddress: "",
+  city: "",
+  state: "",
+  country: "India",
+  pinCode: "",
+  aadhaarNumber: "",
+  panNumber: "",
+  passportNumber: "",
+  drivingLicense: "",
+  voterId: "",
+  uanNumber: "",
+  esicNumber: "",
+  bankName: "",
+  accountHolderName: "",
+  accountNumber: "",
+  ifscCode: "",
+  branchName: "",
+  salaryStructure: "",
+  basicSalary: "",
+  grossSalary: "",
+  ctc: "",
+  pfApplicable: false,
+  esiApplicable: false,
+  tdsApplicable: false,
+  emergencyContactName: "",
+  emergencyRelation: "",
+  emergencyMobile: "",
+  highestDegree: "",
+  specialization: "",
+  university: "",
+  passingYear: "",
+  educationGpa: "",
+  prevCompany: "",
+  prevDesignation: "",
+  totalExpYears: "",
+  prevSalary: "",
+  technicalSkills: "",
+  certifications: "",
+  shift: "General Shift",
+  weeklyOff: "Sunday",
+  attendanceMode: "Biometric",
+  casualLeaveBalance: 12,
+  sickLeaveBalance: 8,
+  earnedLeaveBalance: 15,
+  assets: [],
+  documents: {},
+  kpiValue: "",
+  rating: "3",
+  resignationDate: "",
+  lastWorkingDay: "",
+  exitReason: "",
+  exitInterview: "",
+  clearanceStatus: "",
+  createdBy: "System Admin"
+});
+
 const EmployeeDashboard = () => {
   const { user, logout } = useAuth();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -56,34 +137,23 @@ const EmployeeDashboard = () => {
   const [allEmployeesList, setAllEmployeesList] = useState([]);
   const [allAttendanceList, setAllAttendanceList] = useState([]);
   const [allLeavesList, setAllLeavesList] = useState([]);
+  const [allTicketsList, setAllTicketsList] = useState([]);
+  const [allRegularizationsList, setAllRegularizationsList] = useState([]);
+  const [jobPostingsList, setJobPostingsList] = useState([]);
+  const [candidateList, setCandidateList] = useState([]);
+  const [interviewsList, setInterviewsList] = useState([]);
+  const [offerLettersList, setOfferLettersList] = useState([]);
   
   const [empCheckedIn, setEmpCheckedIn] = useState(false);
   const [empPunchTime, setEmpPunchTime] = useState("");
   
-  // Lists initialized with beautiful demo fallbacks
-  const [attendanceLogs, setAttendanceLogs] = useState([
-    { date: "2026-07-27", checkIn: "09:02 AM", checkOut: "--", status: "Present" },
-    { date: "2026-07-26", checkIn: "08:58 AM", checkOut: "05:31 PM", status: "Present" },
-    { date: "2026-07-25", checkIn: "09:05 AM", checkOut: "05:35 PM", status: "Present" }
-  ]);
-  const [leaves, setLeaves] = useState([
-    { id: "L-902", leaveType: "Casual Leave", fromDate: "2026-08-01", toDate: "2026-08-03", totalDays: 3, status: "Pending", reason: "Family event" },
-    { id: "L-884", leaveType: "Medical Leave", fromDate: "2026-07-10", toDate: "2026-07-11", totalDays: 2, status: "Approved", reason: "Fever recovery" }
-  ]);
-  const [assets, setAssets] = useState([
-    { id: "A-1", assetName: "MacBook Pro M3", assetCategory: "Laptop", serialNumber: "C02XYZ123ABC", status: "Assigned" },
-    { id: "A-2", assetName: "Dell U2723QE Monitor", assetCategory: "Display", serialNumber: "MX-998877", status: "Assigned" }
-  ]);
+  // Real dynamic user records (no static mock fallbacks)
+  const [attendanceLogs, setAttendanceLogs] = useState([]);
+  const [leaves, setLeaves] = useState([]);
+  const [assets, setAssets] = useState([]);
   const [expandedAssetId, setExpandedAssetId] = useState(null);
-  const [tickets, setTickets] = useState([
-    { id: "TKT-101", subject: "VPN Access Issue", category: "IT Support", status: "In Progress", date: "2026-07-26" },
-    { id: "TKT-095", subject: "Salary Slip Request", category: "HR Helpdesk", status: "Resolved", date: "2026-07-15" }
-  ]);
-  const [payslips, setPayslips] = useState([
-    { month: "June 2026", basic: 25000, hra: 10000, special: 7500, pf: 3000, tax: 2000, netPay: 37500 },
-    { month: "May 2026", basic: 25000, hra: 10000, special: 7500, pf: 3000, tax: 2000, netPay: 37500 },
-    { month: "April 2026", basic: 25000, hra: 10000, special: 7500, pf: 3000, tax: 2000, netPay: 37500 }
-  ]);
+  const [tickets, setTickets] = useState([]);
+  const [payslips, setPayslips] = useState([]);
 
   const [loading, setLoading] = useState(false);
   const [holidays, setHolidays] = useState([]);
@@ -104,6 +174,8 @@ const EmployeeDashboard = () => {
   const [selectedPayslip, setSelectedPayslip] = useState(null);
   const [regularizationLogs, setRegularizationLogs] = useState([]);
   const [newRegularization, setNewRegularization] = useState({ date: "", punchType: "Check-In", requestedCheckIn: "", requestedCheckOut: "", reason: "", attachment: "" });
+  const [isNewRegistration, setIsNewRegistration] = useState(false);
+  const [duplicateWarningModal, setDuplicateWarningModal] = useState(null);
 
   const [employeeForm, setEmployeeForm] = useState({
     photo: "",
@@ -178,13 +250,17 @@ const EmployeeDashboard = () => {
   const [profileTab, setProfileTab] = useState(searchParams.get("profileTab") || "Basic Information");
   const userRole = typeof user?.role === "object" ? user?.role?.name : user?.role;
   const isAdmin = userRole === "SuperAdmin" || userRole === "Admin" || userRole === "Company Admin";
+  const userDeptStr = String(currentUserProfile?.department || user?.departmentName || user?.department || "").toLowerCase();
+  const userRoleStr = String(userRole || "").toLowerCase();
+  const isHR = userDeptStr.includes("hr") || userDeptStr.includes("human") || userRoleStr.includes("hr");
+  const canManageEmployees = isAdmin || isHR;
   const [selectedEmployeeId, setSelectedEmployeeId] = useState(searchParams.get("profileEmpId") || "");
 
   // Derived user details
   const employeeName = currentUserProfile?.firstName || currentUserProfile?.employeeName || user?.employeeName || user?.name || user?.email?.split('@')[0] || "Employee";
   const departmentName = currentUserProfile?.department || user?.departmentName || user?.department || "Operations";
 
-  const [selectedDeptFilter, setSelectedDeptFilter] = useState(departmentName);
+  const [selectedDeptFilter, setSelectedDeptFilter] = useState("All Departments");
   const [companyDepartmentsList, setCompanyDepartmentsList] = useState(["IT", "Software Engineering", "Operations", "Finance", "Human Resources", "Sales & Marketing"]);
 
   useEffect(() => {
@@ -192,6 +268,30 @@ const EmployeeDashboard = () => {
       setSelectedDeptFilter(departmentName);
     }
   }, [departmentName]);
+
+  const profileSectionsList = [
+    "Basic Information",
+    "Official Information",
+    "Contact Information",
+    "Identity Documents",
+    "Bank & Payroll",
+    "Emergency Contact",
+    "Education",
+    "Experience",
+    "Skills & Certifications",
+    "Attendance Settings",
+    "Leave Settings",
+    "Asset Assignment",
+    "System Login",
+    "Documents",
+    "Performance",
+    "Exit Information",
+    "Audit Information"
+  ];
+
+  const currentSectionIdx = profileSectionsList.indexOf(profileTab);
+  const hasPrev = currentSectionIdx > 0;
+  const hasNext = currentSectionIdx >= 0 && currentSectionIdx < profileSectionsList.length - 1;
 
   const profileDetails = useMemo(() => {
     if (!currentUserProfile) return {};
@@ -222,11 +322,14 @@ const EmployeeDashboard = () => {
       }
     });
 
+    const resolvedFirstName = details.firstName || details.first_name || data.firstName || firstName;
+    const resolvedLastName = details.lastName || details.last_name || data.lastName || lastName;
+
     return {
-      firstName: data.firstName || firstName,
-      lastName: data.lastName || lastName,
+      ...details,
       ...data,
-      ...details
+      firstName: resolvedFirstName,
+      lastName: resolvedLastName
     };
   }, [currentUserProfile]);
 
@@ -264,7 +367,7 @@ const EmployeeDashboard = () => {
   };
 
   useEffect(() => {
-    if (profileDetails && Object.keys(profileDetails).length > 0) {
+    if (!isNewRegistration && profileDetails && Object.keys(profileDetails).length > 0) {
       setEmployeeForm(prev => ({
         ...prev,
         ...profileDetails,
@@ -272,7 +375,7 @@ const EmployeeDashboard = () => {
         assets: profileDetails.assets || prev.assets || []
       }));
     }
-  }, [profileDetails]);
+  }, [profileDetails, isNewRegistration]);
 
   // Live Timer
   useEffect(() => {
@@ -319,6 +422,26 @@ const EmployeeDashboard = () => {
         console.warn("Failed to fetch leave types:", e);
       }
 
+      // Auxiliary recruitment & organization telemetry
+      try {
+        const [jobRes, candRes, intRes, offRes, tickRes, regRes] = await Promise.all([
+          apiFetch("/api/table/job_postings").catch(() => ({ data: [] })),
+          apiFetch("/api/table/candidate_database").catch(() => ({ data: [] })),
+          apiFetch("/api/table/interviews").catch(() => ({ data: [] })),
+          apiFetch("/api/table/offer_letters").catch(() => ({ data: [] })),
+          apiFetch("/api/table/hr_tickets").catch(() => ({ data: [] })),
+          apiFetch("/api/table/attendance_regularization").catch(() => ({ data: [] }))
+        ]);
+        if (jobRes?.data) setJobPostingsList(jobRes.data);
+        if (candRes?.data) setCandidateList(candRes.data);
+        if (intRes?.data) setInterviewsList(intRes.data);
+        if (offRes?.data) setOfferLettersList(offRes.data);
+        if (tickRes?.data) setAllTicketsList(tickRes.data);
+        if (regRes?.data) setAllRegularizationsList(regRes.data);
+      } catch (eAux) {
+        console.warn("Auxiliary telemetry load error:", eAux);
+      }
+
       // 4. Fetch dynamic departments list
       try {
         const deptRes = await apiFetch("/api/table/department");
@@ -329,7 +452,7 @@ const EmployeeDashboard = () => {
       } catch (e) {}
 
       const profile = empsList.find(e => {
-        if (isAdmin && selectedEmployeeId) {
+        if (canManageEmployees && selectedEmployeeId) {
           return e.id === selectedEmployeeId;
         }
         const dbEmail = String(e.email || "").toLowerCase().trim();
@@ -476,10 +599,11 @@ const EmployeeDashboard = () => {
         setAssets(combinedAssets);
         
         // Fetch support tickets
-        const ticketRes = await apiFetch("/api/table/hr_tickets");
-        const ticketList = ticketRes?.data || [];
-        const filteredTickets = ticketList.filter(t => t.empName === profile.firstName || t.empName === profile.employeeName);
-        if (filteredTickets.length > 0) {
+        try {
+          const ticketRes = await apiFetch("/api/table/hr_tickets");
+          const ticketList = ticketRes?.data || [];
+          setAllTicketsList(ticketList);
+          const filteredTickets = ticketList.filter(t => t.empName === profile.firstName || t.empName === profile.employeeName);
           setTickets(filteredTickets.map(t => ({
             id: t.id || t.ticketNo,
             subject: t.subject,
@@ -487,40 +611,41 @@ const EmployeeDashboard = () => {
             status: t.status,
             date: t.created_at ? t.created_at.split(' ')[0] : '2026-07-27'
           })));
+        } catch (eTick) {
+          setTickets([]);
         }
 
         // Fetch payroll history from custom route
         try {
           const payRes = await apiFetch(`/api/finance/payslips?employeeId=${profile.id}`);
           const payList = payRes?.data || [];
-          if (payList.length > 0) {
-            const mappedPayroll = payList.map(p => ({
-              id: p.id,
-              month: `${p.month} ${p.year}`,
-              basic: Number(p.basic) || 0,
-              hra: Number(p.hra) || 0,
-              special: Number(p.special) || 0,
-              pf: Number(p.pf) || 0,
-              tax: Number(p.pt) + Number(p.tds) || 0,
-              netPay: Number(p.netSalary) || 0
-            }));
-            setPayslips(mappedPayroll);
-          }
+          const mappedPayroll = payList.map(p => ({
+            id: p.id,
+            month: `${p.month} ${p.year}`,
+            basic: Number(p.basic) || 0,
+            hra: Number(p.hra) || 0,
+            special: Number(p.special) || 0,
+            pf: Number(p.pf) || 0,
+            tax: Number(p.pt) + Number(p.tds) || 0,
+            netPay: Number(p.netSalary) || 0
+          }));
+          setPayslips(mappedPayroll);
         } catch (errPay) {
-          console.warn("Payroll API failed, keeping fallbacks:", errPay.message);
+          setPayslips([]);
         }
 
         // Fetch regularization logs
         try {
           const regRes = await apiFetch("/api/table/attendance_regularization");
           const regList = regRes?.data || [];
+          setAllRegularizationsList(regList);
           const myRegList = regList.filter(r => 
             (r.empId && myEmpCode && String(r.empId).toLowerCase().trim() === String(myEmpCode).toLowerCase().trim()) ||
             (r.empId && String(r.empId).toLowerCase().trim() === String(profile.id).toLowerCase().trim())
           );
           setRegularizationLogs(myRegList);
         } catch (errReg) {
-          console.warn("Regularization logs load failed:", errReg);
+          setRegularizationLogs([]);
         }
       }
     } catch (err) {
@@ -545,42 +670,330 @@ const EmployeeDashboard = () => {
 
   // Telemetry Metrics calculations based on real DB values
   const metrics = useMemo(() => {
-    return {
-      totalEmp: 215,
-      present: 172,
-      onLeave: 25,
-      absent: 18,
-      late: 9,
-      wfh: 12,
-      pending: 5,
-      barData: [
-        { label: "Ops", value: 215, height: "h-[90%]", color: "bg-blue-600" },
-        { label: "Sales", value: 184, height: "h-[80%]", color: "bg-emerald-500" },
-        { label: "Support", value: 168, height: "h-[70%]", color: "bg-indigo-500" },
-        { label: "Mktg", value: 132, height: "h-[55%]", color: "bg-pink-500" },
-        { label: "Claim", value: 128, height: "h-[52%]", color: "bg-amber-500" },
-        { label: "Tech", value: 156, height: "h-[65%]", color: "bg-slate-700" }
-      ]
+    // 1. Target employees based on selected department filter
+    let targetEmps = allEmployeesList || [];
+    if (selectedDeptFilter && selectedDeptFilter !== "All" && selectedDeptFilter !== "All Departments") {
+      targetEmps = targetEmps.filter(e => {
+        const d = (e.department || "").trim().toLowerCase();
+        const f = selectedDeptFilter.trim().toLowerCase();
+        return d === f || d.includes(f) || f.includes(d);
+      });
+    }
+
+    const totalEmp = targetEmps.length;
+
+    // Helper identifiers set
+    const empIds = new Set();
+    const empCodes = new Set();
+    const empNames = new Set();
+    targetEmps.forEach(e => {
+      if (e.id) empIds.add(String(e.id).toLowerCase().trim());
+      if (e.employeeId) empIds.add(String(e.employeeId).toLowerCase().trim());
+      if (e.employeeCode) empCodes.add(String(e.employeeCode).toLowerCase().trim());
+      if (e.emp_code) empCodes.add(String(e.emp_code).toLowerCase().trim());
+      if (e.employee_code) empCodes.add(String(e.employee_code).toLowerCase().trim());
+      const nm = `${e.firstName || ''} ${e.lastName || ''}`.trim() || e.employeeName || e.employee_name || '';
+      if (nm) empNames.add(nm.toLowerCase().trim());
+      if (e.firstName) empNames.add(String(e.firstName).toLowerCase().trim());
+    });
+
+    const matchesTarget = (rec) => {
+      if (!rec) return false;
+      const recId = String(rec.empId || rec.employeeId || rec.employee_id || rec.emp_id || rec.id || '').toLowerCase().trim();
+      if (recId && (empIds.has(recId) || empCodes.has(recId))) return true;
+      const recName = String(rec.empName || rec.employeeName || rec.employee_name || rec.name || '').toLowerCase().trim();
+      if (recName && empNames.has(recName)) return true;
+      return false;
     };
-  }, []);
+
+    // Date
+    const now = new Date();
+    const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+
+    // Attendance
+    const todayAtt = (allAttendanceList || []).filter(a => {
+      const aDate = String(a.date || '').split('T')[0].split(' ')[0];
+      return aDate === todayStr && (selectedDeptFilter === "All Departments" || matchesTarget(a));
+    });
+
+    const present = todayAtt.filter(a => {
+      const st = (a.status || '').toLowerCase();
+      return st === 'present' || (a.checkIn && a.checkIn !== '--');
+    }).length;
+
+    const late = todayAtt.filter(a => {
+      const st = (a.status || '').toLowerCase();
+      return st === 'late' || Number(a.lateComing || a.late_coming) > 0;
+    }).length;
+
+    const wfh = todayAtt.filter(a => {
+      const st = (a.status || '').toLowerCase();
+      return st === 'wfh' || st === 'work from home';
+    }).length;
+
+    // Leaves
+    const deptLeaves = (allLeavesList || []).filter(l => selectedDeptFilter === "All Departments" || matchesTarget(l));
+    const onLeave = deptLeaves.filter(l => {
+      const st = (l.status || '').toLowerCase();
+      if (st !== 'approved') return false;
+      const from = String(l.fromDate || l.from_date || '').split('T')[0];
+      const to = String(l.toDate || l.to_date || '').split('T')[0] || from;
+      return todayStr >= from && todayStr <= to;
+    }).length;
+
+    const absent = Math.max(0, totalEmp - present - onLeave);
+
+    // Approvals
+    const pendingLeaves = deptLeaves.filter(l => (l.status || '').toLowerCase() === 'pending');
+    const pendingRegs = (allRegularizationsList || []).filter(r => (selectedDeptFilter === "All Departments" || matchesTarget(r)) && (r.status || '').toLowerCase() === 'pending');
+    const pending = pendingLeaves.length + pendingRegs.length;
+
+    // Employee Summary
+    const maleCount = targetEmps.filter(e => (e.gender || '').toLowerCase() === 'male').length;
+    const femaleCount = targetEmps.filter(e => (e.gender || '').toLowerCase() === 'female').length;
+    const activeCount = targetEmps.filter(e => (e.employeeStatus || 'active').toLowerCase() !== 'inactive' && (e.employeeStatus || '').toLowerCase() !== 'resigned').length;
+    const permanentCount = targetEmps.filter(e => {
+      const t = (e.employeeType || 'full-time').toLowerCase();
+      return t.includes('full') || t.includes('perm');
+    }).length;
+    const contractCount = targetEmps.filter(e => {
+      const t = (e.employeeType || '').toLowerCase();
+      return t.includes('contract') || t.includes('temp');
+    }).length;
+
+    // Leave Summary
+    const totalLeaveBalance = targetEmps.reduce((sum, e) => {
+      const cl = e.casualLeaveBalance !== undefined && e.casualLeaveBalance !== null ? Number(e.casualLeaveBalance) : 12;
+      const sl = e.sickLeaveBalance !== undefined && e.sickLeaveBalance !== null ? Number(e.sickLeaveBalance) : 8;
+      const el = e.earnedLeaveBalance !== undefined && e.earnedLeaveBalance !== null ? Number(e.earnedLeaveBalance) : 15;
+      return sum + cl + sl + el;
+    }, 0);
+
+    const leaveTaken = deptLeaves
+      .filter(l => (l.status || '').toLowerCase() === 'approved')
+      .reduce((sum, l) => sum + (Number(l.totalDays || l.total_days) || 1), 0);
+
+    const pendingLeaveDays = pendingLeaves
+      .reduce((sum, l) => sum + (Number(l.totalDays || l.total_days) || 1), 0);
+
+    // Recruitment Summary
+    const openVacancies = (jobPostingsList || []).filter(j => (j.status || 'Active').toLowerCase() === 'active' || (j.status || '').toLowerCase() === 'open').length;
+    const interviewsToday = (interviewsList || []).filter(i => {
+      const d = String(i.interviewDate || i.date || '').split('T')[0];
+      return d === todayStr;
+    }).length;
+    const shortlistedStaff = (candidateList || []).filter(c => (c.status || '').toLowerCase() === 'shortlisted').length;
+    const offersReleased = (offerLettersList || []).filter(o => {
+      const st = (o.status || '').toLowerCase();
+      return st === 'sent' || st === 'released' || st === 'approved' || st === 'accepted';
+    }).length;
+
+    // Department Distribution Bar Chart
+    const deptMap = {};
+    (allEmployeesList || []).forEach(e => {
+      const d = (e.department || "General").trim();
+      deptMap[d] = (deptMap[d] || 0) + 1;
+    });
+    const maxVal = Math.max(...Object.values(deptMap), 1);
+    const palette = ["bg-blue-600", "bg-emerald-500", "bg-indigo-500", "bg-pink-500", "bg-amber-500", "bg-purple-600", "bg-sky-500"];
+    const barData = Object.keys(deptMap).length > 0 
+      ? Object.entries(deptMap).map(([label, count], idx) => ({
+          label: label.length > 8 ? label.slice(0, 7) + ".." : label,
+          fullLabel: label,
+          value: count,
+          height: `${Math.max(15, Math.round((count / maxVal) * 90))}%`,
+          color: palette[idx % palette.length]
+        }))
+      : [
+          { label: "General", fullLabel: "General", value: totalEmp, height: "80%", color: "bg-blue-600" }
+        ];
+
+    // Dynamic 5-day Trend (Attendance & Leaves)
+    const trendDays = [];
+    for (let i = 4; i >= 0; i--) {
+      const d = new Date();
+      d.setDate(d.getDate() - i);
+      const iso = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+      const dayLabel = d.toLocaleDateString("en-US", { day: "2-digit", month: "short" });
+
+      const dayAtt = (allAttendanceList || []).filter(a => {
+        const ad = String(a.date || '').split('T')[0].split(' ')[0];
+        return ad === iso && (selectedDeptFilter === "All Departments" || matchesTarget(a));
+      });
+      const attCount = dayAtt.filter(a => (a.status || '').toLowerCase() === 'present' || a.checkIn).length;
+      const attRate = totalEmp > 0 ? Math.round((attCount / totalEmp) * 100) : 0;
+
+      const dayLeaves = deptLeaves.filter(l => {
+        const st = (l.status || '').toLowerCase();
+        if (st !== 'approved') return false;
+        const from = String(l.fromDate || l.from_date || '').split('T')[0];
+        const to = String(l.toDate || l.to_date || '').split('T')[0] || from;
+        return iso >= from && iso <= to;
+      }).length;
+
+      trendDays.push({ iso, dayLabel, attRate, attCount, dayLeaves });
+    }
+
+    // Helpdesk Summary
+    const deptTickets = (allTicketsList || []).filter(t => selectedDeptFilter === "All Departments" || matchesTarget(t));
+    const openTickets = deptTickets.filter(t => (t.status || 'open').toLowerCase() === 'open').length;
+    const inProgTickets = deptTickets.filter(t => {
+      const st = (t.status || '').toLowerCase();
+      return st === 'in progress' || st === 'in_progress' || st === 'in review';
+    }).length;
+    const resolvedTickets = deptTickets.filter(t => (t.status || '').toLowerCase() === 'resolved').length;
+    const closedTickets = deptTickets.filter(t => (t.status || '').toLowerCase() === 'closed').length;
+
+    // Performance
+    const ratedEmps = targetEmps.filter(e => e.rating && !isNaN(Number(e.rating)));
+    const avgRating = ratedEmps.length > 0 
+      ? (ratedEmps.reduce((acc, e) => acc + Number(e.rating), 0) / ratedEmps.length).toFixed(1)
+      : (totalEmp > 0 ? "4.5" : "0.0");
+    const avgKpiList = targetEmps.filter(e => e.kpiValue && !isNaN(Number(e.kpiValue)));
+    const avgKpi = avgKpiList.length > 0 
+      ? `${Math.round(avgKpiList.reduce((acc, e) => acc + Number(e.kpiValue), 0) / avgKpiList.length)}%`
+      : (totalEmp > 0 ? "95%" : "0%");
+    const topPerformers = targetEmps.filter(e => Number(e.rating || 0) >= 4).length;
+
+    // Recent activities
+    const recentActivities = [];
+    deptLeaves.slice(0, 2).forEach(l => {
+      recentActivities.push({
+        text: `${l.empName || 'Employee'} requested ${l.leaveType} (${l.totalDays}d)`,
+        date: l.fromDate || 'Recently',
+        color: 'bg-blue-600'
+      });
+    });
+    todayAtt.slice(0, 2).forEach(a => {
+      recentActivities.push({
+        text: `${a.employee || 'Staff'} punched in at ${a.checkIn || '09:00 AM'}`,
+        date: a.date || 'Today',
+        color: 'bg-emerald-500'
+      });
+    });
+    if (recentActivities.length === 0) {
+      targetEmps.slice(-2).reverse().forEach(e => {
+        const nm = `${e.firstName || ''} ${e.lastName || ''}`.trim() || e.employeeName || 'New Employee';
+        recentActivities.push({
+          text: `${nm} profile active in ${e.department || 'Workspace'}`,
+          date: e.dateOfJoining || 'Recently',
+          color: 'bg-indigo-600'
+        });
+      });
+    }
+
+    // Upcoming events from holidays
+    const upcomingEvents = (holidays || [])
+      .filter(h => {
+        const hDate = String(h.holidayDate || h.holiday_date || '').split('T')[0];
+        return hDate >= todayStr;
+      })
+      .slice(0, 3)
+      .map(h => ({
+        title: h.holidayName || h.holiday_name || "Holiday",
+        date: h.holidayDate || h.holiday_date,
+        type: h.holidayType || "Public Holiday"
+      }));
+
+    return {
+      totalEmp,
+      present,
+      onLeave,
+      absent,
+      late,
+      wfh,
+      pending,
+      pendingLeavesCount: pendingLeaves.length,
+      pendingRegCount: pendingRegs.length,
+      maleCount,
+      femaleCount,
+      activeCount,
+      permanentCount,
+      contractCount,
+      totalLeaveBalance,
+      leaveTaken,
+      pendingLeaveDays,
+      openVacancies,
+      interviewsToday,
+      shortlistedStaff,
+      offersReleased,
+      barData,
+      trendDays,
+      openTickets,
+      inProgTickets,
+      resolvedTickets,
+      closedTickets,
+      totalTickets: deptTickets.length,
+      avgRating,
+      stars: Math.round(Number(avgRating)),
+      avgKpi,
+      topPerformers,
+      recentActivities,
+      upcomingEvents
+    };
+  }, [allEmployeesList, allAttendanceList, allLeavesList, allTicketsList, allRegularizationsList, jobPostingsList, candidateList, interviewsList, offerLettersList, holidays, selectedDeptFilter]);
 
   const handleSaveProfile = async (e) => {
     e.preventDefault();
-    if (!employeeForm.firstName || !employeeForm.firstName.trim()) {
-      alert("First Name is required.");
-      return;
+
+    let effectiveFirstName = (employeeForm.firstName || "").trim();
+    let effectiveLastName = (employeeForm.lastName || "").trim();
+
+    // If firstName is empty, try falling back to all available sources
+    if (!effectiveFirstName) {
+      if (employeeForm.employee_name || employeeForm.employeeName) {
+        const full = (employeeForm.employee_name || employeeForm.employeeName).trim();
+        effectiveFirstName = full.split(' ')[0] || "";
+        if (!effectiveLastName) effectiveLastName = full.split(' ').slice(1).join(' ') || "";
+      } else if (profileDetails.firstName || profileDetails.first_name) {
+        effectiveFirstName = (profileDetails.firstName || profileDetails.first_name).trim();
+        if (!effectiveLastName) effectiveLastName = (profileDetails.lastName || profileDetails.last_name || "").trim();
+      } else if (profileDetails.employee_name || profileDetails.employeeName) {
+        const full = (profileDetails.employee_name || profileDetails.employeeName).trim();
+        effectiveFirstName = full.split(' ')[0] || "";
+        if (!effectiveLastName) effectiveLastName = full.split(' ').slice(1).join(' ') || "";
+      } else if (currentUserProfile?.firstName || currentUserProfile?.employee_name) {
+        effectiveFirstName = currentUserProfile.firstName || (currentUserProfile.employee_name || "").split(' ')[0];
+        if (!effectiveLastName) effectiveLastName = currentUserProfile.lastName || (currentUserProfile.employee_name || "").split(' ').slice(1).join(' ');
+      } else if (employeeForm.officialEmail) {
+        const emailPrefix = employeeForm.officialEmail.split('@')[0].replace(/[._-]/g, ' ').trim();
+        const parts = emailPrefix.split(' ').filter(Boolean);
+        if (parts.length > 0) {
+          effectiveFirstName = parts[0].charAt(0).toUpperCase() + parts[0].slice(1);
+          if (!effectiveLastName && parts.length > 1) {
+            effectiveLastName = parts.slice(1).map(p => p.charAt(0).toUpperCase() + p.slice(1)).join(' ');
+          }
+        }
+      } else if (employeeForm.personalEmail) {
+        const emailPrefix = employeeForm.personalEmail.split('@')[0].replace(/[._-]/g, ' ').trim();
+        const parts = emailPrefix.split(' ').filter(Boolean);
+        if (parts.length > 0) {
+          effectiveFirstName = parts[0].charAt(0).toUpperCase() + parts[0].slice(1);
+          if (!effectiveLastName && parts.length > 1) {
+            effectiveLastName = parts.slice(1).map(p => p.charAt(0).toUpperCase() + p.slice(1)).join(' ');
+          }
+        }
+      } else if (user?.employeeName || user?.name) {
+        const full = (user.employeeName || user.name).trim();
+        effectiveFirstName = full.split(' ')[0] || "";
+        if (!effectiveLastName) effectiveLastName = full.split(' ').slice(1).join(' ') || "";
+      } else {
+        effectiveFirstName = "Employee";
+      }
     }
 
-    const constructedName = `${employeeForm.firstName} ${employeeForm.lastName || ""}`.trim();
+    const constructedName = `${effectiveFirstName} ${effectiveLastName}`.trim();
     
     const profileDataStr = JSON.stringify({
       ...employeeForm,
+      firstName: effectiveFirstName,
+      lastName: effectiveLastName,
       updatedBy: user?.email || "Employee Self",
       updatedDate: new Date().toLocaleDateString()
     });
 
-    const cleanFirstName = (employeeForm.firstName || "employee").toLowerCase().replace(/[^a-z0-9]/g, "");
-    const cleanLastName = (employeeForm.lastName || "staff").toLowerCase().replace(/[^a-z0-9]/g, "");
+    const cleanFirstName = (effectiveFirstName || "employee").toLowerCase().replace(/[^a-z0-9]/g, "");
+    const cleanLastName = (effectiveLastName || "staff").toLowerCase().replace(/[^a-z0-9]/g, "");
     const fallbackEmail = `${cleanFirstName}.${cleanLastName}${Date.now().toString().slice(-4)}@nib.com`;
     const effectiveEmail = (employeeForm.officialEmail && employeeForm.officialEmail.trim())
       ? employeeForm.officialEmail.trim()
@@ -590,9 +1003,15 @@ const EmployeeDashboard = () => {
 
     const payload = {
       ...employeeForm,
+      firstName: effectiveFirstName,
+      lastName: effectiveLastName,
       employee_name: constructedName,
+      employeeName: constructedName,
       emp_code: employeeForm.employeeCode || employeeForm.empCode || undefined,
+      employeeCode: employeeForm.employeeCode || employeeForm.empCode || undefined,
       email: effectiveEmail,
+      officialEmail: employeeForm.officialEmail || effectiveEmail,
+      companyEmail: employeeForm.officialEmail || effectiveEmail,
       department: employeeForm.department || "Operations",
       profile_data: profileDataStr
     };
@@ -601,6 +1020,49 @@ const EmployeeDashboard = () => {
     delete payload.updated_at;
     delete payload.createdAt;
     delete payload.updatedAt;
+
+    // 1. Client-side duplicate check against allEmployeesList
+    const targetEmail = (employeeForm.officialEmail || employeeForm.personalEmail || employeeForm.email || effectiveEmail || "").toLowerCase().trim();
+    const targetCode = (employeeForm.employeeCode || employeeForm.emp_code || employeeForm.employee_code || "").toLowerCase().trim();
+    const targetMobile = (employeeForm.mobileNumber || "").replace(/\D/g, "");
+    const currentEditId = employeeForm.id || null;
+
+    const duplicateEmployee = allEmployeesList.find(emp => {
+      if (currentEditId && emp.id === currentEditId) return false;
+      const empEmail = (emp.officialEmail || emp.email || emp.companyEmail || emp.personalEmail || "").toLowerCase().trim();
+      const empCode = (emp.employeeCode || emp.emp_code || emp.employee_code || "").toLowerCase().trim();
+      const empMobile = String(emp.mobileNumber || emp.mobile || "").replace(/\D/g, "");
+      
+      const emailMatches = Boolean(targetEmail && empEmail && targetEmail === empEmail);
+      const codeMatches = Boolean(targetCode && empCode && targetCode === empCode);
+      const mobileMatches = Boolean(targetMobile && empMobile && targetMobile.length >= 7 && targetMobile === empMobile);
+
+      return emailMatches || codeMatches || mobileMatches;
+    });
+
+    if (duplicateEmployee) {
+      const dupName = duplicateEmployee.employee_name || duplicateEmployee.employeeName || `${duplicateEmployee.firstName || ''} ${duplicateEmployee.lastName || ''}`.trim() || "Existing Employee";
+      const dupCode = duplicateEmployee.employeeCode || duplicateEmployee.emp_code || duplicateEmployee.employee_code || "--";
+      const dupEmail = duplicateEmployee.officialEmail || duplicateEmployee.email || "--";
+      const matchedField = (targetEmail && (duplicateEmployee.officialEmail || duplicateEmployee.email) && targetEmail === (duplicateEmployee.officialEmail || duplicateEmployee.email).toLowerCase().trim())
+        ? "Email Address"
+        : (targetCode && (duplicateEmployee.employeeCode || duplicateEmployee.emp_code) && targetCode === (duplicateEmployee.employeeCode || duplicateEmployee.emp_code).toLowerCase().trim())
+          ? "Employee Code"
+          : "Mobile Number";
+
+      setDuplicateWarningModal({
+        isOpen: true,
+        title: "Already Data Uploaded!",
+        name: dupName,
+        code: dupCode,
+        email: dupEmail,
+        id: duplicateEmployee.id,
+        matchedField,
+        customMessage: `⚠️ Already Data Uploaded! Database me is ${matchedField} ke saath employee data pehle se upload ho chuka hai. Same data dobara insert nahi ho sakta.`,
+        existingData: duplicateEmployee
+      });
+      return;
+    }
 
     try {
       if (employeeForm.id) {
@@ -618,11 +1080,54 @@ const EmployeeDashboard = () => {
           })
         });
       }
-      alert("Your profile has been saved successfully!");
-      loadDashboardData();
+      
+      // Reset form so placeholders/inputs are completely blank after save, staying on current section
+      setIsNewRegistration(true);
+      setEmployeeForm(getEmptyEmployeeForm());
+      setSelectedEmployeeId("");
+      await loadDashboardData();
+      alert("✅ Data uploaded and saved to database successfully! All form fields are now blank.");
     } catch (err) {
-      alert(err.message || "Failed to save profile.");
+      const msg = err.message || "Failed to save profile.";
+      if (msg.toLowerCase().includes("already exists") || msg.toLowerCase().includes("duplicate")) {
+        setDuplicateWarningModal({
+          isOpen: true,
+          title: "Already Data Uploaded!",
+          name: "Existing Employee in Database",
+          code: employeeForm.employeeCode || "--",
+          email: effectiveEmail || "--",
+          id: "",
+          matchedField: "Email or Employee Code",
+          customMessage: `⚠️ Already Data Uploaded! ${msg}`,
+          existingData: null
+        });
+      } else {
+        alert(msg);
+      }
     }
+  };
+
+  const handleLoadDuplicateEmployee = (existingEmp) => {
+    if (!existingEmp) {
+      setDuplicateWarningModal(null);
+      return;
+    }
+    setIsNewRegistration(false);
+    let parsedProfile = {};
+    if (existingEmp.profile_data) {
+      try {
+        parsedProfile = typeof existingEmp.profile_data === 'string' ? JSON.parse(existingEmp.profile_data) : existingEmp.profile_data;
+      } catch (e) {}
+    }
+    setEmployeeForm({
+      ...getEmptyEmployeeForm(),
+      ...existingEmp,
+      ...parsedProfile,
+      documents: existingEmp.documents || parsedProfile.documents || {},
+      assets: existingEmp.assets || parsedProfile.assets || []
+    });
+    setDuplicateWarningModal(null);
+    alert(`Loaded profile for ${existingEmp.employee_name || existingEmp.employeeName || existingEmp.firstName || 'Employee'}. You can now update this record.`);
   };
 
   // Punch Action database integration
@@ -1025,7 +1530,7 @@ const EmployeeDashboard = () => {
         <div>
           <span className="text-[10px] font-black uppercase text-indigo-600 tracking-widest block mb-1">Employee Command Center</span>
           <h1 className="text-3xl font-extrabold text-slate-800 tracking-tight">
-            {activeTab === "Dashboard Home" ? (selectedDeptFilter || departmentName) + " Department Dashboard" : activeTab}
+            {activeTab === "Dashboard Home" ? (selectedDeptFilter === "All Departments" ? "Company Overview Dashboard" : `${selectedDeptFilter} Department Dashboard`) : activeTab}
           </h1>
           <div className="flex items-center gap-2 mt-1">
             <span className="text-slate-500 text-xs font-semibold">Welcome back, {employeeName}!</span>
@@ -1047,13 +1552,13 @@ const EmployeeDashboard = () => {
             <option>This Year</option>
           </select>
           <select 
-            value={selectedDeptFilter || departmentName}
+            value={selectedDeptFilter}
             onChange={(e) => setSelectedDeptFilter(e.target.value)}
             className="bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold text-slate-700 shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer"
           >
-            <option value={departmentName}>{departmentName} Department</option>
+            <option value="All Departments">All Departments (Company-wide)</option>
             {companyDepartmentsList
-              .filter(d => d !== departmentName)
+              .filter(d => d !== "All Departments")
               .map(dept => (
                 <option key={dept} value={dept}>{dept} Department</option>
               ))}
@@ -1162,7 +1667,7 @@ const EmployeeDashboard = () => {
                     <h4 className="font-extrabold text-sm text-slate-800 flex items-center gap-1.5">
                       <UserIcon className="h-4.5 w-4.5 text-blue-600" /> Employee Summary
                     </h4>
-                    <span className="text-[9px] font-extrabold bg-blue-50 text-blue-700 px-2 py-0.5 rounded-full">Employee Management</span>
+                    <span className="text-[9px] font-extrabold bg-blue-50 text-blue-700 px-2 py-0.5 rounded-full">Database Records</span>
                   </div>
                   <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-1">
@@ -1171,23 +1676,23 @@ const EmployeeDashboard = () => {
                     </div>
                     <div className="space-y-1">
                       <p className="text-[10px] font-bold text-slate-400 uppercase">Male</p>
-                      <p className="text-lg font-black text-slate-700">{Math.ceil(metrics.totalEmp * 0.6)}</p>
+                      <p className="text-lg font-black text-slate-700">{metrics.maleCount}</p>
                     </div>
                     <div className="space-y-1">
                       <p className="text-[10px] font-bold text-slate-400 uppercase">Female</p>
-                      <p className="text-lg font-black text-slate-700">{Math.floor(metrics.totalEmp * 0.4)}</p>
+                      <p className="text-lg font-black text-slate-700">{metrics.femaleCount}</p>
                     </div>
                     <div className="space-y-1">
                       <p className="text-[10px] font-bold text-slate-400 uppercase">Active</p>
-                      <p className="text-lg font-black text-emerald-600">{metrics.totalEmp}</p>
+                      <p className="text-lg font-black text-emerald-600">{metrics.activeCount}</p>
                     </div>
                     <div className="space-y-1">
                       <p className="text-[10px] font-bold text-slate-400 uppercase">Permanent</p>
-                      <p className="text-lg font-black text-slate-700">{metrics.totalEmp}</p>
+                      <p className="text-lg font-black text-slate-700">{metrics.permanentCount}</p>
                     </div>
                     <div className="space-y-1">
                       <p className="text-[10px] font-bold text-slate-400 uppercase">Contract</p>
-                      <p className="text-lg font-black text-slate-700">0</p>
+                      <p className="text-lg font-black text-slate-700">{metrics.contractCount}</p>
                     </div>
                   </div>
                 </div>
@@ -1198,14 +1703,22 @@ const EmployeeDashboard = () => {
                     <h4 className="font-extrabold text-sm text-slate-800 flex items-center gap-1.5">
                       <ClockIcon className="h-4.5 w-4.5 text-blue-600" /> Attendance Summary
                     </h4>
-                    <span className="text-[9px] font-extrabold bg-emerald-50 text-emerald-700 px-2 py-0.5 rounded-full">Attendance</span>
+                    <span className="text-[9px] font-extrabold bg-emerald-50 text-emerald-700 px-2 py-0.5 rounded-full">Live Telemetry</span>
                   </div>
                   <div className="flex items-center gap-5">
                     {/* SVG Donut Chart */}
                     <div className="relative w-24 h-24 flex items-center justify-center shrink-0">
                       <svg className="w-full h-full transform -rotate-90" viewBox="0 0 36 36">
                         <circle cx="18" cy="18" r="15.91" fill="none" stroke="#f1f5f9" strokeWidth="3" />
-                        <circle cx="18" cy="18" r="15.91" fill="none" stroke="#10b981" strokeWidth="3" strokeDasharray={`${metrics.totalEmp > 0 ? (metrics.present / metrics.totalEmp) * 100 : 0} ${metrics.totalEmp > 0 ? 100 - (metrics.present / metrics.totalEmp) * 100 : 100}`} />
+                        <circle 
+                          cx="18" 
+                          cy="18" 
+                          r="15.91" 
+                          fill="none" 
+                          stroke="#10b981" 
+                          strokeWidth="3" 
+                          strokeDasharray={`${metrics.totalEmp > 0 ? (metrics.present / metrics.totalEmp) * 100 : 0} ${metrics.totalEmp > 0 ? 100 - (metrics.present / metrics.totalEmp) * 100 : 100}`} 
+                        />
                       </svg>
                       <div className="absolute flex flex-col items-center">
                         <span className="text-sm font-black text-slate-800">
@@ -1245,19 +1758,19 @@ const EmployeeDashboard = () => {
                   <div className="space-y-3">
                     <div className="flex justify-between items-center p-2 bg-slate-50 rounded-xl">
                       <span className="text-xs font-bold text-slate-500">Total Balance</span>
-                      <span className="text-sm font-black text-slate-800">340 Days</span>
+                      <span className="text-sm font-black text-slate-800">{metrics.totalLeaveBalance} Days</span>
                     </div>
                     <div className="flex justify-between items-center p-2 bg-slate-50 rounded-xl">
                       <span className="text-sm font-bold text-slate-500">Leave Taken</span>
-                      <span className="text-sm font-black text-blue-600">156 Days</span>
+                      <span className="text-sm font-black text-blue-600">{metrics.leaveTaken} Days</span>
                     </div>
                     <div className="flex justify-between items-center p-2 bg-slate-50 rounded-xl">
                       <span className="text-xs font-bold text-slate-500">Pending Requests</span>
-                      <span className="text-sm font-black text-orange-600">32 Days</span>
+                      <span className="text-sm font-black text-orange-600">{metrics.pendingLeaveDays} Days</span>
                     </div>
                     <div className="flex justify-between items-center p-2 bg-slate-50 rounded-xl">
                       <span className="text-xs font-bold text-slate-500">Currently On Leave</span>
-                      <span className="text-sm font-black text-red-600">25 Staff</span>
+                      <span className="text-sm font-black text-red-600">{metrics.onLeave} Staff</span>
                     </div>
                   </div>
                 </div>
@@ -1273,19 +1786,19 @@ const EmployeeDashboard = () => {
                   <div className="space-y-3">
                     <div className="flex justify-between items-center">
                       <span className="text-xs font-semibold text-slate-500">Open Vacancies</span>
-                      <span className="text-xs font-black text-purple-700 bg-purple-50 px-2 py-0.5 rounded">5 Roles</span>
+                      <span className="text-xs font-black text-purple-700 bg-purple-50 px-2 py-0.5 rounded">{metrics.openVacancies} Roles</span>
                     </div>
                     <div className="flex justify-between items-center">
                       <span className="text-xs font-semibold text-slate-500">Interviews Today</span>
-                      <span className="text-xs font-black text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded">8 Candidates</span>
+                      <span className="text-xs font-black text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded">{metrics.interviewsToday} Candidates</span>
                     </div>
                     <div className="flex justify-between items-center">
                       <span className="text-xs font-semibold text-slate-500">Shortlisted Staff</span>
-                      <span className="text-xs font-black text-blue-700 bg-blue-50 px-2 py-0.5 rounded">12 Candidates</span>
+                      <span className="text-xs font-black text-blue-700 bg-blue-50 px-2 py-0.5 rounded">{metrics.shortlistedStaff} Candidates</span>
                     </div>
                     <div className="flex justify-between items-center">
                       <span className="text-xs font-semibold text-slate-500">Offers Released</span>
-                      <span className="text-xs font-black text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded">6 Offers</span>
+                      <span className="text-xs font-black text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded">{metrics.offersReleased} Offers</span>
                     </div>
                   </div>
                 </div>
@@ -1297,16 +1810,16 @@ const EmployeeDashboard = () => {
                 <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm xl:col-span-1 space-y-4">
                   <div className="flex justify-between items-center pb-2 border-b border-slate-100">
                     <h4 className="font-extrabold text-sm text-slate-800 flex items-center gap-1.5">
-                      <PresentationChartBarIcon className="h-4.5 w-4.5 text-blue-600" /> Employee Distribution
+                      <PresentationChartBarIcon className="h-4.5 w-4.5 text-blue-600" /> Department Distribution
                     </h4>
-                    <span className="text-[10px] font-bold text-slate-400">Total Employees</span>
+                    <span className="text-[10px] font-bold text-slate-400">{allEmployeesList.length} Total Employees</span>
                   </div>
-                  <div className="h-56 flex items-end justify-between gap-1 pt-6 px-2">
+                  <div className="h-56 flex items-end justify-between gap-2 pt-6 px-2">
                     {metrics.barData.map((bar, idx) => (
-                      <div key={idx} className="flex flex-col items-center gap-2 w-full">
-                        <span className="text-[9px] font-bold text-slate-500">{bar.value}</span>
-                        <div style={{ height: bar.height }} className="w-6 bg-blue-600 rounded-t-md transition-all duration-500 hover:opacity-85 cursor-pointer" />
-                        <span className="text-[9px] font-bold text-slate-400">{bar.label}</span>
+                      <div key={idx} className="flex flex-col items-center gap-2 w-full" title={`${bar.fullLabel}: ${bar.value} employees`}>
+                        <span className="text-[9px] font-black text-slate-600">{bar.value}</span>
+                        <div style={{ height: bar.height }} className={`w-7 ${bar.color} rounded-t-md transition-all duration-500 hover:opacity-85 cursor-pointer shadow-xs`} />
+                        <span className="text-[9px] font-bold text-slate-500 truncate max-w-[50px] text-center">{bar.label}</span>
                       </div>
                     ))}
                   </div>
@@ -1318,10 +1831,10 @@ const EmployeeDashboard = () => {
                     <h4 className="font-extrabold text-sm text-slate-800 flex items-center gap-1.5">
                       <ClockIcon className="h-4.5 w-4.5 text-blue-600" /> Attendance Trend
                     </h4>
-                    <span className="text-[10px] font-bold text-slate-400">This Month</span>
+                    <span className="text-[10px] font-bold text-slate-400">Past 5 Days</span>
                   </div>
                   <div className="h-56 relative pt-4">
-                    {/* Custom SVG Line Graph */}
+                    {/* Dynamic SVG Line Graph */}
                     <svg className="w-full h-40" viewBox="0 0 100 40" preserveAspectRatio="none">
                       <defs>
                         <linearGradient id="attendGrad" x1="0" y1="0" x2="0" y2="1">
@@ -1329,22 +1842,24 @@ const EmployeeDashboard = () => {
                           <stop offset="100%" stopColor="#2563eb" stopOpacity="0.0" />
                         </linearGradient>
                       </defs>
-                      <path d="M 0 30 L 20 27 L 40 20 L 60 29 L 80 22 L 100 25" fill="none" stroke="#2563eb" strokeWidth="1.5" />
-                      <path d="M 0 30 L 20 27 L 40 20 L 60 29 L 80 22 L 100 25 L 100 40 L 0 40 Z" fill="url(#attendGrad)" />
-                      {/* Dots */}
-                      <circle cx="0" cy="30" r="1.2" fill="#2563eb" />
-                      <circle cx="20" cy="27" r="1.2" fill="#2563eb" />
-                      <circle cx="40" cy="20" r="1.2" fill="#2563eb" />
-                      <circle cx="60" cy="29" r="1.2" fill="#2563eb" />
-                      <circle cx="80" cy="22" r="1.2" fill="#2563eb" />
-                      <circle cx="100" cy="25" r="1.2" fill="#2563eb" />
+                      <path 
+                        d={`M 0 ${35 - (metrics.trendDays[0]?.attRate || 0) * 0.3} L 25 ${35 - (metrics.trendDays[1]?.attRate || 0) * 0.3} L 50 ${35 - (metrics.trendDays[2]?.attRate || 0) * 0.3} L 75 ${35 - (metrics.trendDays[3]?.attRate || 0) * 0.3} L 100 ${35 - (metrics.trendDays[4]?.attRate || 0) * 0.3}`} 
+                        fill="none" 
+                        stroke="#2563eb" 
+                        strokeWidth="1.5" 
+                      />
+                      <path 
+                        d={`M 0 ${35 - (metrics.trendDays[0]?.attRate || 0) * 0.3} L 25 ${35 - (metrics.trendDays[1]?.attRate || 0) * 0.3} L 50 ${35 - (metrics.trendDays[2]?.attRate || 0) * 0.3} L 75 ${35 - (metrics.trendDays[3]?.attRate || 0) * 0.3} L 100 ${35 - (metrics.trendDays[4]?.attRate || 0) * 0.3} L 100 40 L 0 40 Z`} 
+                        fill="url(#attendGrad)" 
+                      />
+                      {metrics.trendDays.map((t, i) => (
+                        <circle key={i} cx={i * 25} cy={35 - (t.attRate || 0) * 0.3} r="1.5" fill="#2563eb" />
+                      ))}
                     </svg>
                     <div className="flex justify-between text-[8px] font-extrabold text-slate-400 px-1 mt-2">
-                      <span>01 May (75%)</span>
-                      <span>08 May (78%)</span>
-                      <span>15 May (82%)</span>
-                      <span>22 May (76%)</span>
-                      <span>29 May (80%)</span>
+                      {metrics.trendDays.map((t, idx) => (
+                        <span key={idx}>{t.dayLabel} ({t.attRate}%)</span>
+                      ))}
                     </div>
                   </div>
                 </div>
@@ -1355,10 +1870,10 @@ const EmployeeDashboard = () => {
                     <h4 className="font-extrabold text-sm text-slate-800 flex items-center gap-1.5">
                       <CalendarDaysIcon className="h-4.5 w-4.5 text-blue-600" /> Leave Trend
                     </h4>
-                    <span className="text-[10px] font-bold text-slate-400">This Month</span>
+                    <span className="text-[10px] font-bold text-slate-400">Past 5 Days</span>
                   </div>
                   <div className="h-56 relative pt-4">
-                    {/* Custom SVG Line Graph */}
+                    {/* Dynamic SVG Line Graph */}
                     <svg className="w-full h-40" viewBox="0 0 100 40" preserveAspectRatio="none">
                       <defs>
                         <linearGradient id="leaveGrad" x1="0" y1="0" x2="0" y2="1">
@@ -1366,22 +1881,24 @@ const EmployeeDashboard = () => {
                           <stop offset="100%" stopColor="#10b981" stopOpacity="0.0" />
                         </linearGradient>
                       </defs>
-                      <path d="M 0 32 L 20 28 L 40 24 L 60 30 L 80 28 L 100 30" fill="none" stroke="#10b981" strokeWidth="1.5" />
-                      <path d="M 0 32 L 20 28 L 40 24 L 60 30 L 80 28 L 100 30 L 100 40 L 0 40 Z" fill="url(#leaveGrad)" />
-                      {/* Dots */}
-                      <circle cx="0" cy="32" r="1.2" fill="#10b981" />
-                      <circle cx="20" cy="28" r="1.2" fill="#10b981" />
-                      <circle cx="40" cy="24" r="1.2" fill="#10b981" />
-                      <circle cx="60" cy="30" r="1.2" fill="#10b981" />
-                      <circle cx="80" cy="28" r="1.2" fill="#10b981" />
-                      <circle cx="100" cy="30" r="1.2" fill="#10b981" />
+                      <path 
+                        d={`M 0 ${35 - Math.min(25, (metrics.trendDays[0]?.dayLeaves || 0) * 5)} L 25 ${35 - Math.min(25, (metrics.trendDays[1]?.dayLeaves || 0) * 5)} L 50 ${35 - Math.min(25, (metrics.trendDays[2]?.dayLeaves || 0) * 5)} L 75 ${35 - Math.min(25, (metrics.trendDays[3]?.dayLeaves || 0) * 5)} L 100 ${35 - Math.min(25, (metrics.trendDays[4]?.dayLeaves || 0) * 5)}`} 
+                        fill="none" 
+                        stroke="#10b981" 
+                        strokeWidth="1.5" 
+                      />
+                      <path 
+                        d={`M 0 ${35 - Math.min(25, (metrics.trendDays[0]?.dayLeaves || 0) * 5)} L 25 ${35 - Math.min(25, (metrics.trendDays[1]?.dayLeaves || 0) * 5)} L 50 ${35 - Math.min(25, (metrics.trendDays[2]?.dayLeaves || 0) * 5)} L 75 ${35 - Math.min(25, (metrics.trendDays[3]?.dayLeaves || 0) * 5)} L 100 ${35 - Math.min(25, (metrics.trendDays[4]?.dayLeaves || 0) * 5)} L 100 40 L 0 40 Z`} 
+                        fill="url(#leaveGrad)" 
+                      />
+                      {metrics.trendDays.map((t, i) => (
+                        <circle key={i} cx={i * 25} cy={35 - Math.min(25, (t.dayLeaves || 0) * 5)} r="1.5" fill="#10b981" />
+                      ))}
                     </svg>
                     <div className="flex justify-between text-[8px] font-extrabold text-slate-400 px-1 mt-2">
-                      <span>01 May (28)</span>
-                      <span>08 May (32)</span>
-                      <span>15 May (36)</span>
-                      <span>22 May (30)</span>
-                      <span>29 May (32)</span>
+                      {metrics.trendDays.map((t, idx) => (
+                        <span key={idx}>{t.dayLabel} ({t.dayLeaves})</span>
+                      ))}
                     </div>
                   </div>
                 </div>
@@ -1396,17 +1913,28 @@ const EmployeeDashboard = () => {
                     <div className="relative w-20 h-20 flex items-center justify-center shrink-0">
                       <svg className="w-full h-full transform -rotate-90" viewBox="0 0 36 36">
                         <circle cx="18" cy="18" r="15.91" fill="none" stroke="#f87171" strokeWidth="4" />
-                        <circle cx="18" cy="18" r="15.91" fill="none" stroke="#3b82f6" strokeWidth="4" strokeDasharray="67.4 32.6" />
+                        <circle 
+                          cx="18" 
+                          cy="18" 
+                          r="15.91" 
+                          fill="none" 
+                          stroke="#3b82f6" 
+                          strokeWidth="4" 
+                          strokeDasharray={`${metrics.totalEmp > 0 ? ((metrics.maleCount / metrics.totalEmp) * 100).toFixed(1) : 100} ${metrics.totalEmp > 0 ? (100 - (metrics.maleCount / metrics.totalEmp) * 100).toFixed(1) : 0}`} 
+                        />
                       </svg>
+                      <span className="absolute text-xs font-black text-slate-700">
+                        {metrics.totalEmp > 0 ? `${((metrics.maleCount / metrics.totalEmp) * 100).toFixed(0)}%` : "0%"}
+                      </span>
                     </div>
                     <div className="space-y-1 w-full text-[11px] font-bold">
                       <div className="flex justify-between text-blue-600">
                         <span>Male</span>
-                        <span>{Math.ceil(metrics.totalEmp * 0.6)}</span>
+                        <span>{metrics.maleCount}</span>
                       </div>
                       <div className="flex justify-between text-red-500">
                         <span>Female</span>
-                        <span>{Math.floor(metrics.totalEmp * 0.4)}</span>
+                        <span>{metrics.femaleCount}</span>
                       </div>
                     </div>
                   </div>
@@ -1418,13 +1946,29 @@ const EmployeeDashboard = () => {
                   <div className="flex items-center gap-4">
                     <div className="relative w-20 h-20 flex items-center justify-center shrink-0">
                       <svg className="w-full h-full transform -rotate-90" viewBox="0 0 36 36">
-                        <circle cx="18" cy="18" r="15.91" fill="none" stroke="#3b82f6" strokeWidth="4" strokeDasharray="100 0" />
+                        <circle cx="18" cy="18" r="15.91" fill="none" stroke="#e2e8f0" strokeWidth="4" />
+                        <circle 
+                          cx="18" 
+                          cy="18" 
+                          r="15.91" 
+                          fill="none" 
+                          stroke="#3b82f6" 
+                          strokeWidth="4" 
+                          strokeDasharray={`${metrics.totalEmp > 0 ? ((metrics.permanentCount / metrics.totalEmp) * 100).toFixed(1) : 100} ${metrics.totalEmp > 0 ? (100 - (metrics.permanentCount / metrics.totalEmp) * 100).toFixed(1) : 0}`} 
+                        />
                       </svg>
+                      <span className="absolute text-xs font-black text-slate-700">
+                        {metrics.totalEmp > 0 ? `${((metrics.permanentCount / metrics.totalEmp) * 100).toFixed(0)}%` : "0%"}
+                      </span>
                     </div>
                     <div className="space-y-1 w-full text-[11px] font-bold">
                       <div className="flex justify-between text-blue-600">
                         <span>Permanent</span>
-                        <span>{metrics.totalEmp}</span>
+                        <span>{metrics.permanentCount}</span>
+                      </div>
+                      <div className="flex justify-between text-slate-500">
+                        <span>Contract</span>
+                        <span>{metrics.contractCount}</span>
                       </div>
                     </div>
                   </div>
@@ -1435,18 +1979,19 @@ const EmployeeDashboard = () => {
                   <h4 className="font-extrabold text-sm text-slate-800 pb-2 border-b border-slate-100">Performance Overview</h4>
                   <div className="flex items-center justify-between">
                     <div>
-                      <h3 className="text-3xl font-black text-indigo-600">4.3</h3>
+                      <h3 className="text-3xl font-black text-indigo-600">{metrics.avgRating}</h3>
                       <div className="flex text-amber-400 mt-1">
-                        {"★".repeat(4)}{"☆".repeat(1)}
+                        {"★".repeat(metrics.stars)}{"☆".repeat(Math.max(0, 5 - metrics.stars))}
                       </div>
                     </div>
                     <div className="text-[11px] font-bold text-slate-500 space-y-1 text-right">
-                      <p>Average KPI: <span className="text-slate-800">91%</span></p>
-                      <p>Top Performers: <span className="text-slate-800">1</span></p>
-                      <p>Completed: <span className="text-slate-800">1</span></p>
+                      <p>Average KPI: <span className="text-slate-800">{metrics.avgKpi}</span></p>
+                      <p>Top Performers: <span className="text-slate-800">{metrics.topPerformers}</span></p>
+                      <p>Active Staff: <span className="text-slate-800">{metrics.activeCount}</span></p>
                     </div>
                   </div>
                 </div>
+
                 {/* Helpdesk Summary */}
                 <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm space-y-4">
                   <h4 className="font-extrabold text-sm text-slate-800 pb-2 border-b border-slate-100">Helpdesk Summary</h4>
@@ -1454,15 +1999,23 @@ const EmployeeDashboard = () => {
                     <div className="relative w-20 h-20 flex items-center justify-center shrink-0">
                       <svg className="w-full h-full transform -rotate-90" viewBox="0 0 36 36">
                         <circle cx="18" cy="18" r="15.91" fill="none" stroke="#22c55e" strokeWidth="4" />
-                        <circle cx="18" cy="18" r="15.91" fill="none" stroke="#3b82f6" strokeWidth="4" strokeDasharray="30 70" />
+                        <circle 
+                          cx="18" 
+                          cy="18" 
+                          r="15.91" 
+                          fill="none" 
+                          stroke="#3b82f6" 
+                          strokeWidth="4" 
+                          strokeDasharray={`${metrics.totalTickets > 0 ? ((metrics.openTickets / metrics.totalTickets) * 100).toFixed(1) : 0} ${metrics.totalTickets > 0 ? (100 - (metrics.openTickets / metrics.totalTickets) * 100).toFixed(1) : 100}`} 
+                        />
                       </svg>
-                      <span className="absolute text-sm font-black text-slate-800">2</span>
+                      <span className="absolute text-sm font-black text-slate-800">{metrics.openTickets}</span>
                     </div>
                     <div className="grid grid-cols-2 gap-x-3 gap-y-1 text-[10px] font-bold text-slate-500 w-full">
-                      <p className="text-blue-600">Open: 2</p>
-                      <p className="text-amber-500">In Prog: 3</p>
-                      <p className="text-emerald-500">Resolved: 15</p>
-                      <p className="text-slate-400">Closed: 25</p>
+                      <p className="text-blue-600">Open: {metrics.openTickets}</p>
+                      <p className="text-amber-500">In Prog: {metrics.inProgTickets}</p>
+                      <p className="text-emerald-500">Resolved: {metrics.resolvedTickets}</p>
+                      <p className="text-slate-400">Closed: {metrics.closedTickets}</p>
                     </div>
                   </div>
                 </div>
@@ -1476,15 +2029,15 @@ const EmployeeDashboard = () => {
                   <div className="grid grid-cols-3 gap-3">
                     <div className="p-3 bg-emerald-50/50 rounded-xl border border-emerald-100 text-center">
                       <p className="text-[10px] font-bold text-emerald-600 uppercase">Leave</p>
-                      <p className="text-2xl font-black text-emerald-700 mt-1">3</p>
+                      <p className="text-2xl font-black text-emerald-700 mt-1">{metrics.pendingLeavesCount}</p>
                     </div>
                     <div className="p-3 bg-blue-50/50 rounded-xl border border-blue-100 text-center">
                       <p className="text-[10px] font-bold text-blue-600 uppercase">Attendance</p>
-                      <p className="text-2xl font-black text-blue-700 mt-1">1</p>
+                      <p className="text-2xl font-black text-blue-700 mt-1">{metrics.pendingRegCount}</p>
                     </div>
                     <div className="p-3 bg-purple-50/50 rounded-xl border border-purple-100 text-center">
-                      <p className="text-[10px] font-bold text-purple-600 uppercase">Expense</p>
-                      <p className="text-2xl font-black text-purple-700 mt-1">2</p>
+                      <p className="text-[10px] font-bold text-purple-600 uppercase">Support</p>
+                      <p className="text-2xl font-black text-purple-700 mt-1">{metrics.openTickets}</p>
                     </div>
                   </div>
                 </div>
@@ -1493,41 +2046,41 @@ const EmployeeDashboard = () => {
                 <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm space-y-4">
                   <h4 className="font-extrabold text-sm text-slate-800 pb-2 border-b border-slate-100">Recent Activities</h4>
                   <div className="space-y-3.5">
-                    <div className="flex gap-3">
-                      <div className="w-1.5 h-1.5 rounded-full bg-blue-600 mt-1.5 shrink-0" />
-                      <div>
-                        <p className="text-xs font-bold text-slate-700">Rahul Sharma applied for leave</p>
-                        <p className="text-[9px] font-semibold text-slate-400 mt-0.5">Date: 12 May 2026</p>
-                      </div>
-                    </div>
-                    <div className="flex gap-3">
-                      <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 mt-1.5 shrink-0" />
-                      <div>
-                        <p className="text-xs font-bold text-slate-700">Arvind Kumar attendance regularized</p>
-                        <p className="text-[9px] font-semibold text-slate-400 mt-0.5">Date: 11 May 2026</p>
-                      </div>
-                    </div>
+                    {metrics.recentActivities.length === 0 ? (
+                      <p className="text-xs text-slate-400 font-semibold py-4 text-center">No recent activity logs recorded yet.</p>
+                    ) : (
+                      metrics.recentActivities.map((act, idx) => (
+                        <div key={idx} className="flex gap-3 items-start">
+                          <div className={`w-2 h-2 rounded-full ${act.color || 'bg-blue-600'} mt-1.5 shrink-0`} />
+                          <div>
+                            <p className="text-xs font-bold text-slate-700">{act.text}</p>
+                            <p className="text-[9px] font-semibold text-slate-400 mt-0.5">{act.date}</p>
+                          </div>
+                        </div>
+                      ))
+                    )}
                   </div>
                 </div>
 
                 {/* Upcoming Events Calendar */}
                 <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm space-y-4">
-                  <h4 className="font-extrabold text-sm text-slate-800 pb-2 border-b border-slate-100">Upcoming Events</h4>
+                  <h4 className="font-extrabold text-sm text-slate-800 pb-2 border-b border-slate-100">Upcoming Events & Holidays</h4>
                   <div className="space-y-3">
-                    <div className="flex gap-3 items-center p-2.5 bg-indigo-50/50 border border-indigo-100 rounded-xl">
-                      <CalendarDaysIcon className="h-7 w-7 text-indigo-600" />
-                      <div>
-                        <p className="text-xs font-bold text-slate-700">Team Meeting</p>
-                        <p className="text-[9px] font-semibold text-slate-400">12 May 2025, 10:00 AM</p>
+                    {metrics.upcomingEvents.length === 0 ? (
+                      <div className="p-4 bg-slate-50 border border-slate-100 rounded-xl text-center text-xs text-slate-400 font-semibold">
+                        No upcoming holiday events scheduled.
                       </div>
-                    </div>
-                    <div className="flex gap-3 items-center p-2.5 bg-emerald-50/50 border border-emerald-100 rounded-xl">
-                      <AcademicCapIcon className="h-7 w-7 text-emerald-600" />
-                      <div>
-                        <p className="text-xs font-bold text-slate-700">Training Program</p>
-                        <p className="text-[9px] font-semibold text-slate-400">15 May 2025, 11:00 AM</p>
-                      </div>
-                    </div>
+                    ) : (
+                      metrics.upcomingEvents.map((evt, idx) => (
+                        <div key={idx} className="flex gap-3 items-center p-2.5 bg-indigo-50/50 border border-indigo-100 rounded-xl">
+                          <CalendarDaysIcon className="h-7 w-7 text-indigo-600 shrink-0" />
+                          <div>
+                            <p className="text-xs font-bold text-slate-700">{evt.title}</p>
+                            <p className="text-[9px] font-semibold text-slate-400">{evt.date} • {evt.type}</p>
+                          </div>
+                        </div>
+                      ))
+                    )}
                   </div>
                 </div>
               </div>
@@ -1565,7 +2118,7 @@ const EmployeeDashboard = () => {
 
               {(activeTab === "Employee Profile" || activeTab === "Fill Details" || activeCategory === "EMP_PROFILE") && (
                 <div className="space-y-6 w-full">
-                  {isAdmin && (
+                  {canManageEmployees && (
                     <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm flex flex-col sm:flex-row justify-between items-center gap-4">
                       <div className="flex flex-col w-full sm:w-80">
                         <span className="text-[10px] font-black text-slate-500 uppercase tracking-wider">Select Employee to Manage Profile:</span>
@@ -1632,7 +2185,15 @@ const EmployeeDashboard = () => {
                   </div>
 
                   {/* Right Side: Tab specific input forms */}
-                  <form onSubmit={handleSaveProfile} className="flex-1 bg-slate-50/30 border border-slate-200 p-6 rounded-2xl space-y-6 flex flex-col justify-between profile-form-container">
+                  <form 
+                    onSubmit={handleSaveProfile} 
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' && e.target.tagName !== 'TEXTAREA') {
+                        e.preventDefault();
+                      }
+                    }}
+                    className="flex-1 bg-slate-50/30 border border-slate-200 p-6 rounded-2xl space-y-6 flex flex-col justify-between profile-form-container"
+                  >
                     <style>{`
                       .profile-form-container input,
                       .profile-form-container select,
@@ -1686,6 +2247,7 @@ const EmployeeDashboard = () => {
                               <label className="block text-[10px] font-black text-slate-500 uppercase tracking-wider mb-1">Employee ID (Auto)</label>
                               <input
                                 type="text"
+                                placeholder="Auto-generated upon registration"
                                 value={employeeForm.employeeId || ""}
                                 readOnly
                                 className="w-full text-xs bg-slate-100 border border-slate-200 rounded-xl px-3 py-2 text-slate-500 font-bold"
@@ -1704,17 +2266,20 @@ const EmployeeDashboard = () => {
                             <div>
                               <label className="block text-[10px] font-black text-slate-500 uppercase tracking-wider mb-1">First Name *</label>
                               <input
+                                id="firstNameInput"
                                 type="text"
                                 required
+                                placeholder="Enter first name"
                                 value={employeeForm.firstName || ""}
                                 onChange={(e) => setEmployeeForm({ ...employeeForm, firstName: e.target.value })}
-                                className="w-full text-xs bg-white border border-slate-200 rounded-xl px-3 py-2 focus:outline-none focus:ring-1 focus:ring-indigo-500 font-bold"
+                                className="w-full text-xs bg-white border border-slate-200 rounded-xl px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500 font-bold"
                               />
                             </div>
                             <div>
                               <label className="block text-[10px] font-black text-slate-500 uppercase tracking-wider mb-1">Middle Name</label>
                               <input
                                 type="text"
+                                placeholder="Enter middle name"
                                 value={employeeForm.middleName || ""}
                                 onChange={(e) => setEmployeeForm({ ...employeeForm, middleName: e.target.value })}
                                 className="w-full text-xs bg-white border border-slate-200 rounded-xl px-3 py-2 focus:outline-none focus:ring-1 focus:ring-indigo-500 font-bold"
@@ -1724,6 +2289,7 @@ const EmployeeDashboard = () => {
                               <label className="block text-[10px] font-black text-slate-500 uppercase tracking-wider mb-1">Last Name</label>
                               <input
                                 type="text"
+                                placeholder="Enter last name"
                                 value={employeeForm.lastName || ""}
                                 onChange={(e) => setEmployeeForm({ ...employeeForm, lastName: e.target.value })}
                                 className="w-full text-xs bg-white border border-slate-200 rounded-xl px-3 py-2 focus:outline-none focus:ring-1 focus:ring-indigo-500 font-bold"
@@ -1776,7 +2342,7 @@ const EmployeeDashboard = () => {
                               <label className="block text-[10px] font-black text-slate-500 uppercase tracking-wider mb-1">Nationality</label>
                               <input
                                 type="text"
-                                value={employeeForm.nationality || "Indian"}
+                                value={employeeForm.nationality || ""} placeholder="e.g. Indian"
                                 onChange={(e) => setEmployeeForm({ ...employeeForm, nationality: e.target.value })}
                                 className="w-full text-xs bg-white border border-slate-200 rounded-xl px-3 py-2 focus:outline-none focus:ring-1 focus:ring-indigo-500 font-bold"
                               />
@@ -1795,7 +2361,7 @@ const EmployeeDashboard = () => {
                               <label className="block text-[10px] font-black text-slate-500 uppercase tracking-wider mb-1">Company</label>
                               <input
                                 type="text"
-                                value={employeeForm.company || currentUserProfile?.company || user?.companyName || "National Insurance Broker"}
+                                value={employeeForm.company || ""} placeholder="e.g. TechnoVani Pvt Ltd"
                                 onChange={(e) => setEmployeeForm({ ...employeeForm, company: e.target.value })}
                                 className="w-full text-xs bg-white border border-slate-200 rounded-xl px-3 py-2 focus:outline-none focus:ring-1 focus:ring-indigo-500 font-bold"
                               />
@@ -1804,7 +2370,7 @@ const EmployeeDashboard = () => {
                               <label className="block text-[10px] font-black text-slate-500 uppercase tracking-wider mb-1">Branch</label>
                               <input
                                 type="text"
-                                value={employeeForm.branch || currentUserProfile?.branch || "Headquarters"}
+                                value={employeeForm.branch || ""} placeholder="e.g. Headquarters / Mumbai"
                                 onChange={(e) => setEmployeeForm({ ...employeeForm, branch: e.target.value })}
                                 className="w-full text-xs bg-white border border-slate-200 rounded-xl px-3 py-2 focus:outline-none focus:ring-1 focus:ring-indigo-500 font-bold"
                               />
@@ -1813,7 +2379,7 @@ const EmployeeDashboard = () => {
                               <label className="block text-[10px] font-black text-slate-500 uppercase tracking-wider mb-1">Department</label>
                               <input
                                 type="text"
-                                value={employeeForm.department || currentUserProfile?.department || departmentName || "Marketing"}
+                                value={employeeForm.department || ""} placeholder="e.g. Human Resources"
                                 onChange={(e) => setEmployeeForm({ ...employeeForm, department: e.target.value })}
                                 className="w-full text-xs bg-white border border-slate-200 rounded-xl px-3 py-2 focus:outline-none focus:ring-1 focus:ring-indigo-500 font-bold"
                               />
@@ -1822,7 +2388,7 @@ const EmployeeDashboard = () => {
                               <label className="block text-[10px] font-black text-slate-500 uppercase tracking-wider mb-1">Designation</label>
                               <input
                                 type="text"
-                                value={employeeForm.designation || currentUserProfile?.designation || "Staff Professional"}
+                                value={employeeForm.designation || ""} placeholder="e.g. Senior Software Engineer"
                                 onChange={(e) => setEmployeeForm({ ...employeeForm, designation: e.target.value })}
                                 className="w-full text-xs bg-white border border-slate-200 rounded-xl px-3 py-2 focus:outline-none focus:ring-1 focus:ring-indigo-500 font-bold"
                               />
@@ -1831,7 +2397,7 @@ const EmployeeDashboard = () => {
                               <label className="block text-[10px] font-black text-slate-500 uppercase tracking-wider mb-1">Reporting Manager</label>
                               <input
                                 type="text"
-                                value={employeeForm.reportingManager || currentUserProfile?.reportingManager || "Sunil Patel"}
+                                value={employeeForm.reportingManager || ""} placeholder="e.g. Sunil Patel"
                                 onChange={(e) => setEmployeeForm({ ...employeeForm, reportingManager: e.target.value })}
                                 className="w-full text-xs bg-white border border-slate-200 rounded-xl px-3 py-2 focus:outline-none focus:ring-1 focus:ring-indigo-500 font-bold"
                               />
@@ -1853,7 +2419,7 @@ const EmployeeDashboard = () => {
                               <label className="block text-[10px] font-black text-slate-500 uppercase tracking-wider mb-1">Official Email</label>
                               <input
                                 type="email"
-                                value={employeeForm.officialEmail || currentUserProfile?.officialEmail || currentUserProfile?.email || user?.email || ""}
+                                value={employeeForm.officialEmail || ""} placeholder="e.g. employee@company.com"
                                 onChange={(e) => setEmployeeForm({ ...employeeForm, officialEmail: e.target.value })}
                                 className="w-full text-xs bg-white border border-slate-200 rounded-xl px-3 py-2 focus:outline-none focus:ring-1 focus:ring-indigo-500 font-bold font-mono"
                               />
@@ -1862,7 +2428,7 @@ const EmployeeDashboard = () => {
                               <label className="block text-[10px] font-black text-slate-500 uppercase tracking-wider mb-1">Date of Joining</label>
                               <input
                                 type="date"
-                                value={employeeForm.dateOfJoining || currentUserProfile?.dateOfJoining || "2026-06-14"}
+                                value={employeeForm.dateOfJoining || ""}
                                 onChange={(e) => setEmployeeForm({ ...employeeForm, dateOfJoining: e.target.value })}
                                 className="w-full text-xs bg-white border border-slate-200 rounded-xl px-3 py-2 focus:outline-none focus:ring-1 focus:ring-indigo-500 font-bold"
                               />
@@ -1882,6 +2448,7 @@ const EmployeeDashboard = () => {
                               <input
                                 type="text"
                                 required
+                                placeholder="e.g. +91 98765 43210"
                                 value={employeeForm.mobileNumber || ""}
                                 onChange={(e) => setEmployeeForm({ ...employeeForm, mobileNumber: e.target.value })}
                                 className="w-full text-xs bg-white border border-slate-200 rounded-xl px-3 py-2 focus:outline-none focus:ring-1 focus:ring-indigo-500 font-bold font-mono"
@@ -1891,6 +2458,7 @@ const EmployeeDashboard = () => {
                               <label className="block text-[10px] font-black text-slate-500 uppercase tracking-wider mb-1">Alternate Mobile</label>
                               <input
                                 type="text"
+                                placeholder="e.g. +91 98765 43211"
                                 value={employeeForm.alternateMobile || ""}
                                 onChange={(e) => setEmployeeForm({ ...employeeForm, alternateMobile: e.target.value })}
                                 className="w-full text-xs bg-white border border-slate-200 rounded-xl px-3 py-2 focus:outline-none focus:ring-1 focus:ring-indigo-500 font-bold font-mono"
@@ -1900,6 +2468,7 @@ const EmployeeDashboard = () => {
                               <label className="block text-[10px] font-black text-slate-500 uppercase tracking-wider mb-1">Personal Email</label>
                               <input
                                 type="email"
+                                placeholder="e.g. employee.personal@gmail.com"
                                 value={employeeForm.personalEmail || ""}
                                 onChange={(e) => setEmployeeForm({ ...employeeForm, personalEmail: e.target.value })}
                                 className="w-full text-xs bg-white border border-slate-200 rounded-xl px-3 py-2 focus:outline-none focus:ring-1 focus:ring-indigo-500 font-bold font-mono"
@@ -1938,6 +2507,7 @@ const EmployeeDashboard = () => {
                               <input
                                 type="text"
                                 required
+                                placeholder="e.g. 1234 5678 9012"
                                 value={employeeForm.aadhaarNumber || ""}
                                 onChange={(e) => setEmployeeForm({ ...employeeForm, aadhaarNumber: e.target.value })}
                                 className="w-full text-xs bg-white border border-slate-200 rounded-xl px-3 py-2 focus:outline-none focus:ring-1 focus:ring-indigo-500 font-bold font-mono"
@@ -1948,6 +2518,7 @@ const EmployeeDashboard = () => {
                               <input
                                 type="text"
                                 required
+                                placeholder="e.g. ABCDE1234F"
                                 value={employeeForm.panNumber || ""}
                                 onChange={(e) => setEmployeeForm({ ...employeeForm, panNumber: e.target.value.toUpperCase() })}
                                 className="w-full text-xs bg-white border border-slate-200 rounded-xl px-3 py-2 focus:outline-none focus:ring-1 focus:ring-indigo-500 font-bold font-mono"
@@ -1957,6 +2528,7 @@ const EmployeeDashboard = () => {
                               <label className="block text-[10px] font-black text-slate-500 uppercase tracking-wider mb-1">Passport Number</label>
                               <input
                                 type="text"
+                                placeholder="e.g. A1234567"
                                 value={employeeForm.passportNumber || ""}
                                 onChange={(e) => setEmployeeForm({ ...employeeForm, passportNumber: e.target.value })}
                                 className="w-full text-xs bg-white border border-slate-200 rounded-xl px-3 py-2 focus:outline-none focus:ring-1 focus:ring-indigo-500 font-bold font-mono"
@@ -1966,6 +2538,7 @@ const EmployeeDashboard = () => {
                               <label className="block text-[10px] font-black text-slate-500 uppercase tracking-wider mb-1">Driving License</label>
                               <input
                                 type="text"
+                                placeholder="e.g. DL-1420110012345"
                                 value={employeeForm.drivingLicense || ""}
                                 onChange={(e) => setEmployeeForm({ ...employeeForm, drivingLicense: e.target.value })}
                                 className="w-full text-xs bg-white border border-slate-200 rounded-xl px-3 py-2 focus:outline-none focus:ring-1 focus:ring-indigo-500 font-bold font-mono"
@@ -1975,6 +2548,7 @@ const EmployeeDashboard = () => {
                               <label className="block text-[10px] font-black text-slate-500 uppercase tracking-wider mb-1">UAN Number</label>
                               <input
                                 type="text"
+                                placeholder="e.g. 100123456789"
                                 value={employeeForm.uanNumber || ""}
                                 onChange={(e) => setEmployeeForm({ ...employeeForm, uanNumber: e.target.value })}
                                 className="w-full text-xs bg-white border border-slate-200 rounded-xl px-3 py-2 focus:outline-none focus:ring-1 focus:ring-indigo-500 font-bold font-mono"
@@ -1984,6 +2558,7 @@ const EmployeeDashboard = () => {
                               <label className="block text-[10px] font-black text-slate-500 uppercase tracking-wider mb-1">ESIC Number</label>
                               <input
                                 type="text"
+                                placeholder="e.g. 12345678901234567"
                                 value={employeeForm.esicNumber || ""}
                                 onChange={(e) => setEmployeeForm({ ...employeeForm, esicNumber: e.target.value })}
                                 className="w-full text-xs bg-white border border-slate-200 rounded-xl px-3 py-2 focus:outline-none focus:ring-1 focus:ring-indigo-500 font-bold font-mono"
@@ -2003,6 +2578,7 @@ const EmployeeDashboard = () => {
                               <label className="block text-[10px] font-black text-slate-500 uppercase tracking-wider mb-1">Bank Name</label>
                               <input
                                 type="text"
+                                placeholder="e.g. HDFC Bank"
                                 value={employeeForm.bankName || ""}
                                 onChange={(e) => setEmployeeForm({ ...employeeForm, bankName: e.target.value })}
                                 className="w-full text-xs bg-white border border-slate-200 rounded-xl px-3 py-2 focus:outline-none focus:ring-1 focus:ring-indigo-500 font-bold"
@@ -2012,6 +2588,7 @@ const EmployeeDashboard = () => {
                               <label className="block text-[10px] font-black text-slate-500 uppercase tracking-wider mb-1">Account Holder Name</label>
                               <input
                                 type="text"
+                                placeholder="e.g. Rahul Kumar Sharma"
                                 value={employeeForm.accountHolderName || ""}
                                 onChange={(e) => setEmployeeForm({ ...employeeForm, accountHolderName: e.target.value })}
                                 className="w-full text-xs bg-white border border-slate-200 rounded-xl px-3 py-2 focus:outline-none focus:ring-1 focus:ring-indigo-500 font-bold"
@@ -2021,6 +2598,7 @@ const EmployeeDashboard = () => {
                               <label className="block text-[10px] font-black text-slate-500 uppercase tracking-wider mb-1">Account Number</label>
                               <input
                                 type="text"
+                                placeholder="e.g. 50100012345678"
                                 value={employeeForm.accountNumber || ""}
                                 onChange={(e) => setEmployeeForm({ ...employeeForm, accountNumber: e.target.value })}
                                 className="w-full text-xs bg-white border border-slate-200 rounded-xl px-3 py-2 focus:outline-none focus:ring-1 focus:ring-indigo-500 font-bold font-mono"
@@ -2030,6 +2608,7 @@ const EmployeeDashboard = () => {
                               <label className="block text-[10px] font-black text-slate-500 uppercase tracking-wider mb-1">IFSC Code</label>
                               <input
                                 type="text"
+                                placeholder="e.g. HDFC0001234"
                                 value={employeeForm.ifscCode || ""}
                                 onChange={(e) => setEmployeeForm({ ...employeeForm, ifscCode: e.target.value })}
                                 className="w-full text-xs bg-white border border-slate-200 rounded-xl px-3 py-2 focus:outline-none focus:ring-1 focus:ring-indigo-500 font-bold font-mono"
@@ -2654,31 +3233,90 @@ const EmployeeDashboard = () => {
                       )}
                     </div>
 
-                    <div className="flex justify-end items-center gap-3 pt-6 border-t border-slate-100 mt-6">
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setEmployeeForm({
-                            firstName: "",
-                            lastName: "",
-                            employeeCode: "EMP-" + String(Date.now()).slice(-6),
-                            gender: "Male",
-                            maritalStatus: "Single",
-                            nationality: "Indian",
-                            bloodGroup: "O+"
-                          });
-                          alert("Form reset! You can now fill out details for a new employee.");
-                        }}
-                        className="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-xl transition"
-                      >
-                        + Reset for New Registration
-                      </button>
-                      <button
-                        type="submit"
-                        className="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-black rounded-xl shadow-md transition"
-                      >
-                        Submit & Register
-                      </button>
+                    {isNewRegistration && (
+                      <div className="bg-amber-50 border border-amber-200 text-amber-900 px-4 py-2.5 rounded-xl text-xs font-bold flex items-center justify-between shadow-2xs">
+                        <span>✨ <b>New Registration Mode</b>: Form fields are cleared for a new employee entry.</span>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setIsNewRegistration(false);
+                            if (profileDetails && Object.keys(profileDetails).length > 0) {
+                              setEmployeeForm({
+                                ...getEmptyEmployeeForm(),
+                                ...profileDetails,
+                                documents: profileDetails.documents || {},
+                                assets: profileDetails.assets || []
+                              });
+                            }
+                          }}
+                          className="px-3 py-1 bg-white border border-amber-300 rounded-lg text-amber-800 text-[11px] font-extrabold hover:bg-amber-100 transition"
+                        >
+                          🔄 Load Saved Profile
+                        </button>
+                      </div>
+                    )}
+
+                    <div className="flex flex-col sm:flex-row justify-between items-center gap-3 pt-6 border-t border-slate-100 mt-6">
+                      <div className="flex items-center gap-2 w-full sm:w-auto">
+                        {hasPrev && (
+                          <button
+                            type="button"
+                            onClick={() => handleTabClick(profileSectionsList[currentSectionIdx - 1])}
+                            className="px-3.5 py-2 bg-white border border-slate-200 hover:bg-slate-100 text-slate-700 text-xs font-bold rounded-xl transition flex items-center gap-1 shadow-2xs"
+                          >
+                            ← Previous Section
+                          </button>
+                        )}
+                        {hasNext && (
+                          <button
+                            type="button"
+                            onClick={() => handleTabClick(profileSectionsList[currentSectionIdx + 1])}
+                            className="px-3.5 py-2 bg-indigo-50 border border-indigo-200 hover:bg-indigo-100 text-indigo-700 text-xs font-bold rounded-xl transition flex items-center gap-1 shadow-2xs"
+                          >
+                            Next Section →
+                          </button>
+                        )}
+                      </div>
+
+                      <div className="flex items-center gap-2.5 w-full sm:w-auto justify-end">
+                        {isNewRegistration && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setIsNewRegistration(false);
+                              if (profileDetails && Object.keys(profileDetails).length > 0) {
+                                setEmployeeForm({
+                                  ...getEmptyEmployeeForm(),
+                                  ...profileDetails,
+                                  documents: profileDetails.documents || {},
+                                  assets: profileDetails.assets || []
+                                });
+                              }
+                            }}
+                            className="px-3.5 py-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-xs font-bold rounded-xl transition flex items-center gap-1"
+                          >
+                            🔄 Load Profile
+                          </button>
+                        )}
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setIsNewRegistration(true);
+                            setEmployeeForm(getEmptyEmployeeForm());
+                            setProfileTab("Basic Information");
+                            alert("Form reset! Sabhi fields khali ho gayi hain. Kripya '1. Basic Information' se shuru karein.");
+                          }}
+                          className="px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-xl transition"
+                        >
+                          + Reset for New Registration
+                        </button>
+                        <button
+                          type="submit"
+                          className="px-5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-black rounded-xl shadow-md transition"
+                        >
+                          Submit & Register
+                        </button>
+                      </div>
                     </div>
                   </form>
                 </div>
@@ -2933,24 +3571,32 @@ const EmployeeDashboard = () => {
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-100 font-bold text-slate-600">
-                        {payslips.map((ps, idx) => (
-                          <tr key={idx} className="hover:bg-slate-50/50 transition">
-                            <td className="py-3 text-slate-800 font-extrabold">{ps.month}</td>
-                            <td>₹{ps.basic.toLocaleString()}</td>
-                            <td>₹{ps.hra.toLocaleString()}</td>
-                            <td>₹{ps.special.toLocaleString()}</td>
-                            <td className="text-red-500">-₹{ps.pf.toLocaleString()}</td>
-                            <td className="text-emerald-600 font-black">₹{ps.netPay.toLocaleString()}</td>
-                            <td>
-                              <button
-                                onClick={() => setSelectedPayslip(ps)}
-                                className="px-3 py-1 bg-indigo-50 hover:bg-indigo-100 text-indigo-600 rounded-lg text-[10px] font-black"
-                              >
-                                View payslip
-                              </button>
+                        {payslips.length === 0 ? (
+                          <tr>
+                            <td colSpan="7" className="py-6 text-center text-xs text-slate-400 font-semibold">
+                              No payslip records generated yet.
                             </td>
                           </tr>
-                        ))}
+                        ) : (
+                          payslips.map((ps, idx) => (
+                            <tr key={idx} className="hover:bg-slate-50/50 transition">
+                              <td className="py-3 text-slate-800 font-extrabold">{ps.month}</td>
+                              <td>₹{ps.basic.toLocaleString()}</td>
+                              <td>₹{ps.hra.toLocaleString()}</td>
+                              <td>₹{ps.special.toLocaleString()}</td>
+                              <td className="text-red-500">-₹{ps.pf.toLocaleString()}</td>
+                              <td className="text-emerald-600 font-black">₹{ps.netPay.toLocaleString()}</td>
+                              <td>
+                                <button
+                                  onClick={() => setSelectedPayslip(ps)}
+                                  className="px-3 py-1 bg-indigo-50 hover:bg-indigo-100 text-indigo-600 rounded-lg text-[10px] font-black"
+                                >
+                                  View payslip
+                                </button>
+                              </td>
+                            </tr>
+                          ))
+                        )}
                       </tbody>
                     </table>
                   </div>
@@ -3223,18 +3869,26 @@ const EmployeeDashboard = () => {
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-100">
-                        {attendanceLogs.map((log, idx) => (
-                          <tr key={idx} className="hover:bg-slate-50/50 transition">
-                            <td className="py-3 text-slate-800">{log.date}</td>
-                            <td>{log.checkIn}</td>
-                            <td>{log.checkOut}</td>
-                            <td>{log.workingHours} Hrs</td>
-                            <td>
-                              <Badge variant={getStatusVariant(log.status)}>{log.status}</Badge>
+                        {attendanceLogs.length === 0 ? (
+                          <tr>
+                            <td colSpan="6" className="py-6 text-center text-xs text-slate-400 font-semibold">
+                              No attendance logs recorded for this period.
                             </td>
-                            <td className="text-[10px] text-slate-400 font-semibold">{log.deviceInfo} ({log.ipAddress})</td>
                           </tr>
-                        ))}
+                        ) : (
+                          attendanceLogs.map((log, idx) => (
+                            <tr key={idx} className="hover:bg-slate-50/50 transition">
+                              <td className="py-3 text-slate-800">{log.date}</td>
+                              <td>{log.checkIn}</td>
+                              <td>{log.checkOut}</td>
+                              <td>{log.workingHours} Hrs</td>
+                              <td>
+                                <Badge variant={getStatusVariant(log.status)}>{log.status}</Badge>
+                              </td>
+                              <td className="text-[10px] text-slate-400 font-semibold">{log.deviceInfo} ({log.ipAddress})</td>
+                            </tr>
+                          ))
+                        )}
                       </tbody>
                     </table>
                   </div>
@@ -3789,7 +4443,14 @@ const EmployeeDashboard = () => {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
-                    {payslips.map((ps, idx) => (
+                    {payslips.length === 0 ? (
+                      <tr>
+                        <td colSpan="7" className="py-6 text-center text-xs text-slate-400 font-semibold">
+                          No payslip records generated yet.
+                        </td>
+                      </tr>
+                    ) : (
+                      payslips.map((ps, idx) => (
                       <tr key={idx} className="hover:bg-slate-50/50 transition">
                         <td className="py-3.5 text-slate-800 font-extrabold">{ps.month}</td>
                         <td>₹{ps.basic.toLocaleString()}</td>
@@ -3806,7 +4467,8 @@ const EmployeeDashboard = () => {
                           </button>
                         </td>
                       </tr>
-                    ))}
+                    ))
+                    )}
                   </tbody>
                 </table>
               </div>
@@ -3828,7 +4490,14 @@ const EmployeeDashboard = () => {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
-                    {assets.map((ast) => (
+                    {assets.length === 0 ? (
+                      <tr>
+                        <td colSpan="4" className="py-6 text-center text-xs text-slate-400 font-semibold">
+                          No hardware or software assets allocated yet.
+                        </td>
+                      </tr>
+                    ) : (
+                      assets.map((ast) => (
                       <tr key={ast.id} className="hover:bg-slate-50/50 transition">
                         <td className="py-3 text-slate-800 font-extrabold">{ast.assetName}</td>
                         <td>{ast.assetCategory}</td>
@@ -3837,7 +4506,8 @@ const EmployeeDashboard = () => {
                           <Badge variant={getStatusVariant(ast.status)}>{ast.status}</Badge>
                         </td>
                       </tr>
-                    ))}
+                    ))
+                    )}
                   </tbody>
                 </table>
               </div>
@@ -3979,12 +4649,12 @@ const EmployeeDashboard = () => {
             <div className="p-6 space-y-6 text-xs font-bold text-slate-600 flex-1">
               <div className="flex justify-between items-start pb-4 border-b border-slate-100">
                 <div>
-                  <h4 className="font-extrabold text-slate-800 text-sm">NIB HRMS Solutions Pvt Ltd</h4>
-                  <p className="text-[10px] text-slate-400 font-semibold mt-0.5">Corporate Headquarters, Noida</p>
+                  <h4 className="font-extrabold text-slate-800 text-sm">{currentUserProfile?.company || user?.company || "Corporate Office"}</h4>
+                  <p className="text-[10px] text-slate-400 font-semibold mt-0.5">{currentUserProfile?.branch || "Main Branch"}</p>
                 </div>
                 <div className="text-right">
                   <p className="text-slate-800">Employee: {employeeName}</p>
-                  <p className="text-[10px] text-slate-400 font-semibold mt-0.5">Designation: Senior Lead</p>
+                  <p className="text-[10px] text-slate-400 font-semibold mt-0.5">Designation: {currentUserProfile?.designation || "Staff Professional"}</p>
                 </div>
               </div>
 
@@ -4054,6 +4724,93 @@ const EmployeeDashboard = () => {
                 <ArrowDownTrayIcon className="h-4 w-4" />
                 <span>Download PDF</span>
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 9. Duplicate Employee Detection Alert Modal */}
+      {duplicateWarningModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-lg w-full border border-amber-200 overflow-hidden flex flex-col transform transition-all duration-300">
+            {/* Header */}
+            <div className="bg-gradient-to-r from-amber-500 to-rose-500 text-white p-5 flex justify-between items-center">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-white/20 flex items-center justify-center text-xl">
+                  ⚠️
+                </div>
+                <div>
+                  <h3 className="text-base font-black tracking-tight">{duplicateWarningModal.title || "Already Data Uploaded!"}</h3>
+                  <p className="text-[11px] text-amber-100 font-bold">Yeh data pehle se database me upload ho chuka hai (Already Uploaded)</p>
+                </div>
+              </div>
+              <button 
+                type="button"
+                onClick={() => setDuplicateWarningModal(null)}
+                className="text-white/80 hover:text-white transition font-black text-lg p-1"
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <div className="p-6 space-y-4 text-xs">
+              <div className="bg-amber-50 border border-amber-200 rounded-xl p-3.5 text-amber-900 leading-relaxed font-semibold">
+                {duplicateWarningModal.customMessage ? (
+                  <span>{duplicateWarningModal.customMessage}</span>
+                ) : (
+                  <span>
+                    Aapne jo <b>{duplicateWarningModal.matchedField || "Email ya Employee Code"}</b> daala hai, usse match karta hua employee database me pehle se registered hai. Repeat / duplicate record insert nahi kiya ja sakta.
+                  </span>
+                )}
+              </div>
+
+              {/* Matched Record Card */}
+              <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 space-y-2">
+                <p className="text-[10px] font-black uppercase text-slate-400 tracking-wider">Pehle Se Majood Record (Existing Employee)</p>
+                <div className="grid grid-cols-2 gap-2 text-slate-700">
+                  <div>
+                    <span className="text-[10px] text-slate-400 block font-bold">Employee Name:</span>
+                    <span className="font-extrabold text-slate-900 text-xs">{duplicateWarningModal.name || "--"}</span>
+                  </div>
+                  <div>
+                    <span className="text-[10px] text-slate-400 block font-bold">Employee Code:</span>
+                    <span className="font-extrabold text-indigo-700 text-xs font-mono">{duplicateWarningModal.code || "--"}</span>
+                  </div>
+                  <div>
+                    <span className="text-[10px] text-slate-400 block font-bold">Email:</span>
+                    <span className="font-semibold text-slate-800 text-xs">{duplicateWarningModal.email || "--"}</span>
+                  </div>
+                  <div>
+                    <span className="text-[10px] text-slate-400 block font-bold">Record ID:</span>
+                    <span className="font-mono text-slate-500 text-[11px]">#{String(duplicateWarningModal.id || "").slice(0, 8)}</span>
+                  </div>
+                </div>
+              </div>
+
+              <p className="text-slate-500 text-[11px] leading-tight font-medium">
+                💡 Agar aap is employee ki details update karna chahte hain toh <b>"Load & Edit Profile"</b> par click karein, ya naye employee ke liye alag Email / Employee Code use karein.
+              </p>
+            </div>
+
+            {/* Modal Actions */}
+            <div className="p-4 bg-slate-50 border-t border-slate-100 flex justify-end gap-2.5">
+              <button 
+                type="button"
+                onClick={() => setDuplicateWarningModal(null)}
+                className="px-4 py-2 bg-white border border-slate-300 hover:bg-slate-100 text-slate-700 text-xs font-bold rounded-xl transition cursor-pointer"
+              >
+                ✕ Close & Change Details
+              </button>
+              {duplicateWarningModal.existingData && (
+                <button 
+                  type="button"
+                  onClick={() => handleLoadDuplicateEmployee(duplicateWarningModal.existingData)}
+                  className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-black rounded-xl shadow-md transition flex items-center gap-1.5 cursor-pointer"
+                >
+                  <span>🔄 Load & Edit Profile</span>
+                </button>
+              )}
             </div>
           </div>
         </div>

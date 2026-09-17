@@ -1,6 +1,6 @@
 // backend/routes/superadmin.routes.js
 const express = require('express');
-const { getTenants, createTenant } = require('../controllers/superadmin.controller');
+const { getTenants, createTenant, deleteTenant } = require('../controllers/superadmin.controller');
 const verifyJWT = require('../middleware/auth.middleware');
 const { authorizeRole } = require('../middleware/role.middleware');
 
@@ -12,5 +12,6 @@ router.use(authorizeRole(['SuperAdmin']));
 
 router.get('/tenants', getTenants);
 router.post('/tenants', createTenant);
+router.delete('/tenants/:id', deleteTenant);
 
 module.exports = router;

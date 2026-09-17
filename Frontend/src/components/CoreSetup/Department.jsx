@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from "react";
+import { useNavigate } from "react-router-dom";
 import { useDispatch, useSelector } from "react-redux";
 import { setDbData } from "../../redux/hrSlice";
 import {
@@ -29,14 +30,20 @@ import {
 } from "@heroicons/react/24/outline";
 
 const PREDEFINED_MODULES = [
-  "Dashboard", "Organization Setup", "Employee Management", "Recruitment & Onboarding",
-  "Attendance", "Leave Management", "Payroll", "Performance", "Learning",
-  "Asset Management", "Document Management", "Employee Exit", "Workflow & Approval",
-  "Employee Engagement", "Helpdesk", "Reports", "Notifications", "Departments",
-  "Settings", "Profile"
+  "Dashboard",
+  "Organization Setup",
+  "Employee Management",
+  "Attendance",
+  "Leave Management",
+  "Payroll",
+  "Exit Management",
+  "Helpdesk",
+  "Reports",
+  "Settings"
 ];
 
 const Department = ({ records: legacyRecords, openCreateTrigger }) => {
+  const navigate = useNavigate();
   const dispatch = useDispatch();
   const dbData = useSelector((state) => state.hr.dbData) || {};
   const token = useSelector((state) => state.auth.token);
@@ -75,12 +82,12 @@ const Department = ({ records: legacyRecords, openCreateTrigger }) => {
   const [toast, setToast] = useState({ show: false, message: "", type: "success" });
   const [validationError, setValidationError] = useState("");
 
-  // Centralized Master Modules State (initialized with PREDEFINED_MODULES + localStorage custom modules)
+  // Centralized Master Modules State (strictly synced with Admin Dashboard Sidebar sections + custom modules)
   const [masterModules, setMasterModules] = useState(() => {
     try {
-      const saved = localStorage.getItem("hrms_master_modules");
-      if (saved) {
-        const parsed = JSON.parse(saved);
+      const savedCustom = localStorage.getItem("hrms_custom_modules");
+      if (savedCustom) {
+        const parsed = JSON.parse(savedCustom);
         if (Array.isArray(parsed) && parsed.length > 0) {
           return Array.from(new Set([...PREDEFINED_MODULES, ...parsed]));
         }
@@ -1197,10 +1204,20 @@ const Department = ({ records: legacyRecords, openCreateTrigger }) => {
               </div>
             </div>
 
-            <div className="px-6 py-3 bg-slate-50 border-t border-slate-200 text-right">
+            <div className="px-6 py-3 bg-slate-50 border-t border-slate-200 flex items-center justify-between">
+              <button
+                type="button"
+                onClick={() => {
+                  setIsViewModalOpen(false);
+                  navigate(`/hr-hub?category=DEPARTMENT&tab=${encodeURIComponent(viewingDept.deptName || viewingDept.dept_name || viewingDept.name)}`);
+                }}
+                className="px-3.5 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-xl shadow-xs transition flex items-center gap-1.5 cursor-pointer"
+              >
+                <span>📊 Open {viewingDept.deptName || "Department"} Dashboard</span>
+              </button>
               <button
                 onClick={() => setIsViewModalOpen(false)}
-                className="px-4 py-1.5 bg-slate-200 hover:bg-slate-300 text-slate-800 font-semibold rounded-xl transition"
+                className="px-4 py-1.5 bg-slate-200 hover:bg-slate-300 text-slate-800 font-semibold rounded-xl transition cursor-pointer"
               >
                 Close
               </button>

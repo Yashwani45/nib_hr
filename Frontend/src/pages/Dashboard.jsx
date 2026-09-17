@@ -12,9 +12,11 @@ const Dashboard = () => {
   const userRole = typeof user?.role === "object" ? user?.role?.name : user?.role;
   const roleName = userRole?.toLowerCase() || "employee";
 
+  // SuperAdmin routes to the SuperAdmin Console
   if (roleName === "superadmin") {
     return <Navigate to="/super-admin/dashboard" replace />;
-  } 
+  }
+  // Admin routes to Admin Dashboard
   if (roleName === "admin") {
     return <Navigate to="/admin/dashboard" replace />;
   }

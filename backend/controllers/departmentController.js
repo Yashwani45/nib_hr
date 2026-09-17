@@ -159,7 +159,20 @@ const deleteDepartment = async (req, res) => {
       });
     }
 
+    const hrEmail = department.hr_email || department.hrEmail;
     await department.destroy();
+
+    const { masterSequelize } = require('../config/database');
+    if (masterSequelize) {
+      await masterSequelize.query("DELETE FROM departments WHERE id = ?", { replacements: [id] }).catch(() => {});
+      await masterSequelize.query("DELETE FROM department WHERE id = ?", { replacements: [id] }).catch(() => {});
+      if (hrEmail) {
+        const clean = String(hrEmail).trim().toLowerCase();
+        await masterSequelize.query("DELETE FROM departments WHERE LOWER(hr_email) = ?", { replacements: [clean] }).catch(() => {});
+        await masterSequelize.query("DELETE FROM department WHERE LOWER(hr_email) = ?", { replacements: [clean] }).catch(() => {});
+        await masterSequelize.query("DELETE FROM users WHERE LOWER(email) = ?", { replacements: [clean] }).catch(() => {});
+      }
+    }
 
     res.json({
       success: true,

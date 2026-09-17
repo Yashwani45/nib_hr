@@ -440,7 +440,7 @@ const ReportsDashboard = ({ selectedTab, activeTab: propActiveTab, user }) => {
 
           {/* Footer matching screenshot */}
           <div className="mt-16 pt-6 border-t border-gray-200 flex flex-col sm:flex-row items-center justify-between text-xs text-gray-400 font-normal">
-            <p>© 2025 Enterprise HRMS. All rights reserved.</p>
+            <p>© 2026 TechnoVani HRMS. All rights reserved.</p>
             <p className="mt-2 sm:mt-0">Version: 1.0.0</p>
           </div>
         </div>

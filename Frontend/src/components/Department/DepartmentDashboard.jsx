@@ -1,4 +1,6 @@
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect, useCallback } from "react";
+import { useNavigate } from "react-router-dom";
+import { apiFetch } from "../../services/hrApi";
 import { useAuth } from "../../auth/AuthProvider";
 import { 
   CommandLineIcon, 
@@ -34,6 +36,7 @@ import {
   FolderIcon,
   CheckIcon,
   PlusIcon,
+  ArrowPathIcon,
   QueueListIcon,
   FunnelIcon,
   ArrowDownTrayIcon,
@@ -108,19 +111,62 @@ const getDepartmentGradient = (name = "") => {
 };
 
 const DepartmentDashboard = ({ deptDetail = {}, dbData = {} }) => {
+  const navigate = useNavigate();
+  const { user } = useAuth();
+
   const [empSearchText, setEmpSearchText] = useState("");
   const [activeTabFilter, setActiveTabFilter] = useState("overview");
 
-  const deptName = deptDetail.deptName || deptDetail.dept_name || deptDetail.name || "Department";
-  const deptCode = deptDetail.deptCode || deptDetail.dept_code || deptDetail.code || "DEPT";
+  const deptName = deptDetail.deptName || deptDetail.dept_name || deptDetail.name || user?.departmentName || "Department";
+  const deptCode = deptDetail.deptCode || deptDetail.dept_code || deptDetail.code || user?.departmentCode || "DEPT";
   const headName = deptDetail.head || (deptDetail.headEmployeeDetails?.firstName ? `${deptDetail.headEmployeeDetails?.firstName} ${deptDetail.headEmployeeDetails?.lastName || ""}` : "Unassigned");
   const parentName = deptDetail.parentDept || deptDetail.parentDeptDetails?.deptName || "None";
-  const companyName = deptDetail.company || "NIB Technologies";
+  const companyName = deptDetail.company || user?.companyName || "Aarogya Homeopathy Clinic";
   const branchName = deptDetail.branch ? `(${deptDetail.branch})` : "";
   const statusStr = deptDetail.status || "Active";
-  const descriptionStr = deptDetail.description || "Enterprise Department Operations & Strategy Command Center.";
+  const descriptionStr = deptDetail.description || `${deptName} Operations Command Center.`;
 
-  const { user } = useAuth();
+  // Live Database States (Direct synchronization from MySQL)
+  const [liveEmployees, setLiveEmployees] = useState(dbData?.["Employee Profile"] || dbData?.["employees"] || []);
+  const [liveAttendance, setLiveAttendance] = useState(dbData?.["Daily Attendance"] || dbData?.["daily_attendance"] || []);
+  const [liveLeaves, setLiveLeaves] = useState(dbData?.["Leave Requests"] || dbData?.["leave_requests"] || []);
+  const [liveTickets, setLiveTickets] = useState(dbData?.["hr_tickets"] || []);
+  const [loadingLive, setLoadingLive] = useState(false);
+
+  const fetchLiveDeptData = useCallback(async () => {
+    try {
+      setLoadingLive(true);
+      const [empRes, attRes, leaveRes, ticketRes] = await Promise.all([
+        apiFetch("/api/table/employee_profile").catch(() => ({ success: false })),
+        apiFetch("/api/table/daily_attendance").catch(() => ({ success: false })),
+        apiFetch("/api/table/leave_requests").catch(() => ({ success: false })),
+        apiFetch("/api/table/hr_tickets").catch(() => ({ success: false }))
+      ]);
+
+      if (empRes?.success && Array.isArray(empRes.data)) {
+        setLiveEmployees(empRes.data);
+      }
+      if (attRes?.success && Array.isArray(attRes.data)) {
+        setLiveAttendance(attRes.data);
+      }
+      if (leaveRes?.success && Array.isArray(leaveRes.data)) {
+        setLiveLeaves(leaveRes.data);
+      }
+      if (ticketRes?.success && Array.isArray(ticketRes.data)) {
+        setLiveTickets(ticketRes.data);
+      }
+    } catch (e) {
+      console.error("Error loading department live metrics:", e);
+    } finally {
+      setLoadingLive(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchLiveDeptData();
+    window.addEventListener("focus", fetchLiveDeptData);
+    return () => window.removeEventListener("focus", fetchLiveDeptData);
+  }, [fetchLiveDeptData, deptName]);
 
   // Extract assigned modules for this department
   const assignedModules = useMemo(() => {
@@ -132,7 +178,7 @@ const DepartmentDashboard = ({ deptDetail = {}, dbData = {} }) => {
     if (user?.assignedModules && Array.isArray(user.assignedModules)) {
       return user.assignedModules;
     }
-    return null;
+    return [];
   }, [deptDetail, user]);
 
   // Compute dynamic widgets automatically from predefined module registry
@@ -141,29 +187,52 @@ const DepartmentDashboard = ({ deptDetail = {}, dbData = {} }) => {
   }, [assignedModules]);
 
   const isAll = String(deptName || "").toLowerCase().trim() === "all employees" || String(deptName || "").toLowerCase().trim() === "all departments";
-  const employees = dbData?.["Employee Profile"] || [];
-  const deptEmployees = isAll
-    ? employees
-    : employees.filter(
-        emp => (emp.department || "").toLowerCase() === deptName.toLowerCase()
-      );
 
-  const filteredEmployees = deptEmployees.filter(emp => {
-    const fullName = `${emp.firstName || ""} ${emp.lastName || ""}`.toLowerCase();
-    return (
-      fullName.includes(empSearchText.toLowerCase()) ||
-      (emp.empCode || "").toLowerCase().includes(empSearchText.toLowerCase())
-    );
-  });
+  // Strict departmental employee resolution
+  const deptEmployees = useMemo(() => {
+    if (isAll) return liveEmployees;
+    const targetName = String(deptName || "").toLowerCase().trim();
+    const targetCode = String(deptCode || "").toLowerCase().trim();
+    const targetId = String(deptDetail.id || user?.departmentId || "").toLowerCase().trim();
+
+    return liveEmployees.filter(emp => {
+      const empDept = String(emp.department || emp.department_name || emp.departmentName || "").toLowerCase().trim();
+      const empDeptId = String(emp.department_id || emp.departmentId || "").toLowerCase().trim();
+      const empDeptCode = String(emp.dept_code || emp.departmentCode || "").toLowerCase().trim();
+
+      return (
+        (targetName && (empDept === targetName || empDept.includes(targetName) || targetName.includes(empDept))) ||
+        (targetId && empDeptId === targetId) ||
+        (targetCode && empDeptCode === targetCode)
+      );
+    });
+  }, [liveEmployees, isAll, deptName, deptCode, deptDetail.id, user?.departmentId]);
+
+  const filteredEmployees = useMemo(() => {
+    const q = empSearchText.toLowerCase().trim();
+    if (!q) return deptEmployees;
+    return deptEmployees.filter(emp => {
+      const name = (emp.employee_name || emp.employeeName || `${emp.firstName || ""} ${emp.lastName || ""}`).toLowerCase();
+      const code = String(emp.empCode || emp.emp_code || emp.employeeCode || "").toLowerCase();
+      const desig = String(emp.designation || emp.designation_name || emp.designationName || "").toLowerCase();
+      const email = String(emp.email || emp.officialEmail || emp.company_email || "").toLowerCase();
+      return name.includes(q) || code.includes(q) || desig.includes(q) || email.includes(q);
+    });
+  }, [deptEmployees, empSearchText]);
 
   const todayStr = useMemo(() => new Date().toISOString().split('T')[0], []);
   
   const metrics = useMemo(() => {
     const totalEmp = deptEmployees.length;
     
-    const attendanceList = dbData?.["Daily Attendance"] || dbData?.["daily_attendance"] || dbData?.["Biometric Logs"] || dbData?.["biometric_logs"] || [];
+    const attendanceList = liveAttendance.length > 0 ? liveAttendance : (dbData?.["Daily Attendance"] || dbData?.["daily_attendance"] || []);
     const deptAttendance = attendanceList.filter(a => 
-      deptEmployees.some(emp => String(emp.employeeCode || emp.emp_code || "").toLowerCase().trim() === String(a.empId || a.employeeCode).toLowerCase().trim())
+      deptEmployees.some(emp => {
+        const empCode = String(emp.employeeCode || emp.emp_code || emp.empCode || "").toLowerCase().trim();
+        const empId = String(emp.id || "").toLowerCase().trim();
+        const attEmpCode = String(a.empId || a.employeeCode || "").toLowerCase().trim();
+        return (empCode && attEmpCode === empCode) || (empId && attEmpCode === empId);
+      })
     );
     
     const present = deptAttendance.filter(a => a.date === todayStr && String(a.status || "").toLowerCase() === 'present').length;
@@ -171,21 +240,29 @@ const DepartmentDashboard = ({ deptDetail = {}, dbData = {} }) => {
     const late = deptAttendance.filter(a => a.date === todayStr && Number(a.lateComing || a.late_coming || 0) > 0).length;
     const early = deptAttendance.filter(a => a.date === todayStr && Number(a.earlyLeaving || a.early_leaving || 0) > 0).length;
     
-    const leavesList = dbData?.["Leave Requests"] || dbData?.["leave_requests"] || [];
+    const leavesList = liveLeaves.length > 0 ? liveLeaves : (dbData?.["Leave Requests"] || dbData?.["leave_requests"] || []);
     const deptLeaves = leavesList.filter(l => 
-      deptEmployees.some(emp => String(emp.employeeCode || emp.emp_code || "").toLowerCase().trim() === String(l.employeeCode || l.empId || "").toLowerCase().trim())
+      deptEmployees.some(emp => {
+        const empCode = String(emp.employeeCode || emp.emp_code || emp.empCode || "").toLowerCase().trim();
+        const empId = String(emp.id || "").toLowerCase().trim();
+        const leaveEmpCode = String(l.employeeCode || l.empId || "").toLowerCase().trim();
+        return (empCode && leaveEmpCode === empCode) || (empId && leaveEmpCode === empId);
+      })
     );
     const onLeave = deptLeaves.filter(l => String(l.status || "").toLowerCase() === 'approved' && todayStr >= l.fromDate && todayStr <= l.toDate).length;
     const pending = deptLeaves.filter(l => String(l.status || "").toLowerCase() === 'pending').length;
     
     const absent = Math.max(0, totalEmp - present - onLeave - wfh);
+    const leaveTakenDays = deptLeaves
+      .filter(l => String(l.status || "").toLowerCase() === 'approved')
+      .reduce((sum, l) => sum + (Number(l.totalDays || l.days) || 1), 0);
     
     const permanent = deptEmployees.filter(e => String(e.employmentType || e.employment_type || "").toLowerCase().includes("permanent")).length;
     const contract = deptEmployees.filter(e => String(e.employmentType || e.employment_type || "").toLowerCase().includes("contract")).length;
     const probation = deptEmployees.filter(e => String(e.employmentType || e.employment_type || "").toLowerCase().includes("probation")).length;
     const intern = Math.max(0, totalEmp - permanent - contract - probation);
     
-    const active = deptEmployees.filter(e => String(e.status || "").toLowerCase() === "active").length;
+    const active = deptEmployees.filter(e => String(e.status || e.employeeStatus || "").toLowerCase() === "active" || !e.status).length;
     const notice = deptEmployees.filter(e => String(e.status || "").toLowerCase() === "notice" || String(e.status || "").toLowerCase() === "resigned").length;
     
     const male = deptEmployees.filter(e => String(e.gender || "").toLowerCase() === "male").length;
@@ -209,13 +286,16 @@ const DepartmentDashboard = ({ deptDetail = {}, dbData = {} }) => {
       notice,
       male,
       female,
-      others
+      others,
+      leaveTakenDays,
+      deptLeaves
     };
-  }, [deptEmployees, dbData, todayStr]);
+  }, [deptEmployees, liveAttendance, liveLeaves, dbData, todayStr]);
 
   const deptDistribution = useMemo(() => {
-    const depts = employees.reduce((acc, emp) => {
-      const dept = emp.department || 'Other';
+    const list = liveEmployees || [];
+    const depts = list.reduce((acc, emp) => {
+      const dept = emp.department || emp.department_name || emp.departmentName || 'Other';
       acc[dept] = (acc[dept] || 0) + 1;
       return acc;
     }, {});
@@ -227,7 +307,7 @@ const DepartmentDashboard = ({ deptDetail = {}, dbData = {} }) => {
       percent: (count / maxVal) * 80,
       col: dept.toLowerCase() === deptName.toLowerCase() ? "bg-indigo-600 font-extrabold" : "bg-blue-600"
     }));
-  }, [employees, deptName]);
+  }, [liveEmployees, deptName]);
 
   const attendanceTrend = useMemo(() => {
     const dates = [];
@@ -285,16 +365,27 @@ const DepartmentDashboard = ({ deptDetail = {}, dbData = {} }) => {
             {deptName} Department Dashboard
           </h1>
         </div>
-        <div className="flex items-center gap-2">
-          <span className="text-[10px] font-bold text-slate-500 bg-slate-100 px-2.5 py-1 rounded-lg border border-slate-200">
-            This Month
-          </span>
-          <span className="text-[10px] font-bold text-indigo-700 bg-indigo-50 px-2.5 py-1 rounded-lg border border-indigo-200">
-            {deptName} Department
-          </span>
-          <button type="button" className="bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold px-3 py-1.5 rounded-xl shadow-xs transition flex items-center gap-1">
-            <span>+ Export</span>
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            onClick={fetchLiveDeptData}
+            title="Fetch Latest Data from Database"
+            className="px-3 py-1.5 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 text-xs font-bold rounded-xl shadow-xs transition flex items-center gap-1.5 cursor-pointer"
+          >
+            <ArrowPathIcon className={`w-3.5 h-3.5 text-blue-600 ${loadingLive ? "animate-spin" : ""}`} />
+            <span>{loadingLive ? "Refreshing..." : "Refresh"}</span>
           </button>
+          <button
+            type="button"
+            onClick={() => navigate(`/hr-hub?category=EMPLOYEE_MGMT&tab=Add%20Employee&dept=${encodeURIComponent(deptName)}`)}
+            className="bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold px-3 py-1.5 rounded-xl shadow-xs transition flex items-center gap-1 cursor-pointer"
+          >
+            <PlusIcon className="w-3.5 h-3.5" />
+            <span>+ Add Employee</span>
+          </button>
+          <span className="text-[10px] font-bold text-indigo-700 bg-indigo-50 px-2.5 py-1.5 rounded-xl border border-indigo-200">
+            {deptName}
+          </span>
         </div>
       </div>
 
@@ -405,8 +496,8 @@ const DepartmentDashboard = ({ deptDetail = {}, dbData = {} }) => {
             <span className="text-[9px] font-extrabold text-amber-700 bg-amber-50 px-1.5 py-0.5 rounded">Leave Management</span>
           </div>
           <div className="space-y-1 text-[11px]">
-            <div className="flex justify-between"><span>Total Balance</span> <strong>{metrics.totalEmp * 15} Days</strong></div>
-            <div className="flex justify-between"><span>Leave Taken</span> <strong className="text-blue-600">{metrics.totalEmp * 3} Days</strong></div>
+            <div className="flex justify-between"><span>Total Balance</span> <strong>{metrics.totalEmp > 0 ? metrics.totalEmp * 24 : 0} Days</strong></div>
+            <div className="flex justify-between"><span>Leave Taken</span> <strong className="text-blue-600">{metrics.leaveTakenDays || 0} Days</strong></div>
             <div className="flex justify-between"><span>Pending</span> <strong className="text-amber-600">{metrics.pending} Requests</strong></div>
             <div className="flex justify-between"><span>On Leave</span> <strong className="text-rose-600">{metrics.onLeave} Staff</strong></div>
           </div>
@@ -421,10 +512,10 @@ const DepartmentDashboard = ({ deptDetail = {}, dbData = {} }) => {
             <span className="text-[9px] font-extrabold text-purple-700 bg-purple-50 px-1.5 py-0.5 rounded">Recruitment</span>
           </div>
           <div className="space-y-1 text-[11px]">
-            <div className="flex justify-between"><span>Open Vacancies</span> <strong className="text-purple-600">{isAll ? 5 : 1} Roles</strong></div>
-            <div className="flex justify-between"><span>Interviews</span> <strong className="text-blue-600">{isAll ? 8 : 1} Candidates</strong></div>
-            <div className="flex justify-between"><span>Shortlisted</span> <strong className="text-indigo-600">{isAll ? 12 : 2} Staff</strong></div>
-            <div className="flex justify-between"><span>Offer Released</span> <strong className="text-emerald-600">{isAll ? 6 : 1} Offers</strong></div>
+            <div className="flex justify-between"><span>Open Vacancies</span> <strong className="text-purple-600">{(dbData?.['job_postings'] || []).length} Roles</strong></div>
+            <div className="flex justify-between"><span>Interviews</span> <strong className="text-blue-600">{(dbData?.['interviews'] || []).length} Candidates</strong></div>
+            <div className="flex justify-between"><span>Shortlisted</span> <strong className="text-indigo-600">{(dbData?.['candidate_database'] || []).filter(c => String(c.status || '').toLowerCase().includes('shortlist')).length} Staff</strong></div>
+            <div className="flex justify-between"><span>Offer Released</span> <strong className="text-emerald-600">{(dbData?.['offer_letters'] || []).length} Offers</strong></div>
           </div>
         </div>
       </div>
@@ -522,13 +613,15 @@ const DepartmentDashboard = ({ deptDetail = {}, dbData = {} }) => {
           <h3 className="text-xs font-bold text-slate-800 border-b pb-1 border-slate-100">Performance Overview</h3>
           <div className="flex items-center gap-3">
             <div className="text-center">
-              <span className="text-lg font-black text-slate-900 block">4.3</span>
+              <span className="text-lg font-black text-slate-900 block">
+                {deptEmployees.some(e => e.rating) ? (deptEmployees.reduce((acc, e) => acc + (Number(e.rating) || 0), 0) / (deptEmployees.filter(e => e.rating).length || 1)).toFixed(1) : "0.0"}
+              </span>
               <span className="text-[9px] text-amber-500 block">★★★★★</span>
             </div>
             <div className="text-[11px] space-y-0.5">
-              <div>Average KPI: <strong>91%</strong></div>
-              <div>Top Performers: <strong>{isAll ? 18 : 1}</strong></div>
-              <div>Completed: <strong>{isAll ? 32 : 1}</strong></div>
+              <div>Average KPI: <strong>{deptEmployees.some(e => e.rating) ? `${Math.round(((deptEmployees.reduce((acc, e) => acc + (Number(e.rating) || 0), 0) / (deptEmployees.filter(e => e.rating).length || 1)) / 5) * 100)}%` : "0%"}</strong></div>
+              <div>Top Performers: <strong>{deptEmployees.filter(e => Number(e.rating) >= 4).length}</strong></div>
+              <div>Completed: <strong>{deptEmployees.filter(e => e.rating).length}</strong></div>
             </div>
           </div>
         </div>
@@ -538,11 +631,11 @@ const DepartmentDashboard = ({ deptDetail = {}, dbData = {} }) => {
           <h3 className="text-xs font-bold text-slate-800 border-b pb-1 border-slate-100">Helpdesk Summary</h3>
           <div className="flex items-center gap-3">
             <div className="w-12 h-12 rounded-full border-4 border-blue-600 border-t-rose-500 flex items-center justify-center shrink-0">
-              <span className="text-[10px] font-bold">{isAll ? 2 : 0}</span>
+              <span className="text-[10px] font-bold">{(dbData?.['hr_tickets'] || []).length}</span>
             </div>
             <div className="text-[11px] space-y-0.5">
-              <div>Open: <strong>{isAll ? 2 : 0}</strong> | In Progress: <strong>{isAll ? 3 : 0}</strong></div>
-              <div>Resolved: <strong>{isAll ? 15 : 0}</strong> | Closed: <strong>{isAll ? 25 : 0}</strong></div>
+              <div>Open: <strong>{(dbData?.['hr_tickets'] || []).filter(t => String(t.status || '').toLowerCase() === 'open').length}</strong> | In Progress: <strong>{(dbData?.['hr_tickets'] || []).filter(t => String(t.status || '').toLowerCase().includes('prog')).length}</strong></div>
+              <div>Resolved: <strong>{(dbData?.['hr_tickets'] || []).filter(t => String(t.status || '').toLowerCase() === 'resolved').length}</strong> | Closed: <strong>{(dbData?.['hr_tickets'] || []).filter(t => String(t.status || '').toLowerCase() === 'closed').length}</strong></div>
             </div>
           </div>
         </div>
@@ -554,9 +647,9 @@ const DepartmentDashboard = ({ deptDetail = {}, dbData = {} }) => {
         <div className="bg-white border border-slate-200/80 rounded-xl p-3.5 shadow-xs space-y-2">
           <h3 className="text-xs font-bold text-slate-800 border-b pb-1.5 border-slate-100">Pending Approvals</h3>
           <div className="flex items-center gap-2 text-[11px]">
-            <div className="flex-1 p-2 bg-emerald-50 text-emerald-800 rounded-lg text-center font-bold">Leave: 3</div>
-            <div className="flex-1 p-2 bg-blue-50 text-blue-800 rounded-lg text-center font-bold">Attn: 1</div>
-            <div className="flex-1 p-2 bg-purple-50 text-purple-800 rounded-lg text-center font-bold">Expense: 2</div>
+            <div className="flex-1 p-2 bg-emerald-50 text-emerald-800 rounded-lg text-center font-bold">Leave: {metrics.pending}</div>
+            <div className="flex-1 p-2 bg-blue-50 text-blue-800 rounded-lg text-center font-bold">Attn: 0</div>
+            <div className="flex-1 p-2 bg-purple-50 text-purple-800 rounded-lg text-center font-bold">Expense: 0</div>
           </div>
         </div>
 
@@ -564,8 +657,13 @@ const DepartmentDashboard = ({ deptDetail = {}, dbData = {} }) => {
         <div className="bg-white border border-slate-200/80 rounded-xl p-3.5 shadow-xs space-y-2">
           <h3 className="text-xs font-bold text-slate-800 border-b pb-1.5 border-slate-100">Recent Activities</h3>
           <div className="space-y-1 text-[11px]">
-            <div><strong>Rahul Sharma</strong> applied for leave</div>
-            <div><strong>Arvind Kumar</strong> attendance regularized</div>
+            {(metrics.deptLeaves && metrics.deptLeaves.length > 0) ? (
+              metrics.deptLeaves.slice(0, 2).map((l, i) => (
+                <div key={i}><strong>{l.employee_name || l.employeeName || "Employee"}</strong> applied for {l.leave_type || l.leaveType || "leave"}</div>
+              ))
+            ) : (
+              <div className="text-slate-400 italic">No recent activities</div>
+            )}
           </div>
         </div>
 
@@ -573,9 +671,143 @@ const DepartmentDashboard = ({ deptDetail = {}, dbData = {} }) => {
         <div className="bg-white border border-slate-200/80 rounded-xl p-3.5 shadow-xs space-y-2">
           <h3 className="text-xs font-bold text-slate-800 border-b pb-1.5 border-slate-100">Upcoming Events</h3>
           <div className="space-y-1 text-[11px]">
-            <div><strong>Team Meeting</strong> (12 May 10:00 AM)</div>
-            <div><strong>Training Program</strong> (15 May 11:00 AM)</div>
+            {(dbData?.['holidays'] || []).length > 0 ? (
+              (dbData?.['holidays'] || []).slice(0, 2).map((h, i) => (
+                <div key={i}><strong>{h.holiday_name || h.name || "Holiday"}</strong> ({h.date || "Upcoming"})</div>
+              ))
+            ) : (
+              <div className="text-slate-400 italic">No upcoming events scheduled</div>
+            )}
           </div>
+        </div>
+      </div>
+
+      {/* 6. Live Department Staff Directory Table (Real-Time Synchronized) */}
+      <div className="bg-white border border-slate-200/80 rounded-2xl shadow-sm overflow-hidden font-sans">
+        <div className="p-4 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-slate-50/60">
+          <div className="flex items-center gap-2.5">
+            <div className="p-2 bg-blue-50 text-blue-600 rounded-xl">
+              <UserGroupIcon className="w-5 h-5" />
+            </div>
+            <div>
+              <h3 className="text-sm font-black text-slate-800 tracking-tight">
+                {deptName} Staff Directory
+              </h3>
+              <p className="text-[11px] text-slate-500 font-medium">
+                Live team members assigned to this department ({deptEmployees.length} total)
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <div className="relative">
+              <MagnifyingGlassIcon className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+              <input
+                type="text"
+                placeholder="Search staff by name, code, designation..."
+                value={empSearchText}
+                onChange={(e) => setEmpSearchText(e.target.value)}
+                className="pl-8 pr-3 py-1.5 bg-white border border-slate-200 rounded-xl text-xs font-medium focus:outline-blue-500 w-full sm:w-64"
+              />
+            </div>
+
+            <button
+              type="button"
+              onClick={() => navigate(`/hr-hub?category=EMPLOYEE_MGMT&tab=Add%20Employee&dept=${encodeURIComponent(deptName)}`)}
+              className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-xl shadow-xs transition flex items-center gap-1 shrink-0 cursor-pointer"
+            >
+              <PlusIcon className="w-3.5 h-3.5" />
+              <span>+ Add Staff</span>
+            </button>
+          </div>
+        </div>
+
+        {/* Staff Table List */}
+        <div className="overflow-x-auto">
+          <table className="w-full text-left text-xs border-collapse">
+            <thead>
+              <tr className="bg-slate-50/80 border-b border-slate-200/80 text-[10px] font-black uppercase tracking-wider text-slate-400">
+                <th className="py-3 px-4">Employee</th>
+                <th className="py-3 px-4">Emp Code</th>
+                <th className="py-3 px-4">Designation</th>
+                <th className="py-3 px-4">Contact</th>
+                <th className="py-3 px-4">Joining Date</th>
+                <th className="py-3 px-4 text-center">Status</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100 font-medium text-slate-700">
+              {filteredEmployees.length > 0 ? (
+                filteredEmployees.map((emp, idx) => {
+                  const empName = emp.employee_name || emp.employeeName || `${emp.firstName || ""} ${emp.lastName || ""}`.trim() || "Employee";
+                  const empCode = emp.empCode || emp.emp_code || emp.employeeCode || `EMP-${String(idx + 1).padStart(3, '0')}`;
+                  const desig = emp.designation || emp.designation_name || emp.designationName || "Staff Member";
+                  const email = emp.email || emp.officialEmail || emp.company_email || "--";
+                  const phone = emp.mobileNumber || emp.phone || emp.mobile || "--";
+                  const joinDate = emp.dateOfJoining || emp.joining_date || emp.created_at ? new Date(emp.dateOfJoining || emp.joining_date || emp.created_at).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" }) : "--";
+                  const status = emp.status || emp.employeeStatus || "Active";
+                  const initials = empName.split(" ").filter(Boolean).map(w => w[0]).join("").slice(0, 2).toUpperCase() || "EM";
+
+                  return (
+                    <tr key={emp.id || idx} className="hover:bg-slate-50/70 transition">
+                      <td className="py-3 px-4">
+                        <div className="flex items-center gap-2.5">
+                          <div className="w-8 h-8 rounded-xl bg-indigo-50 border border-indigo-100 text-indigo-700 font-black text-xs flex items-center justify-center shrink-0">
+                            {initials}
+                          </div>
+                          <div>
+                            <div className="font-bold text-slate-900">{empName}</div>
+                            <div className="text-[10px] text-slate-400">{emp.department || deptName}</div>
+                          </div>
+                        </div>
+                      </td>
+                      <td className="py-3 px-4 font-mono font-bold text-indigo-600">
+                        <span className="px-2 py-0.5 bg-indigo-50 border border-indigo-100 rounded text-[11px]">
+                          {empCode}
+                        </span>
+                      </td>
+                      <td className="py-3 px-4 font-semibold text-slate-800">{desig}</td>
+                      <td className="py-3 px-4 text-slate-500">
+                        <div>{email}</div>
+                        {phone !== "--" && <div className="text-[10px] text-slate-400">{phone}</div>}
+                      </td>
+                      <td className="py-3 px-4 text-slate-500">{joinDate}</td>
+                      <td className="py-3 px-4 text-center">
+                        <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                          status === "Active" 
+                            ? "bg-emerald-50 text-emerald-700 border border-emerald-200" 
+                            : "bg-amber-50 text-amber-700 border border-amber-200"
+                        }`}>
+                          {status}
+                        </span>
+                      </td>
+                    </tr>
+                  );
+                })
+              ) : (
+                <tr>
+                  <td colSpan="6" className="py-12 text-center text-slate-400">
+                    <UserGroupIcon className="w-10 h-10 mx-auto text-slate-300 mb-2" />
+                    <p className="font-bold text-slate-600 text-xs">
+                      {empSearchText 
+                        ? `Koi staff nahi mila search "${empSearchText}" ke liye.` 
+                        : `Abhi ${deptName} department me koi employee add nahi hai.`}
+                    </p>
+                    <p className="text-[11px] text-slate-400 mt-1 max-w-sm mx-auto">
+                      Aap "Add Staff" button par click karke naya employee add kar sakte hain, entry hote hi live dashboard par update reflect ho jayega.
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => navigate("/hr-hub?category=EMPLOYEE_MGMT&tab=Add%20Employee")}
+                      className="mt-3 inline-flex items-center gap-1.5 px-3.5 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-xl shadow-xs transition cursor-pointer"
+                    >
+                      <PlusIcon className="w-4 h-4" />
+                      <span>+ Naya Employee Add Karein</span>
+                    </button>
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
         </div>
       </div>
     </div>

@@ -300,7 +300,7 @@ const SettingsDashboard = ({ selectedTab }) => {
 
       {/* 4. Footer */}
       <div className="flex flex-col sm:flex-row items-center justify-between text-xs text-gray-400 pt-4 border-t border-gray-100">
-        <span>© 2025 Enterprise HRMS. All rights reserved.</span>
+        <span>© 2026 TechnoVani HRMS. All rights reserved.</span>
         <span className="font-mono mt-1 sm:mt-0">Version 1.0.0</span>
       </div>
 

@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 import {
   BriefcaseIcon,
   PlusIcon,
@@ -14,7 +14,8 @@ import {
   ExclamationTriangleIcon,
   UserGroupIcon
 } from "@heroicons/react/24/outline";
-import { createTableRecord, updateTableRecord, deleteTableRecord } from "../../services/hrApi";
+import { createTableRecord, updateTableRecord, deleteTableRecord, getTableData } from "../../services/hrApi";
+import { useAuth } from "../../auth/AuthProvider";
 
 // Job Level configuration mapping
 const JOB_LEVELS = [
@@ -32,16 +33,47 @@ const EMPLOYMENT_TYPES = ["Full Time", "Part Time", "Contract", "Internship"];
 const JOB_CATEGORIES = ["Technical", "Administrative", "Executive", "Management", "Operations", "Sales"];
 
 const Designation = ({ records = [], dbData = {}, onRefreshData }) => {
-  // Lists extracted from dbData
-  const departmentsList = useMemo(() => dbData["Department"] || dbData["departments"] || dbData["department"] || [], [dbData]);
+  const { user } = useAuth();
+  const [liveDepartments, setLiveDepartments] = useState([]);
+
+  useEffect(() => {
+    let isMounted = true;
+    const fetchDepartments = async () => {
+      try {
+        const res = await getTableData("department");
+        const list = Array.isArray(res) ? res : (res?.data && Array.isArray(res.data) ? res.data : []);
+        if (isMounted && list.length > 0) {
+          setLiveDepartments(list);
+        }
+      } catch (err) {
+        console.warn("[Designation] Error fetching departments:", err);
+      }
+    };
+    fetchDepartments();
+    return () => { isMounted = false; };
+  }, []);
+
+  // Lists extracted from liveDepartments or dbData
+  const departmentsList = useMemo(() => {
+    if (liveDepartments.length > 0) return liveDepartments;
+    const fromDb = dbData["Department"] || dbData["departments"] || dbData["department"] || [];
+    return Array.isArray(fromDb) ? fromDb : [];
+  }, [liveDepartments, dbData]);
+
   const employeesList = useMemo(() => dbData["Employee Profile"] || dbData["employee_profile"] || dbData["employees"] || [], [dbData]);
 
   // Sync state with records from backend
   const dataList = useMemo(() => {
     return records.map((r) => {
       // Find department name if missing
-      const deptObj = departmentsList.find(d => String(d.id) === String(r.departmentId || r.department_id));
-      const deptName = deptObj ? (deptObj.deptName || deptObj.dept_name || deptObj.name) : (r.department || "General");
+      const deptObj = departmentsList.find(d => 
+        String(d.id) === String(r.departmentId || r.department_id) ||
+        (d.deptName && String(d.deptName).toLowerCase().trim() === String(r.department || "").toLowerCase().trim()) ||
+        (d.dept_name && String(d.dept_name).toLowerCase().trim() === String(r.department || "").toLowerCase().trim()) ||
+        (d.name && String(d.name).toLowerCase().trim() === String(r.department || "").toLowerCase().trim())
+      );
+      const deptName = deptObj ? (deptObj.deptName || deptObj.dept_name || deptObj.name || deptObj.departmentName) : (r.department || "General");
+      const deptId = r.departmentId || r.department_id || (deptObj ? deptObj.id : "");
 
       // Count assigned employees
       const assignedCount = employeesList.filter(emp => 
@@ -53,7 +85,7 @@ const Designation = ({ records = [], dbData = {}, onRefreshData }) => {
         id: r.id,
         desigCode: r.desigCode || r.desig_code || "",
         desigName: r.desigName || r.desig_name || r.title || "",
-        departmentId: r.departmentId || r.department_id || "",
+        departmentId: deptId,
         department: deptName,
         grade: r.grade || "G1",
         jobLevel: r.jobLevel || r.job_level || "L1",
@@ -109,14 +141,16 @@ const Designation = ({ records = [], dbData = {}, onRefreshData }) => {
         (item.desigName || "").toLowerCase().includes(searchTerm.toLowerCase()) ||
         (item.desigCode || "").toLowerCase().includes(searchTerm.toLowerCase());
 
-      const matchDept = filterDept === "ALL" || String(item.departmentId) === String(filterDept);
+      const matchDept = filterDept === "ALL" || 
+        String(item.departmentId) === String(filterDept) ||
+        (departmentsList.find(d => String(d.id) === String(filterDept))?.deptName === item.department);
       const matchLevel = filterLevel === "ALL" || item.jobLevel === filterLevel;
       const matchGrade = filterGrade === "ALL" || item.grade === filterGrade;
       const matchStatus = filterStatus === "ALL" || item.status === filterStatus;
 
       return matchSearch && matchDept && matchLevel && matchGrade && matchStatus;
     });
-  }, [dataList, searchTerm, filterDept, filterLevel, filterGrade, filterStatus]);
+  }, [dataList, searchTerm, filterDept, filterLevel, filterGrade, filterStatus, departmentsList]);
 
   // Pagination Logic
   const itemsPerPage = 10;
@@ -131,7 +165,7 @@ const Designation = ({ records = [], dbData = {}, onRefreshData }) => {
     const total = dataList.length;
     const active = dataList.filter(d => d.status === "Active").length;
     const mapped = employeesList.length;
-    const deptsCount = new Set(dataList.map(d => d.departmentId).filter(Boolean)).size;
+    const deptsCount = new Set(dataList.map(d => d.departmentId || d.department).filter(Boolean)).size;
     return { total, active, mapped, deptsCount };
   }, [dataList, employeesList]);
 
@@ -157,20 +191,64 @@ const Designation = ({ records = [], dbData = {}, onRefreshData }) => {
   const handleOpenAdd = () => {
     setEditingRecord(null);
     setFormErrors({});
+
+    let defaultDeptId = "";
+    const userDeptId = user?.departmentId || user?.deptId;
+    const userDeptName = user?.departmentName || user?.department || "";
+
+    if (userDeptId) {
+      const match = departmentsList.find(d => String(d.id) === String(userDeptId));
+      defaultDeptId = match ? match.id : userDeptId;
+    } else if (userDeptName) {
+      const match = departmentsList.find(d => {
+        const name = (d.deptName || d.dept_name || d.name || d.departmentName || "").toLowerCase().trim();
+        return name === userDeptName.toLowerCase().trim();
+      });
+      if (match) defaultDeptId = match.id;
+    }
+
     setFormData({
       ...initialForm,
+      departmentId: defaultDeptId,
       desigCode: `DES-${Math.floor(100 + Math.random() * 900)}`
     });
     setShowAddModal(true);
   };
 
+  useEffect(() => {
+    if (showAddModal && !editingRecord && !formData.departmentId && departmentsList.length > 0) {
+      const userDeptId = user?.departmentId || user?.deptId;
+      const userDeptName = user?.departmentName || user?.department || "";
+      if (userDeptId) {
+        const match = departmentsList.find(d => String(d.id) === String(userDeptId));
+        if (match) setFormData(prev => ({ ...prev, departmentId: match.id }));
+      } else if (userDeptName) {
+        const match = departmentsList.find(d => {
+          const name = (d.deptName || d.dept_name || d.name || d.departmentName || "").toLowerCase().trim();
+          return name === userDeptName.toLowerCase().trim();
+        });
+        if (match) setFormData(prev => ({ ...prev, departmentId: match.id }));
+      }
+    }
+  }, [showAddModal, editingRecord, formData.departmentId, departmentsList, user]);
+
   const handleOpenEdit = (item) => {
     setEditingRecord(item);
     setFormErrors({});
+
+    let itemDeptId = item.departmentId || "";
+    if (!itemDeptId && item.department) {
+      const match = departmentsList.find(d => {
+        const name = (d.deptName || d.dept_name || d.name || d.departmentName || "").toLowerCase().trim();
+        return name === String(item.department).toLowerCase().trim();
+      });
+      if (match) itemDeptId = match.id;
+    }
+
     setFormData({
       desigCode: item.desigCode,
       desigName: item.desigName,
-      departmentId: item.departmentId,
+      departmentId: itemDeptId,
       jobLevel: item.jobLevel,
       grade: item.grade,
       reportingTo: item.reportingTo,
@@ -394,7 +472,7 @@ const Designation = ({ records = [], dbData = {}, onRefreshData }) => {
             >
               <option value="ALL">All Departments</option>
               {departmentsList.map(d => (
-                <option key={d.id} value={d.id}>{d.deptName || d.dept_name || d.name}</option>
+                <option key={d.id} value={d.id}>{d.deptName || d.dept_name || d.name || d.departmentName || d.department}</option>
               ))}
             </select>
           </div>
@@ -665,7 +743,7 @@ const Designation = ({ records = [], dbData = {}, onRefreshData }) => {
                   >
                     <option value="">Select Department</option>
                     {departmentsList.map(d => (
-                      <option key={d.id} value={d.id}>{d.deptName || d.dept_name || d.name}</option>
+                      <option key={d.id} value={d.id}>{d.deptName || d.dept_name || d.name || d.departmentName || d.department}</option>
                     ))}
                   </select>
                   {formErrors.departmentId && <p className="text-[10px] text-rose-500 mt-1 font-bold">{formErrors.departmentId}</p>}

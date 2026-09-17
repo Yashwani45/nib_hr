@@ -11,6 +11,10 @@ const asyncHandler = require('../utils/asyncHandler');
  * Get all registered tenants from the master registry.
  */
 const getTenants = asyncHandler(async (req, res) => {
+  // Query all active physical databases on MySQL server to verify existence
+  const [existingDbRows] = await masterSequelize.query('SHOW DATABASES');
+  const existingDbSet = new Set(existingDbRows.map(row => Object.values(row)[0].toLowerCase()));
+
   // Query Master Database directly
   const [tenants] = await masterSequelize.query(
     `SELECT id, id AS code, company_name AS name, db_name AS db, admin_email, admin_password, status, created_at FROM tenants`
@@ -18,6 +22,16 @@ const getTenants = asyncHandler(async (req, res) => {
 
   const resolvedTenants = [];
   for (const tenant of tenants) {
+    const dbExists = existingDbSet.has(String(tenant.db).toLowerCase());
+    
+    // Auto-cleanup: If the tenant's physical database was deleted from MySQL, purge the orphaned record
+    if (!dbExists) {
+      console.log(`[Superadmin] Database '${tenant.db}' does not exist in MySQL. Purging orphaned tenant record '${tenant.name}' (${tenant.id})...`);
+      await masterSequelize.query(`DELETE FROM tenants WHERE id = ?`, { replacements: [tenant.id] }).catch(() => {});
+      await masterSequelize.query(`DELETE FROM company WHERE companyCode = ? OR companyName = ?`, { replacements: [tenant.db, tenant.name] }).catch(() => {});
+      continue;
+    }
+
     let ownerName = 'N/A';
     let emailAddress = tenant.admin_email || 'N/A';
     let phone = 'N/A';
@@ -314,6 +328,34 @@ const createTenant = asyncHandler(async (req, res) => {
         ]
       }
     );
+
+    // Sync to Master DB company registry
+    await masterSequelize.query(`
+      INSERT INTO company (companyCode, companyName, email, phone, gstNumber, state, city, pincode, status)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ON DUPLICATE KEY UPDATE
+        companyName = VALUES(companyName),
+        email = VALUES(email),
+        phone = VALUES(phone),
+        gstNumber = VALUES(gstNumber),
+        state = VALUES(state),
+        city = VALUES(city),
+        pincode = VALUES(pincode),
+        status = VALUES(status)
+    `, {
+      replacements: [
+        tenantDbName,
+        companyName,
+        companyEmail || targetAdminEmail || '',
+        mobileNumber || '',
+        gst || '',
+        state || '',
+        city || '',
+        pincode || '',
+        status || 'Active'
+      ]
+    }).catch(e => console.warn('[Master Company Tenant Sync Warning]', e.message));
+
     // Auto-scaffold physical folder hierarchy: Frontend/src/Company/[CompanyName]/...
     const { scaffoldCompanyFolder } = require('../utils/companyFolderScaffolder');
     scaffoldCompanyFolder(companyName, []);
@@ -332,7 +374,80 @@ const createTenant = asyncHandler(async (req, res) => {
   }, 'Company registered and dynamic database provisioned successfully.'));
 });
 
+/**
+ * Delete a company tenant completely: drops physical database, cleans company directory, and deletes master records.
+ */
+const deleteTenant = asyncHandler(async (req, res) => {
+  const { id } = req.params;
+  if (!id) {
+    throw new ApiError(400, 'Tenant ID is required.');
+  }
+
+  // Find tenant in master registry
+  const [tenants] = await masterSequelize.query(
+    `SELECT id, company_name, db_name FROM tenants WHERE id = ? OR db_name = ? LIMIT 1`,
+    { replacements: [id, id] }
+  );
+
+  let tenantDbName = null;
+  let companyName = null;
+  let tenantId = id;
+
+  if (tenants.length > 0) {
+    const tenant = tenants[0];
+    tenantId = tenant.id;
+    tenantDbName = tenant.db_name;
+    companyName = tenant.company_name;
+
+    // 1. Drop physical database if it exists
+    if (tenantDbName) {
+      try {
+        await masterSequelize.query(`DROP DATABASE IF EXISTS \`${tenantDbName}\``);
+        console.log(`[Superadmin] Dropped physical database '${tenantDbName}'.`);
+      } catch (err) {
+        console.error(`[Superadmin] Failed to drop database '${tenantDbName}':`, err.message);
+      }
+    }
+
+    // 2. Remove company folder in Frontend/src/Company if exists
+    if (companyName) {
+      try {
+        const fs = require('fs');
+        const path = require('path');
+        const companyFolder = path.join(__dirname, '../../Frontend/src/Company', companyName);
+        if (fs.existsSync(companyFolder)) {
+          fs.rmSync(companyFolder, { recursive: true, force: true });
+          console.log(`[Superadmin] Removed company directory: ${companyFolder}`);
+        }
+      } catch (err) {
+        console.warn(`[Superadmin] Folder cleanup warning:`, err.message);
+      }
+    }
+
+    // 3. Delete from tenants table in master database
+    await masterSequelize.query(
+      `DELETE FROM tenants WHERE id = ?`,
+      { replacements: [tenantId] }
+    );
+
+    // 4. Delete from master company table if exists
+    await masterSequelize.query(
+      `DELETE FROM company WHERE companyCode = ? OR companyName = ?`,
+      { replacements: [tenantDbName, companyName] }
+    ).catch(() => {});
+  } else {
+    // If not found in tenants table, still attempt cleanup from company table just in case
+    await masterSequelize.query(
+      `DELETE FROM company WHERE id = ? OR companyCode = ?`,
+      { replacements: [id, id] }
+    ).catch(() => {});
+  }
+
+  res.status(200).json(new ApiResponse(200, { id: tenantId }, 'Company and database deleted successfully.'));
+});
+
 module.exports = {
   getTenants,
-  createTenant
+  createTenant,
+  deleteTenant
 };

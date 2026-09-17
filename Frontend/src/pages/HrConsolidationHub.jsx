@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from "react";
-import { useSearchParams } from "react-router-dom";
+import { useSearchParams, useNavigate } from "react-router-dom";
 import { useSelector, useDispatch } from "react-redux";
 import { hrSchemas } from "../database/hrConsolidationData";
 import {
@@ -80,6 +80,7 @@ import Joining from "../components/TalentLMS/Joining";
 
 // Category: OperationsAssets
 import DailyAttendance from "../components/OperationsAssets/DailyAttendance";
+import MonthlyAttendance from "../components/OperationsAssets/MonthlyAttendance";
 import AttendanceDashboard from "../components/OperationsAssets/AttendanceDashboard";
 import AttendanceRegularizationAdmin from "../components/OperationsAssets/AttendanceRegularizationAdmin";
 import AttendanceReportsAdmin from "../components/OperationsAssets/AttendanceReportsAdmin";
@@ -849,6 +850,13 @@ const tabToSqlTableMap = {
   "My Joining Status": "joining_records",
   "Asset Allocation": "asset_allocation",
   "Daily Attendance": "daily_attendance",
+  "Monthly Attendance": "daily_attendance",
+  "Attendance Dashboard": "daily_attendance",
+  "Bank Details": "employees",
+  "Employee Dashboard": "employees",
+  "Helpdesk Dashboard": "hr_tickets",
+  "Reports Dashboard": "reports_management",
+  "Settings Dashboard": "audit_logs",
   "Attendance Regularization": "attendance_regularization",
   "Biometric": "biometric_logs",
   "Biometric Logs": "biometric_logs",
@@ -1014,6 +1022,8 @@ const componentRegistry = {
   "Certification": LearningDashboard,
   "Learning Reports": LearningDashboard,
   "Daily Attendance": DailyAttendance,
+  "Monthly Attendance": MonthlyAttendance,
+  "Employee Dashboard": EmployeeDashboard,
   "Attendance Dashboard": AttendanceDashboard,
   "Attendance Regularization": AttendanceRegularizationAdmin,
   "Biometric": DailyAttendance,
@@ -1091,6 +1101,7 @@ const HrConsolidationHub = () => {
   const userRole = typeof user?.role === "object" ? user?.role?.name : user?.role;
   const isAuthorizedAdmin = userRole === "SuperAdmin" || userRole === "Admin";
   const [searchParams] = useSearchParams();
+  const navigate = useNavigate();
   const categoryParam = searchParams.get("category") || "CORE";
   const tabParam = searchParams.get("tab") || "Company";
 
@@ -1270,19 +1281,14 @@ const HrConsolidationHub = () => {
   const punchTime = useSelector((state) => state.hr.punchTime);
 
   useEffect(() => {
-    if (userRole === "Employee" && viewMode !== "dashboard") {
-      dispatch(setViewMode("dashboard"));
+    if (userRole === "Employee") {
+      navigate("/employee/dashboard", { replace: true });
+      return;
     }
     if (selectedTab === "Leave Dashboard" && viewMode !== "dashboard") {
       dispatch(setViewMode("dashboard"));
     }
-    const isProfileIncomplete = user?.profileStatus === "Incomplete" || user?.profileStatus === "Profile Incomplete";
-    if (userRole === "Employee" && isProfileIncomplete) {
-      if (selectedTab !== "Employee Profile" && selectedTab !== "Employee Dashboard") {
-        dispatch(setSelectedTab("Employee Dashboard"));
-      }
-    }
-  }, [userRole, viewMode, user?.profileStatus, selectedTab, dispatch]);
+  }, [userRole, viewMode, selectedTab, dispatch, navigate]);
 
   const isDynamicSubDept = selectedCategory === "DEPARTMENT";
 
@@ -1689,7 +1695,15 @@ const HrConsolidationHub = () => {
 
   useEffect(() => {
     fetchAllData();
-  }, [dispatch]);
+
+    const handleFocus = () => {
+      fetchAllData();
+    };
+    window.addEventListener("focus", handleFocus);
+    return () => {
+      window.removeEventListener("focus", handleFocus);
+    };
+  }, [dispatch, categoryParam, tabParam]);
 
   // Synchronize checkedIn and punchTime state dynamically for the logged-in admin user
   useEffect(() => {
@@ -1801,6 +1815,7 @@ const HrConsolidationHub = () => {
             tableName: selectedTab,
             id
           }));
+          await fetchAllData();
         }
       } catch (err) {
         alert("Failed to delete record from database: " + err.message);
@@ -1837,6 +1852,7 @@ const HrConsolidationHub = () => {
             id: editingRecord.id,
             fields: formFields
           }));
+          await fetchAllData();
         }
       } else {
         // Create mode (database insert)
@@ -1860,15 +1876,16 @@ const HrConsolidationHub = () => {
             tableName: selectedTab,
             record: createdRecord
           }));
+          await fetchAllData();
         }
       }
       setShowModal(false);
     } catch (err) {
       const msg = err.message || "";
-      if (msg.toLowerCase().includes("email already exists") || msg.toLowerCase().includes("duplicate entry")) {
+      if (msg.toLowerCase().includes("email already exists")) {
         setValidationError("Email already exists. Please use a unique email address.");
       } else {
-        setValidationError("Failed to write to MySQL database: " + msg);
+        setValidationError(msg.replace(/^Error:\s*/i, "") || "Failed to write to MySQL database.");
       }
     }
   };
@@ -2043,11 +2060,11 @@ const HrConsolidationHub = () => {
       }
     }
 
-    if (matchedDept || selectedModule === "Department Workspace" || tabName === "Department Workspace" || tabName === "Department Dashboard") {
+    if (matchedDept || selectedCategory?.toUpperCase() === "DEPARTMENT" || selectedModule === "Department Workspace" || tabName === "Department Workspace" || tabName === "Department Dashboard") {
       const deptDetail = matchedDept || {
         id: tabName,
         deptName: tabName,
-        deptCode: tabName.substring(0, 3).toUpperCase(),
+        deptCode: (tabName || "DEP").substring(0, 3).toUpperCase(),
         status: "Active",
         description: `${tabName} Department Workspace`
       };
@@ -2061,11 +2078,18 @@ const HrConsolidationHub = () => {
     }
 
     if (tabName === "Employee Dashboard") {
-      return <AdminDashboard />;
+      return <EmployeeDashboard />;
     }
 
-    if (tabName === "Employee Profile") {
-      return <EmployeeDashboard />;
+    if (tabName === "Monthly Attendance") {
+      const records = dbData["daily_attendance"] || dbData["Monthly Attendance"] || [];
+      return (
+        <MonthlyAttendance
+          records={records}
+          dbData={dbData}
+          onRefreshData={fetchAllData}
+        />
+      );
     }
 
     if (tabName === "Attendance Dashboard") {
@@ -2193,20 +2217,83 @@ const HrConsolidationHub = () => {
     if (records.length === 0) {
       return (
         <div className="text-center py-12 border border-dashed rounded-2xl bg-gray-50/50 p-6">
-          <div className="text-slate-300 text-4xl mb-2">📊</div>
-          <h4 className="font-bold text-gray-800 text-sm">{tabName} Dashboard is Empty</h4>
-          <p className="text-xs text-gray-500 mt-1 mb-4">No records currently exist in the database table.</p>
-          <button
-            onClick={() => dispatch(setViewMode("table"))}
-            className="px-4 py-2 bg-blue-600 text-white rounded-lg text-xs font-semibold hover:bg-blue-700 transition"
-          >
-            Go to Database Table to Add Data
-          </button>
+          <div className="text-slate-300 text-4xl mb-2">📋</div>
+          <h4 className="font-bold text-gray-800 text-sm">No Records Found for {tabName}</h4>
+          <p className="text-xs text-gray-500 mt-1 mb-4">No active records currently exist in this section.</p>
+          {isAuthorizedAdmin && (
+            <button
+              onClick={handleOpenCreate}
+              className="px-4 py-2 bg-blue-600 text-white rounded-lg text-xs font-semibold hover:bg-blue-700 transition cursor-pointer"
+            >
+              + Create First Record
+            </button>
+          )}
         </div>
       );
     }
 
-    return null;
+    return (
+      <div className="overflow-x-auto border border-gray-200/60 rounded-xl shadow-sm">
+        <table className="min-w-full divide-y divide-gray-200 text-left text-xs bg-white">
+          <thead className="bg-gray-50">
+            <tr>
+              <th className="px-4 py-3 text-slate-500 font-bold uppercase tracking-wider">S.No</th>
+              {activeFields.slice(0, 5).map(f => (
+                <th key={f.name} className="px-4 py-3 text-slate-500 font-bold uppercase tracking-wider">
+                  {f.label}
+                </th>
+              ))}
+              {isAuthorizedAdmin && (
+                <th className="px-4 py-3 text-slate-500 font-bold uppercase tracking-wider text-right">Actions</th>
+              )}
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-gray-100">
+            {records.map((row, idx) => (
+              <tr key={row.id || idx} className="hover:bg-gray-50/50 transition">
+                <td className="px-4 py-3 text-gray-400">{idx + 1}</td>
+                {activeFields.slice(0, 5).map(f => {
+                  const value = row[f.name];
+                  return (
+                    <td key={f.name} className="px-4 py-3 max-w-[180px] truncate">
+                      {f.type === "select" && value === "Active" ? (
+                        <span className="px-2 py-0.5 bg-green-50 text-green-700 rounded-full font-bold text-[10px] border border-green-200">
+                          Active
+                        </span>
+                      ) : f.type === "select" && ["Inactive", "Rejected", "Failed"].includes(value) ? (
+                        <span className="px-2 py-0.5 bg-red-50 text-red-700 rounded-full font-bold text-[10px] border border-red-200">
+                          {value}
+                        </span>
+                      ) : f.type === "select" && ["Pending", "Draft", "In Progress"].includes(value) ? (
+                        <span className="px-2 py-0.5 bg-amber-50 text-amber-700 rounded-full font-bold text-[10px] border border-amber-200">
+                          {value}
+                        </span>
+                      ) : String(value ?? "--")}
+                    </td>
+                  );
+                })}
+                {isAuthorizedAdmin && (
+                  <td className="px-4 py-3 text-right space-x-2 whitespace-nowrap">
+                    <button
+                      onClick={() => handleOpenEdit(row)}
+                      className="text-blue-600 hover:text-blue-800 font-semibold hover:underline"
+                    >
+                      Edit
+                    </button>
+                    <button
+                      onClick={() => handleDelete(row.id)}
+                      className="text-red-500 hover:text-red-700 font-semibold hover:underline"
+                    >
+                      Delete
+                    </button>
+                  </td>
+                )}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    );
   };
 
   const isEmployeeWorkspaceTab = ["Employee List", "Add Employee", "employee_profile", "employees"].includes(selectedTab);
@@ -2225,43 +2312,54 @@ const HrConsolidationHub = () => {
       <div className="w-full bg-white rounded-2xl border border-gray-200/80 shadow-md p-6 font-sans">
         {/* Module Header */}
         {!isEmployeeWorkspaceTab && !isDesignationTab && !isCustomSetupTab && selectedTab !== "Reports" && selectedModule !== "8. Performance Management" && (
-          <>
             <div className="flex flex-col md:flex-row md:items-center justify-between border-b pb-5 mb-6 gap-4">
               <div>
-                <div className="flex items-center gap-2 mb-2">
-                  <span className="inline-block text-xs font-semibold px-2.5 py-1 bg-indigo-50 text-indigo-700 rounded-full">
-                    Module: {selectedModule}
-                  </span>
-                  <span className="inline-block text-xs font-semibold px-2.5 py-1 bg-slate-100 text-slate-700 rounded-full font-mono">
-                    MySQL Table: {sqlTableName}
-                  </span>
-                </div>
                 <h1 className="text-2xl font-extrabold text-gray-900 tracking-tight">
-                  {selectedTab || "Visual Settings"} Workspace
+                  {selectedTab === "Company" ? "Company Profile" : (selectedTab || "Workspace")}
                 </h1>
                 <p className="text-sm text-gray-500 mt-1">
-                  Persist fields, inspect MySQL rows, perform CRUD operations, and verify queries.
+                  {selectedTab === "Company" 
+                    ? "Official company profile, registered headquarters, legal registration numbers, and operational configurations." 
+                    : `Manage and configure ${selectedTab || "organization"} records, settings, and operations.`}
                 </p>
               </div>
 
-              {!isDynamicSubDept && (
+              {!isDynamicSubDept && currentTabs.length > 0 && isAuthorizedAdmin && selectedTab !== "Employee Profile" && selectedTab !== "Employee Dashboard" && selectedTab !== "Add Employee" && selectedTab !== "employees" && (
                 <div className="flex items-center gap-2">
-                  <button
-                    onClick={() => dispatch(setShowSchema(!showSchema))}
-                    className={`flex items-center gap-1.5 px-3 py-2 rounded-lg border text-xs font-medium transition-all ${
-                      showSchema
-                        ? "bg-slate-100 text-slate-800 border-slate-300"
-                        : "bg-white text-gray-600 border-gray-200 hover:bg-gray-50"
-                    }`}
-                  >
-                    <DocumentDuplicateIcon className="h-4 w-4" />
-                    <span>{showSchema ? "Hide Schema" : "Show Schema Fields"}</span>
-                  </button>
-
-                  {currentTabs.length > 0 && isAuthorizedAdmin && selectedTab !== "Employee Profile" && selectedTab !== "Employee Dashboard" && selectedTab !== "Add Employee" && selectedTab !== "employees" && (
+                  {selectedTab === "Company" ? (
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => {
+                          const comps = dbData["Company"] || dbData["company"] || [];
+                          const selectedCode = localStorage.getItem("selected_company_code") || "";
+                          const primaryComp = comps.find(c => 
+                            (c.companyCode && c.companyCode.toLowerCase() === selectedCode.toLowerCase()) || 
+                            (c.company_code && c.company_code.toLowerCase() === selectedCode.toLowerCase())
+                          ) || comps.find(c => c.cinNumber || c.panNumber || c.phone || c.gstNumber) || comps[0];
+                          if (primaryComp) {
+                            handleOpenEdit(primaryComp);
+                          } else {
+                            handleOpenCreate();
+                          }
+                        }}
+                        className="bg-white hover:bg-slate-50 text-slate-700 border border-slate-300 flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-xs font-semibold shadow-sm transition cursor-pointer"
+                      >
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-3.5 h-3.5 text-slate-500">
+                          <path strokeLinecap="round" strokeLinejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L10.582 16.07a4.5 4.5 0 0 1-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 0 1 1.13-1.897l8.932-8.931Zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0 1 15.75 21H5.25A2.25 2.25 0 0 1 3 18.75V8.25A2.25 2.25 0 0 1 5.25 6H10" />
+                        </svg>
+                        <span>✏️ Edit Profile</span>
+                      </button>
+                      <button
+                        onClick={handleOpenCreate}
+                        className="bg-blue-600 hover:bg-blue-700 text-white flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-xs font-semibold shadow-sm transition cursor-pointer"
+                      >
+                        <span>+ Add Company</span>
+                      </button>
+                    </div>
+                  ) : (
                     <button
                       onClick={handleOpenCreate}
-                      className="bg-blue-600 hover:bg-blue-700 text-white flex items-center gap-1 px-4 py-2 rounded-lg text-xs font-semibold shadow-sm transition"
+                      className="bg-blue-600 hover:bg-blue-700 text-white flex items-center gap-1 px-4 py-2 rounded-lg text-xs font-semibold shadow-sm transition cursor-pointer"
                     >
                       <span>+ Add {selectedTab === "Department" ? "New Department" : selectedTab}</span>
                     </button>
@@ -2269,45 +2367,6 @@ const HrConsolidationHub = () => {
                 </div>
               )}
             </div>
-
-            {/* View Mode Toggle Switch (Tab Dashboard vs Database CRUD Table) */}
-            {currentTabs.length > 0 && !isDynamicSubDept && selectedModule !== "8. Performance Management" && (
-              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center bg-slate-50 border border-slate-200/50 p-2.5 rounded-xl mb-6 gap-3">
-                <div className="flex gap-1.5">
-                  <button
-                    onClick={() => dispatch(setViewMode("dashboard"))}
-                    className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-bold transition-all ${
-                      viewMode === "dashboard"
-                        ? "bg-white text-blue-600 shadow-sm border border-gray-200/40"
-                        : "text-gray-600 hover:text-gray-900 hover:bg-gray-100/50"
-                    }`}
-                  >
-                    <span>📊 {selectedTab} Dashboard</span>
-                  </button>
-                  <button
-                    onClick={() => dispatch(setViewMode("table"))}
-                    className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-bold transition-all ${
-                      viewMode === "table"
-                        ? "bg-white text-blue-600 shadow-sm border border-gray-200/40"
-                        : "text-gray-600 hover:text-gray-900 hover:bg-gray-100/50"
-                    }`}
-                  >
-                    <span>📋 Database Table (CRUD)</span>
-                  </button>
-                </div>
-                {/* Search Box */}
-                {viewMode === "table" && (
-                  <input
-                    type="text"
-                    placeholder={`Search ${selectedTab} rows...`}
-                    value={searchText}
-                    onChange={(e) => dispatch(setSearchText(e.target.value))}
-                    className="w-full sm:w-64 px-3 py-1.5 border border-gray-200 rounded-lg text-xs bg-white focus:ring-1 focus:ring-blue-500 focus:outline-none"
-                  />
-                )}
-              </div>
-            )}
-          </>
         )}
 
         {/* Loading Spinner */}
@@ -2318,160 +2377,10 @@ const HrConsolidationHub = () => {
           </div>
         )}
 
-        {/* Collapsible Schema Reference Box */}
-        {showSchema && activeFields.length > 0 && (
-          <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 mb-6 transition-all">
-            <h3 className="text-xs font-bold text-slate-700 uppercase tracking-wider mb-2 flex items-center gap-2">
-              <span className="h-2 w-2 bg-slate-500 rounded-full animate-pulse"></span>
-              Database Schema Mapping: {selectedTab}
-            </h3>
-            <div className="overflow-x-auto">
-              <table className="min-w-full text-xs text-left text-slate-600">
-                <thead>
-                  <tr className="border-b border-slate-200 text-slate-500">
-                    <th className="py-2 font-bold">Field Name</th>
-                    <th className="py-2 font-bold">Label</th>
-                    <th className="py-2 font-bold">Field Type</th>
-                    <th className="py-2 font-bold">Validation / Details</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100">
-                  {activeFields.map(f => (
-                    <tr key={f.name}>
-                      <td className="py-2 font-mono text-slate-800 font-semibold">{f.name}</td>
-                      <td className="py-2">{f.label}</td>
-                      <td className="py-2 text-indigo-600 font-medium">{f.type}</td>
-                      <td className="py-2">
-                        {f.required ? (
-                          <span className="text-red-500 font-semibold">NOT NULL</span>
-                        ) : (
-                          <span className="text-gray-400">Nullable</span>
-                        )}
-                        {f.options && ` [Options: ${f.options.join(", ")}]`}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        )}
-
-        {/* Dynamic Display Mode Selection */}
-
-        {viewMode === "dashboard" || selectedCategory === "EXIT_MGMT" || selectedCategory === "WORKFLOW" || selectedCategory === "HELPDESK" || selectedCategory === "REPORTS" || selectedCategory === "LEARNING" || selectedCategory === "PERFORMANCE" || selectedCategory === "ATTENDANCE" || selectedCategory === "LEAVE_MGMT" || selectedCategory === "RECRUITMENT" || selectedCategory === "NOTIFICATIONS" || selectedCategory === "ENGAGEMENT" || selectedTab === "Exit Dashboard" || selectedTab === "Workflow Dashboard" || selectedTab === "Helpdesk Dashboard" || selectedTab === "Reports Dashboard" || selectedTab === "Learning Dashboard" || selectedTab === "Performance Dashboard" || selectedTab === "Attendance Dashboard" || selectedTab === "Leave Dashboard" || selectedTab === "Recruitment Dashboard" || selectedTab === "Asset Dashboard" || selectedTab === "Notifications Dashboard" || selectedTab === "Settings Dashboard" || selectedTab === "Engagement Dashboard" || selectedModule === "6. Payroll & Compensation" || selectedModule === "8. Performance Management" || isDynamicSubDept || selectedTab === "Department" || selectedTab === "Leave Balance" || selectedTab === "Attendance Regularization" || (selectedTab === "Reports" && selectedModule === "4. Attendance & Shift") || (selectedTab === "Reports" && selectedModule === "5. Leave Management") ? (
-
-          /* Dashboard Layout mode */
-          <div className="space-y-6">
-            {renderTabDashboard(selectedTab)}
-          </div>
-        ) : (
-          /* Table Grid CRUD mode */
-          <div className="space-y-6">
-            {/* Module-Specific Specialized Component Viewers */}
-            <div className="space-y-6">
-              {/* 3.5 Recruitment Kanban ATS */}
-              {selectedModule === "3. Recruitment & Onboarding" && selectedTab === "ATS (Applicant Tracking)" && (
-                <ATSApplicantTracking
-                  records={dbData["ATS (Applicant Tracking)"]}
-                  handleAtsMove={handleAtsMove}
-                  hideList={true}
-                />
-              )}
-
-              {/* 4. Attendance Check-In Portal */}
-              {selectedModule === "4. Attendance & Shift" && selectedTab === "Daily Attendance" && (
-                <DailyAttendance
-                  checkedIn={checkedIn}
-                  punchTime={punchTime}
-                  handlePunchClick={handlePunchClick}
-                  hideList={true}
-                />
-              )}
-
-              {/* 6. Payslip & Compensation Calculator */}
-              {selectedModule === "6. Payroll & Compensation" && selectedTab === "Salary Structure" && (
-                <SalaryStructure
-                  records={filterRecordsForEmployee(dbData["Salary Structure"] || [], "Salary Structure")}
-                  allEmployeesList={dbData["employees"] || dbData["employee_profile"] || dbData["Employee Profile"] || []}
-                  selectedPayslipEmp={selectedPayslipEmp}
-                  setSelectedPayslipEmp={setSelectedPayslipEmp}
-                  computedPayslip={computedPayslip}
-                  hideList={true}
-                />
-              )}
-            </div>
-
-            {/* Main CRUD table layout */}
-            <div className="overflow-x-auto border border-gray-200/60 rounded-xl shadow-sm">
-              <table className="min-w-full divide-y divide-gray-200 text-left text-xs bg-white">
-                <thead className="bg-gray-50">
-                  <tr>
-                    <th className="px-4 py-3 text-slate-500 font-bold uppercase tracking-wider">S.No</th>
-                    {activeFields.slice(0, 5).map(f => (
-                      <th key={f.name} className="px-4 py-3 text-slate-500 font-bold uppercase tracking-wider">
-                        {f.label}
-                      </th>
-                    ))}
-                    {isAuthorizedAdmin && (
-                      <th className="px-4 py-3 text-slate-500 font-bold uppercase tracking-wider text-right">Actions</th>
-                    )}
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-100">
-                  {filteredTableRows.map((row, idx) => (
-                    <tr key={row.id} className="hover:bg-gray-50/50 transition">
-                      <td className="px-4 py-3 text-gray-400">{idx + 1}</td>
-                      {activeFields.slice(0, 5).map(f => {
-                        const value = row[f.name];
-                        return (
-                          <td key={f.name} className="px-4 py-3 max-w-[180px] truncate">
-                            {f.type === "select" && value === "Active" ? (
-                              <span className="px-2 py-0.5 bg-green-50 text-green-700 rounded-full font-bold text-[10px] border border-green-200">
-                                Active
-                              </span>
-                            ) : f.type === "select" && ["Inactive", "Rejected", "Failed"].includes(value) ? (
-                              <span className="px-2 py-0.5 bg-red-50 text-red-700 rounded-full font-bold text-[10px] border border-red-200">
-                                {value}
-                              </span>
-                            ) : f.type === "select" && ["Pending", "Draft", "In Progress"].includes(value) ? (
-                              <span className="px-2 py-0.5 bg-amber-50 text-amber-700 rounded-full font-bold text-[10px] border border-amber-200">
-                                {value}
-                              </span>
-                            ) : String(value || "") || "--"}
-                          </td>
-                        );
-                      })}
-                      {isAuthorizedAdmin && (
-                        <td className="px-4 py-3 text-right space-x-2 whitespace-nowrap">
-                          <button
-                            onClick={() => handleOpenEdit(row)}
-                            className="text-blue-600 hover:text-blue-800 font-semibold hover:underline"
-                          >
-                            Edit
-                          </button>
-                          <button
-                            onClick={() => handleDelete(row.id)}
-                            className="text-red-500 hover:text-red-700 font-semibold hover:underline"
-                          >
-                            Delete
-                          </button>
-                        </td>
-                      )}
-                    </tr>
-                  ))}
-                  {filteredTableRows.length === 0 && (
-                    <tr>
-                      <td colSpan={activeFields.slice(0, 5).length + 2} className="text-center py-10 text-gray-400">
-                        No records found in MySQL table. Try adding a record.
-                      </td>
-                    </tr>
-                  )}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        )}
+        {/* Main Content Area */}
+        <div className="space-y-6">
+          {renderTabDashboard(selectedTab)}
+        </div>
       </div>
 
       {/* CRUD Side Drawer/Modal Dialog */}
@@ -2598,6 +2507,30 @@ const HrConsolidationHub = () => {
                                 const defaultDepts = f.options || ["IT", "Software Engineering", "Operations", "Finance", "Human Resources", "Sales & Marketing"];
                                 const allDepts = Array.from(new Set([...deptsFromDb, ...defaultDepts]));
                                 return allDepts.map(d => (
+                                  <option key={d} value={d}>{d}</option>
+                                ));
+                              })()}
+                            </>
+                          ) : (f.name === "branch" || f.name === "branch_name" || f.name === "branchId") ? (
+                            <>
+                              <option value="">-- Select Branch --</option>
+                              {(() => {
+                                const branchesFromDb = (dbData["Branch"] || dbData["branch"] || dbData["branches"] || []).map(b => b.branchName || b.branch_name || b.name).filter(Boolean);
+                                const defaultBranches = f.options || ["Headquarters", "Main Branch", "Regional Office", "Indore Branch"];
+                                const allBranches = Array.from(new Set([...branchesFromDb, ...defaultBranches]));
+                                return allBranches.map(b => (
+                                  <option key={b} value={b}>{b}</option>
+                                ));
+                              })()}
+                            </>
+                          ) : (f.name === "designation" || f.name === "designation_name" || f.name === "desigName") ? (
+                            <>
+                              <option value="">-- Select Designation --</option>
+                              {(() => {
+                                const desigsFromDb = (dbData["Designation"] || dbData["designation"] || dbData["designations"] || []).map(d => d.desigName || d.desig_name || d.name).filter(Boolean);
+                                const defaultDesigs = f.options || ["HR Manager", "Software Engineer", "Senior Developer", "Team Lead", "Operations Manager", "Accountant"];
+                                const allDesigs = Array.from(new Set([...desigsFromDb, ...defaultDesigs]));
+                                return allDesigs.map(d => (
                                   <option key={d} value={d}>{d}</option>
                                 ));
                               })()}

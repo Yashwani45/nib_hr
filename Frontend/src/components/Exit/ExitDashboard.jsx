@@ -160,7 +160,7 @@ const ExitDashboard = ({ selectedTab, activeTab: propActiveTab, user, onRefreshD
           <div>
             <div className="flex items-center gap-2 mb-1">
               <span className="text-[10px] font-black uppercase tracking-widest px-2.5 py-0.5 rounded-full bg-indigo-50 text-indigo-700 border border-indigo-100">
-                Enterprise HRMS
+                TechnoVani HRMS
               </span>
               <span className="text-[10px] font-bold text-slate-400">• Complete Separation Lifecycle</span>
             </div>

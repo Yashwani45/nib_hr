@@ -59,7 +59,39 @@ class AuthService {
       `SELECT id FROM departments WHERE LOWER(hr_email) = ? LIMIT 1`,
       { replacements: [cleanEmail], type: QueryTypes.SELECT }
     );
-    if (masterDepts && masterDepts.length > 0) return true;
+    if (masterDepts && masterDepts.length > 0) {
+      // Self-healing check: Verify if this department actively exists in any tenant database.
+      // If it has been deleted from tenant DBs, it is an orphan and should not falsely block registration.
+      let existsInAnyTenant = false;
+      const allTenants = await masterSequelize.query(
+        `SELECT id, db_name FROM tenants`,
+        { type: QueryTypes.SELECT }
+      ).catch(() => []);
+
+      for (const t of allTenants) {
+        try {
+          const conn = await getTenantConnection(t.id);
+          const tDepts = await conn.query(
+            `SELECT id FROM departments WHERE LOWER(hr_email) = ? LIMIT 1`,
+            { replacements: [cleanEmail], type: QueryTypes.SELECT }
+          );
+          if (tDepts && tDepts.length > 0) {
+            existsInAnyTenant = true;
+            break;
+          }
+        } catch (e) {}
+      }
+
+      if (existsInAnyTenant) {
+        return true;
+      } else {
+        // Auto-heal orphaned record in masterSequelize
+        try {
+          await masterSequelize.query(`DELETE FROM departments WHERE LOWER(hr_email) = ?`, { replacements: [cleanEmail] });
+          await masterSequelize.query(`DELETE FROM department WHERE LOWER(hr_email) = ?`, { replacements: [cleanEmail] });
+        } catch (delErr) {}
+      }
+    }
 
     // 4. Check in all registered tenants' databases
     const allTenants = await masterSequelize.query(
@@ -190,8 +222,11 @@ class AuthService {
 
       if (isValidAdmin) {
         const { accessToken, refreshToken } = this.generateTokens({ id: tenantAdmin.id, email: tenantAdmin.admin_email });
+        const adminDisplayName = tenantAdmin.admin_name || 'Rahul Sharma';
         return {
           userId: tenantAdmin.id,
+          name: adminDisplayName,
+          employeeName: adminDisplayName,
           email: tenantAdmin.admin_email,
           role: 'Admin',
           companyCode: tenantAdmin.id,
@@ -235,14 +270,18 @@ class AuthService {
               { replacements: [tenantUser.id] }
             );
 
-             // Fetch assigned department from employees table if available
+             // Fetch assigned department and employee info from employees table if available
              const [empInfo] = await tenantDb.query(
-               `SELECT department, profileStatus, profileCompletion FROM employees WHERE LOWER(email) = ? OR LOWER(company_email) = ? LIMIT 1`,
+               `SELECT employee_name, first_name, last_name, department, profileStatus, profileCompletion FROM employees WHERE LOWER(email) = ? OR LOWER(company_email) = ? LIMIT 1`,
                { replacements: [cleanEmail, cleanEmail], type: QueryTypes.SELECT }
              ).catch(() => [null]);
- 
+
+             const resolvedName = empInfo?.employee_name || (empInfo?.first_name ? `${empInfo.first_name} ${empInfo.last_name || ''}`.trim() : null) || tenantUser.username || tenantUser.name || (tenantUser.role_name === 'Admin' ? 'Rahul Sharma' : tenantUser.email.split('@')[0]);
+
              return {
                userId: tenantUser.id,
+               name: resolvedName,
+               employeeName: resolvedName,
                email: tenantUser.email,
                role: tenantUser.role_name,
                departmentName: empInfo?.department || 'General Staff',
@@ -323,8 +362,11 @@ class AuthService {
               ];
             }
 
+            const deptDisplayName = `${deptHr.dept_name} HR`;
             return {
               userId: deptHr.id,
+              name: deptDisplayName,
+              employeeName: deptDisplayName,
               email: deptHr.hr_email,
               role: 'DepartmentHR',
               departmentId: deptHr.id,

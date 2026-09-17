@@ -22,7 +22,15 @@ const ProtectedRoute = ({ allowedRoles, children }) => {
 
   const userRole = typeof user?.role === "object" ? user?.role?.name : user?.role;
   const roleName = userRole?.toLowerCase() || "";
-  const isAllowed = allowedRoles.some(role => role.toLowerCase() === roleName);
+  const userDept = String(user?.departmentName || user?.department || "").toLowerCase();
+  const isHrDept = userDept.includes("hr") || userDept.includes("human");
+
+  const effectiveRoles = [roleName];
+  if (isHrDept) {
+    effectiveRoles.push("departmenthr");
+  }
+
+  const isAllowed = allowedRoles.some(role => effectiveRoles.includes(role.toLowerCase()));
 
   if (!isAllowed) {
     // Redirect unauthorized users to their correct default workspace
@@ -60,29 +68,39 @@ const AppRoutes = () => {
             
             {/* Secure role-restricted dashboard paths */}
             <Route path="super-admin/dashboard" element={
-              <ProtectedRoute allowedRoles={["SuperAdmin"]}>
+              <ProtectedRoute allowedRoles={["SuperAdmin", "Admin"]}>
                 <SuperAdminDashboard />
               </ProtectedRoute>
             } />
+            <Route path="super-admin" element={<Navigate to="/super-admin/dashboard" replace />} />
+            <Route path="superadmin" element={<Navigate to="/super-admin/dashboard" replace />} />
+            <Route path="superadmin/dashboard" element={<Navigate to="/super-admin/dashboard" replace />} />
+
             <Route path="admin/dashboard" element={
-              <ProtectedRoute allowedRoles={["Admin", "SuperAdmin", "Manager", "Employee", "DepartmentHR"]}>
+              <ProtectedRoute allowedRoles={["Admin", "SuperAdmin", "Manager", "DepartmentHR"]}>
                 <AdminDashboard />
               </ProtectedRoute>
             } />
+            <Route path="admin" element={<Navigate to="/admin/dashboard" replace />} />
             <Route path="manager/dashboard" element={
               <ProtectedRoute allowedRoles={["Manager", "Admin", "SuperAdmin"]}>
                 <ManagerDashboard />
               </ProtectedRoute>
             } />
             <Route path="employee/dashboard" element={
-              <ProtectedRoute allowedRoles={["Employee", "Admin", "SuperAdmin"]}>
+              <ProtectedRoute allowedRoles={["Employee", "Admin", "SuperAdmin", "DepartmentHR"]}>
                 <EmployeeDashboard />
               </ProtectedRoute>
             } />
             
             {/* HR modules access restricted to Admin, Super Admin, or Department HR */}
             <Route path="hr-hub" element={
-              <ProtectedRoute allowedRoles={["Admin", "SuperAdmin", "DepartmentHR", "Manager", "Employee"]}>
+              <ProtectedRoute allowedRoles={["Admin", "SuperAdmin", "DepartmentHR", "Manager"]}>
+                <HrConsolidationHub />
+              </ProtectedRoute>
+            } />
+            <Route path="admin/consolidation" element={
+              <ProtectedRoute allowedRoles={["Admin", "SuperAdmin", "DepartmentHR", "Manager"]}>
                 <HrConsolidationHub />
               </ProtectedRoute>
             } />

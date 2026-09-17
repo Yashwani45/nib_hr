@@ -29,10 +29,9 @@ const MainLayout = () => {
     }
   }, [location.pathname]);
 
-  const userRole = typeof user?.role === "object" ? user?.role?.name : user?.role;
-  const isSuperAdmin = userRole?.toLowerCase() === "superadmin";
+  const isSuperAdminRoute = location.pathname.startsWith("/super-admin");
 
-  if (isSuperAdmin) {
+  if (isSuperAdminRoute) {
     return (
       <div className="min-h-screen bg-slate-50">
         <main className="min-w-0">
@@ -53,7 +52,7 @@ const MainLayout = () => {
 
       <div
         className={`transition-all duration-300 min-w-0 ${
-          isOpen ? "lg:ml-64" : "lg:ml-20"
+          isOpen ? "lg:ml-72" : "lg:ml-20"
         }`}
       >
         <Navbar isOpen={isOpen} setIsOpen={setIsOpen} />

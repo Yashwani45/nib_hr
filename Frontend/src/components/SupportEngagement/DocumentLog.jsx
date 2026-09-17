@@ -17,12 +17,36 @@ import {
   ClockIcon,
   ArrowPathIcon,
   ShieldCheckIcon,
-  DocumentArrowUpIcon
+  DocumentArrowUpIcon,
+  BriefcaseIcon,
+  UserGroupIcon
 } from "@heroicons/react/24/outline";
 import { apiFetch } from "../../services/hrApi";
 
-const DocumentLog = ({ dbData = {} }) => {
+// Recruitment & Onboarding Components
+import RecruitmentDashboard from "../TalentLMS/RecruitmentDashboard";
+import JobRequisition from "../TalentLMS/JobRequisition";
+import JobPosting from "../TalentLMS/JobPosting";
+import CandidateDatabase from "../TalentLMS/CandidateDatabase";
+import ResumeParsing from "../TalentLMS/ResumeParsing";
+import ATSApplicantTracking from "../TalentLMS/ATSApplicantTracking";
+import Interview from "../TalentLMS/Interview";
+import OfferLetter from "../TalentLMS/OfferLetter";
+import Onboarding from "../TalentLMS/Onboarding";
+import Joining from "../TalentLMS/Joining";
+
+const DocumentLog = ({ 
+  dbData = {}, 
+  records = [], 
+  user, 
+  openCreateTrigger, 
+  onOpenEdit, 
+  onDelete, 
+  onRefreshData, 
+  handleAtsMove 
+}) => {
   const [activeTab, setActiveTab] = useState("Dashboard");
+  const [recruitmentSubTab, setRecruitmentSubTab] = useState("Dashboard");
   const [loading, setLoading] = useState(false);
 
   // Core Data States
@@ -308,21 +332,28 @@ const DocumentLog = ({ dbData = {} }) => {
 
   return (
     <div className="space-y-6 font-sans mt-4">
-      {/* 8-Tab Navigation Bar */}
-      <div className="flex flex-wrap gap-1 border-b border-slate-100 pb-2">
-        {["Dashboard", "Central Documents", "Document Types", "Document Templates"].map(tab => (
-          <button
-            key={tab}
-            onClick={() => setActiveTab(tab)}
-            className={`px-4 py-2 rounded-xl text-xs font-bold transition duration-150 ${
-              activeTab === tab 
-                ? "bg-rose-50 text-rose-700 border border-rose-200" 
-                : "text-slate-500 hover:text-slate-800 hover:bg-slate-50 border border-transparent"
-            }`}
-          >
-            {tab}
-          </button>
-        ))}
+      {/* Tab Navigation Bar */}
+      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 pb-2">
+        <div className="flex flex-wrap gap-1">
+          {["Dashboard", "Central Documents", "Document Types", "Document Templates", "Recruitment & Onboarding"].map(tab => (
+            <button
+              key={tab}
+              onClick={() => setActiveTab(tab)}
+              className={`px-4 py-2 rounded-xl text-xs font-bold transition duration-150 flex items-center gap-1.5 ${
+                activeTab === tab 
+                  ? tab === "Recruitment & Onboarding"
+                    ? "bg-indigo-600 text-white shadow-sm border border-indigo-600"
+                    : "bg-rose-50 text-rose-700 border border-rose-200" 
+                  : tab === "Recruitment & Onboarding"
+                    ? "bg-indigo-50/80 text-indigo-700 hover:bg-indigo-100 border border-indigo-200"
+                    : "text-slate-500 hover:text-slate-800 hover:bg-slate-50 border border-transparent"
+              }`}
+            >
+              {tab === "Recruitment & Onboarding" && <BriefcaseIcon className="w-4 h-4" />}
+              {tab}
+            </button>
+          ))}
+        </div>
       </div>
 
       {loading && (
@@ -362,6 +393,26 @@ const DocumentLog = ({ dbData = {} }) => {
                   <span className="text-[10px] font-bold text-slate-400 uppercase">Expiring 30 Days</span>
                   <p className="text-xl font-black text-red-600 mt-1">{stats.expiringSoon || 0}</p>
                 </div>
+              </div>
+
+              {/* Quick Launch Banner for Recruitment & Onboarding */}
+              <div className="bg-gradient-to-r from-indigo-50/90 via-blue-50/70 to-slate-50 border border-indigo-100 rounded-2xl p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-xs">
+                <div className="flex items-center gap-3">
+                  <div className="p-2.5 bg-indigo-600 text-white rounded-xl shadow-xs">
+                    <BriefcaseIcon className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h4 className="text-xs font-black uppercase text-slate-800 tracking-wider">Recruitment & Onboarding Workspace</h4>
+                    <p className="text-xs text-slate-500 font-medium">Access requisitions, job postings, candidate database, ATS pipeline, interviews, offers, and onboarding</p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setActiveTab("Recruitment & Onboarding")}
+                  className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-xl shadow-xs transition flex items-center gap-1.5 shrink-0 cursor-pointer"
+                >
+                  <BriefcaseIcon className="w-4 h-4" />
+                  <span>Open Recruitment & Onboarding</span>
+                </button>
               </div>
 
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -410,7 +461,7 @@ const DocumentLog = ({ dbData = {} }) => {
           {activeTab === "Central Documents" && (
             <div className="bg-white border border-slate-200/80 rounded-3xl shadow-sm p-5 space-y-4">
               <div className="flex justify-between items-center border-b pb-3">
-                <h3 className="text-xs font-bold text-slate-900 uppercase">Enterprise Document Repository</h3>
+                <h3 className="text-xs font-bold text-slate-900 uppercase">Document Repository</h3>
                 <button
                   onClick={() => {
                     setEditingItem(null);
@@ -694,6 +745,118 @@ const DocumentLog = ({ dbData = {} }) => {
                     ))}
                   </tbody>
                 </table>
+              </div>
+            </div>
+          )}
+
+          {/* RECRUITMENT & ONBOARDING TAB */}
+          {activeTab === "Recruitment & Onboarding" && (
+            <div className="space-y-6 animate-fadeIn">
+              {/* Recruitment Sub-Tabs Header */}
+              <div className="bg-white p-3.5 rounded-2xl border border-slate-200/80 shadow-xs flex flex-col lg:flex-row items-start lg:items-center justify-between gap-3">
+                <div className="flex items-center gap-2.5">
+                  <div className="p-2 bg-indigo-50 text-indigo-600 rounded-xl">
+                    <BriefcaseIcon className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h3 className="text-xs font-black uppercase text-slate-800 tracking-wider">Recruitment & Onboarding Workspace</h3>
+                    <p className="text-[11px] text-slate-400 font-medium">Manage talent acquisition, requisitions, ATS pipelines, and employee onboarding</p>
+                  </div>
+                </div>
+
+                {/* Sub-tab pills */}
+                <div className="flex flex-wrap gap-1 bg-slate-50/80 p-1 rounded-xl border border-slate-200/60 max-w-full overflow-x-auto">
+                  {[
+                    { id: "Dashboard", label: "Dashboard", icon: "📊" },
+                    { id: "Job Requisition", label: "Job Requisition", icon: "📝" },
+                    { id: "Job Posting", label: "Job Posting", icon: "📢" },
+                    { id: "Candidate Database", label: "Candidates", icon: "👥" },
+                    { id: "Resume Parsing", label: "Resume Parsing", icon: "📄" },
+                    { id: "ATS", label: "ATS Tracking", icon: "🎯" },
+                    { id: "Interview", label: "Interviews", icon: "💼" },
+                    { id: "Offer Letter", label: "Offer Letters", icon: "✉️" },
+                    { id: "Onboarding", label: "Onboarding", icon: "🚀" },
+                    { id: "Joining", label: "Joining", icon: "🤝" }
+                  ].map(tab => (
+                    <button
+                      key={tab.id}
+                      onClick={() => setRecruitmentSubTab(tab.id)}
+                      className={`px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1.5 whitespace-nowrap cursor-pointer ${
+                        recruitmentSubTab === tab.id
+                          ? "bg-white text-indigo-600 shadow-xs border border-indigo-100"
+                          : "text-slate-600 hover:text-slate-900 hover:bg-slate-100/60"
+                      }`}
+                    >
+                      <span>{tab.icon}</span>
+                      <span>{tab.label}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Render Selected Component */}
+              <div className="mt-4">
+                {recruitmentSubTab === "Dashboard" && (
+                  <RecruitmentDashboard
+                    dbData={dbData}
+                    openCreateTrigger={openCreateTrigger}
+                    onRefreshData={onRefreshData}
+                  />
+                )}
+                {recruitmentSubTab === "Job Requisition" && (
+                  <JobRequisition
+                    records={dbData["Job Requisition"] || dbData["job_requisition"] || []}
+                    onRefreshData={onRefreshData}
+                  />
+                )}
+                {recruitmentSubTab === "Job Posting" && (
+                  <JobPosting
+                    records={dbData["Job Posting"] || dbData["job_postings"] || dbData["job_posting"] || []}
+                    onRefreshData={onRefreshData}
+                  />
+                )}
+                {recruitmentSubTab === "Candidate Database" && (
+                  <CandidateDatabase
+                    records={dbData["Candidate Database"] || dbData["candidate_database"] || dbData["Candidates"] || candidates || []}
+                    onRefreshData={onRefreshData}
+                  />
+                )}
+                {recruitmentSubTab === "Resume Parsing" && (
+                  <ResumeParsing
+                    onRefreshData={onRefreshData}
+                  />
+                )}
+                {recruitmentSubTab === "ATS" && (
+                  <ATSApplicantTracking
+                    records={dbData["ATS (Applicant Tracking)"] || dbData["ats_applicant_tracking"] || []}
+                    handleAtsMove={handleAtsMove}
+                    hideList={true}
+                  />
+                )}
+                {recruitmentSubTab === "Interview" && (
+                  <Interview
+                    records={dbData["Interview"] || dbData["interviews"] || dbData["interview"] || dbData["Interviews"] || []}
+                    onRefreshData={onRefreshData}
+                  />
+                )}
+                {recruitmentSubTab === "Offer Letter" && (
+                  <OfferLetter
+                    records={dbData["Offer Letter"] || dbData["offer_letters"] || dbData["offer_letter"] || []}
+                    onRefreshData={onRefreshData}
+                  />
+                )}
+                {recruitmentSubTab === "Onboarding" && (
+                  <Onboarding
+                    records={dbData["Onboarding"] || dbData["onboarding_tasks"] || dbData["onboarding"] || []}
+                    onRefreshData={onRefreshData}
+                  />
+                )}
+                {recruitmentSubTab === "Joining" && (
+                  <Joining
+                    records={dbData["Joining"] || dbData["joining_records"] || dbData["joining"] || []}
+                    onRefreshData={onRefreshData}
+                  />
+                )}
               </div>
             </div>
           )}

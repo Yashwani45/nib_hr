@@ -1,4 +1,4 @@
-import { useState } from "react";
+ import { useState } from "react";
 
 const Tabs = ({ tabs = [] }) => {
   const [activeTab, setActiveTab] = useState(tabs[0]);

@@ -65,13 +65,23 @@ const Login = () => {
       }
 
       // Store in AuthProvider and Redux
+      const emailLower = (result.data.email || email).toLowerCase();
+      const resolvedDeptName = result.data.departmentName || 
+        (emailLower.includes("hr.") ? "Human Resources" : 
+        (emailLower.includes("operation") ? "Operations" : 
+        (emailLower.includes("market") ? "Sales & Marketing" : 
+        (emailLower.includes("audit") ? "Quality & Clinical Audit" : "Department"))));
+
       login(result.data.accessToken, {
+        name: result.data.name || (result.data.role === 'DepartmentHR' ? resolvedDeptName : (result.data.role === 'Admin' ? 'Rahul Sharma' : (result.data.email ? result.data.email.split('@')[0] : 'User'))),
+        employeeName: result.data.employeeName || result.data.name || (result.data.role === 'DepartmentHR' ? resolvedDeptName : (result.data.role === 'Admin' ? 'Rahul Sharma' : (result.data.email ? result.data.email.split('@')[0] : 'User'))),
         email: result.data.email,
         role: result.data.role,
         companyCode: result.data.companyCode || activeCode,
+        companyName: result.data.companyName,
         departmentId: result.data.departmentId,
         departmentCode: result.data.departmentCode,
-        departmentName: result.data.departmentName,
+        departmentName: result.data.departmentName || (result.data.role === 'DepartmentHR' ? resolvedDeptName : null),
         assignedModules: result.data.assignedModules || [],
       });
 

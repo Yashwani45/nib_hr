@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from "react";
+import { Link } from "react-router-dom";
 import { useAuth } from "../auth/AuthProvider";
 import { Badge, Card, Modal, DynamicForm } from "../components/ui";
+import technoLogo from "../assets/shortlogo1.png";
 import { 
   BuildingOfficeIcon, 
   CircleStackIcon, 
@@ -15,7 +17,9 @@ import {
   CreditCardIcon,
   MagnifyingGlassIcon,
   CheckCircleIcon,
-  ExclamationTriangleIcon
+  ExclamationTriangleIcon,
+  HomeIcon,
+  ArrowTopRightOnSquareIcon
 } from "@heroicons/react/24/outline";
 
 const API_BASE = import.meta.env.VITE_API_BASE || "http://localhost:5000";
@@ -63,6 +67,50 @@ const SuperAdminDashboard = () => {
   const [formLoading, setFormLoading] = useState(false);
   const [formError, setFormError] = useState("");
   const [formSuccess, setFormSuccess] = useState("");
+
+  // Delete Modal State
+  const [deleteModal, setDeleteModal] = useState({ open: false, tenant: null });
+  const [deleteLoading, setDeleteLoading] = useState(false);
+  const [deleteError, setDeleteError] = useState("");
+
+  // Search Filter State
+  const [searchQuery, setSearchQuery] = useState("");
+
+  // Delete Tenant Confirmation Handler
+  const handleConfirmDelete = async () => {
+    if (!deleteModal.tenant) return;
+    setDeleteLoading(true);
+    setDeleteError("");
+    try {
+      const response = await fetchWithAuth(`${API_BASE}/api/super-admin/tenants/${deleteModal.tenant.id}`, {
+        method: "DELETE"
+      });
+      const text = await response.text();
+      const result = text ? JSON.parse(text) : {};
+      if (response.ok && result.success) {
+        setDeleteModal({ open: false, tenant: null });
+        await loadTenants();
+      } else {
+        throw new Error(result.message || result.error || "Failed to delete company.");
+      }
+    } catch (err) {
+      setDeleteError(err.message || "An error occurred while deleting the company.");
+    } finally {
+      setDeleteLoading(false);
+    }
+  };
+
+  // Switch to Company Admin Portal
+  const handleEnterCompanyPortal = (tenant) => {
+    try {
+      const userObj = JSON.parse(localStorage.getItem("user") || "{}");
+      userObj.companyCode = tenant.id;
+      userObj.companyName = tenant.name;
+      localStorage.setItem("user", JSON.stringify(userObj));
+      localStorage.setItem("selected_company_code", tenant.id);
+    } catch (e) {}
+    window.location.href = "/admin/dashboard";
+  };
   
   // Form fields state
   const [formData, setFormData] = useState({
@@ -215,9 +263,63 @@ const SuperAdminDashboard = () => {
   const monthlySaasIncome = activeTenants * 9000; // Calculated SaaS revenue (e.g. ₹9,000 per tenant/mo)
   const totalActiveSeats = platformUsersCount * 5; // Placeholder active seats mapping for HR alignment
 
+  // Filtered tenants based on search input
+  const filteredTenants = tenants.filter(t => {
+    if (!searchQuery.trim()) return true;
+    const q = searchQuery.toLowerCase().trim();
+    return (
+      (t.name && t.name.toLowerCase().includes(q)) ||
+      (t.code && t.code.toLowerCase().includes(q)) ||
+      (t.db && t.db.toLowerCase().includes(q)) ||
+      (t.emailAddress && t.emailAddress.toLowerCase().includes(q)) ||
+      (t.ownerName && t.ownerName.toLowerCase().includes(q))
+    );
+  });
+
   return (
-    <div className="min-h-screen  text-slate-800">
+    <div className="min-h-screen bg-slate-50 text-slate-800">
       
+      {/* Top Header Navbar */}
+      <header className="bg-white border-b border-slate-200 sticky top-0 z-30 shadow-xs">
+        <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
+          <div className="flex items-center space-x-3">
+            <img src={technoLogo} alt="Logo" className="h-8 w-auto object-contain" />
+            <div className="h-5 w-px bg-slate-200"></div>
+            <div>
+              <span className="text-sm font-extrabold text-slate-900 tracking-tight">Multi-Tenant Platform</span>
+              <span className="ml-2 bg-blue-50 text-blue-700 border border-blue-200 text-[10px] font-bold px-2 py-0.5 rounded-md uppercase">SuperAdmin</span>
+            </div>
+          </div>
+
+          <div className="flex items-center space-x-3">
+            {/* Direct Switch to Admin / HR Dashboard */}
+            <Link
+              to="/admin/dashboard"
+              className="flex items-center space-x-1.5 px-3 py-1.5 text-xs font-bold text-slate-700 bg-slate-100 hover:bg-blue-50 hover:text-blue-600 rounded-xl transition border border-slate-200"
+            >
+              <HomeIcon className="h-4 w-4" />
+              <span>Go to Admin / HR Portal</span>
+            </Link>
+
+            <div className="h-4 w-px bg-slate-200 hidden sm:block"></div>
+
+            <div className="hidden sm:flex items-center space-x-2 text-xs text-slate-600 font-medium">
+              <span className="font-semibold text-slate-700">{user?.email || "superadmin@nib.com"}</span>
+            </div>
+
+            {/* Logout button */}
+            <button
+              onClick={logout}
+              className="flex items-center space-x-1 px-3 py-1.5 text-xs font-bold text-red-600 hover:bg-red-50 rounded-xl transition border border-red-100"
+              title="Sign out of SuperAdmin"
+            >
+              <ArrowRightOnRectangleIcon className="h-4 w-4" />
+              <span>Logout</span>
+            </button>
+          </div>
+        </div>
+      </header>
+
       {/* Main Body */}
       <main className="max-w-7xl mx-auto px-6 py-8 space-y-8">
         
@@ -345,6 +447,8 @@ const SuperAdminDashboard = () => {
                   <MagnifyingGlassIcon className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
                   <input
                     type="text"
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
                     placeholder="Search companies..."
                     className="pl-9 pr-4 py-2 border border-slate-200 rounded-xl text-xs w-full sm:w-60 focus:outline-none focus:ring-2 focus:ring-blue-600 bg-white"
                   />
@@ -365,23 +469,24 @@ const SuperAdminDashboard = () => {
                       <th className="px-6 py-4">Expiry Date</th>
                       <th className="px-6 py-4 text-center">Active Users</th>
                       <th className="px-6 py-4 text-center">Status</th>
+                      <th className="px-6 py-4 text-center">Action</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100 text-xs font-medium text-slate-600">
                     {loading ? (
                       <tr>
-                        <td colSpan={10} className="px-6 py-12 text-center text-slate-400 font-semibold">
+                        <td colSpan={11} className="px-6 py-12 text-center text-slate-400 font-semibold">
                           Loading company catalog...
                         </td>
                       </tr>
-                    ) : tenants.length === 0 ? (
+                    ) : filteredTenants.length === 0 ? (
                       <tr>
-                        <td colSpan={10} className="px-6 py-12 text-center text-slate-400 font-semibold">
-                          No company registries found. Provision a company above.
+                        <td colSpan={11} className="px-6 py-12 text-center text-slate-400 font-semibold">
+                          {searchQuery ? "No companies match your search." : "No company registries found. Provision a company above."}
                         </td>
                       </tr>
                     ) : (
-                      tenants.map(tenant => (
+                      filteredTenants.map(tenant => (
                         <tr key={tenant.id} className="hover:bg-slate-50/50 transition">
                           <td className="px-6 py-4 font-bold text-slate-900">{tenant.name}</td>
                           <td className="px-6 py-4">
@@ -420,6 +525,27 @@ const SuperAdminDashboard = () => {
                             <Badge variant={tenant.status === "Active" ? "success" : "danger"}>
                               {tenant.status}
                             </Badge>
+                          </td>
+                          <td className="px-6 py-4 text-center">
+                            <div className="flex items-center justify-center space-x-1.5">
+                              <button
+                                onClick={() => handleEnterCompanyPortal(tenant)}
+                                className="p-1.5 border border-slate-200 hover:border-blue-300 hover:bg-blue-50 hover:text-blue-600 text-slate-500 rounded-lg transition cursor-pointer"
+                                title={`Open ${tenant.name} Admin Portal`}
+                              >
+                                <ArrowTopRightOnSquareIcon className="h-4 w-4" />
+                              </button>
+                              <button
+                                onClick={() => {
+                                  setDeleteError("");
+                                  setDeleteModal({ open: true, tenant });
+                                }}
+                                className="p-1.5 border border-slate-200 hover:border-red-200 hover:bg-red-50 hover:text-red-600 text-slate-400 rounded-lg transition cursor-pointer"
+                                title="Delete company"
+                              >
+                                <TrashIcon className="h-4 w-4" />
+                              </button>
+                            </div>
                           </td>
                         </tr>
                       ))
@@ -522,13 +648,22 @@ const SuperAdminDashboard = () => {
 
                     {/* Actions */}
                     <div className="flex items-center space-x-2">
-                      <button className="p-2 border border-slate-200 hover:bg-slate-50 hover:text-slate-900 text-slate-400 rounded-xl transition shadow-sm" title="View details">
-                        <EyeIcon className="h-4 w-4" />
+                      <button 
+                        onClick={() => handleEnterCompanyPortal(tenant)}
+                        className="px-3 py-2 border border-slate-200 hover:bg-blue-50 hover:border-blue-200 hover:text-blue-600 text-slate-600 rounded-xl transition shadow-xs cursor-pointer flex items-center gap-1.5 text-xs font-bold" 
+                        title="Enter Company Portal"
+                      >
+                        <ArrowTopRightOnSquareIcon className="h-4 w-4 text-blue-600" />
+                        <span>Enter Portal</span>
                       </button>
-                      <button className="p-2 border border-slate-200 hover:bg-slate-50 hover:text-slate-900 text-slate-400 rounded-xl transition shadow-sm" title="Edit config">
-                        <PencilSquareIcon className="h-4 w-4" />
-                      </button>
-                      <button className="p-2 border border-slate-200 hover:bg-slate-50 hover:text-red-600 text-slate-400 rounded-xl transition shadow-sm" title="Suspend/Delete">
+                      <button 
+                        onClick={() => {
+                          setDeleteError("");
+                          setDeleteModal({ open: true, tenant });
+                        }}
+                        className="p-2 border border-slate-200 hover:bg-red-50 hover:border-red-200 hover:text-red-600 text-slate-400 rounded-xl transition shadow-xs cursor-pointer" 
+                        title="Delete company"
+                      >
                         <TrashIcon className="h-4 w-4" />
                       </button>
                     </div>
@@ -563,6 +698,55 @@ const SuperAdminDashboard = () => {
           success={formSuccess}
           submitButtonText="Register Company"
         />
+      </Modal>
+
+      {/* =========================================================================
+          MODAL: DELETE COMPANY CONFIRMATION
+          ========================================================================= */}
+      <Modal
+        isOpen={deleteModal.open}
+        onClose={() => !deleteLoading && setDeleteModal({ open: false, tenant: null })}
+        title="DELETE COMPANY TENANT"
+        size="small"
+      >
+        <div className="space-y-4">
+          <div className="p-4 bg-red-50 border border-red-200 rounded-2xl flex items-start space-x-3 text-red-800">
+            <ExclamationTriangleIcon className="h-6 w-6 text-red-600 shrink-0 mt-0.5" />
+            <div className="text-xs space-y-1">
+              <p className="font-bold text-sm text-red-900">Permanent Deletion Warning</p>
+              <p>Are you sure you want to permanently delete <span className="font-bold underline text-red-900">{deleteModal.tenant?.name}</span>?</p>
+              <p className="text-slate-600">
+                This will permanently drop the physical database <span className="font-mono font-bold text-slate-800">`{deleteModal.tenant?.db}`</span>, clean up company resources, and purge it from the master registry.
+              </p>
+            </div>
+          </div>
+
+          {deleteError && (
+            <div className="p-3 bg-red-100 border border-red-300 text-red-700 text-xs rounded-xl font-medium">
+              {deleteError}
+            </div>
+          )}
+
+          <div className="flex items-center justify-end space-x-3 pt-2">
+            <Button
+              variant="outline"
+              onClick={() => setDeleteModal({ open: false, tenant: null })}
+              disabled={deleteLoading}
+              className="text-xs font-semibold px-4 py-2 border-slate-200 text-slate-600 hover:bg-slate-50"
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="danger"
+              onClick={handleConfirmDelete}
+              disabled={deleteLoading}
+              loading={deleteLoading}
+              className="text-xs font-bold px-4 py-2 rounded-xl shadow-md shadow-red-600/20"
+            >
+              Permanently Delete
+            </Button>
+          </div>
+        </div>
       </Modal>
 
     </div>

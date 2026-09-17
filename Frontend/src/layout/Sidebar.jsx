@@ -7,7 +7,6 @@ import { useAuth } from "../auth/AuthProvider";
 import {
   HomeIcon,
   BuildingOffice2Icon,
-  AcademicCapIcon,
   ClockIcon,
   ChatBubbleLeftRightIcon,
   ChevronDownIcon,
@@ -17,11 +16,8 @@ import {
   CalendarDaysIcon,
   BanknotesIcon,
   ArrowRightOnRectangleIcon,
-  InboxStackIcon,
-  DocumentDuplicateIcon,
   Cog6ToothIcon,
   PresentationChartBarIcon,
-  CubeIcon,
   DocumentTextIcon
 } from "@heroicons/react/24/outline";
 import technoLogo from "../assets/shortlogo1.png";
@@ -85,7 +81,7 @@ const Sidebar = ({ isOpen, setIsOpen, isPinned, setIsPinned }) => {
         categoryKey: "ORG_SETUP",
         icon: BuildingOffice2Icon,
         children: [
-          { name: "Company", tab: "Company" },
+          { name: "Company Profile", tab: "Company" },
           { name: "Branch", tab: "Branch" },
           { name: "Department", tab: "Department" },
           { name: "Designation Master", tab: "Designation" }
@@ -104,22 +100,6 @@ const Sidebar = ({ isOpen, setIsOpen, isPinned, setIsPinned }) => {
           { name: "Bank Details", tab: "Bank Details" },
           { name: "Salary Details", tab: "Salary Structure" },
           { name: "Reporting Manager", tab: "Reporting Hierarchy" }
-        ]
-      },
-      {
-        name: "Recruitment & Onboarding",
-        categoryKey: "RECRUITMENT",
-        icon: BriefcaseIcon,
-        children: [
-          { name: "Dashboard", tab: "Recruitment Dashboard" },
-          { name: "Job Requisition", tab: "Job Requisition" },
-          { name: "Job Posting", tab: "Job Posting" },
-          { name: "Candidate Database", tab: "Candidate Database" },
-          { name: "ATS", tab: "ATS (Applicant Tracking)" },
-          { name: "Interview", tab: "Interview" },
-          { name: "Offer Letter", tab: "Offer Letter" },
-          { name: "Onboarding", tab: "Onboarding" },
-          { name: "Joining", tab: "Joining" }
         ]
       },
       {
@@ -164,51 +144,9 @@ const Sidebar = ({ isOpen, setIsOpen, isPinned, setIsPinned }) => {
           { name: "Salary Structure", tab: "Salary Structure" }
         ]
       },
-      {
-        name: "Performance",
-        categoryKey: "PERFORMANCE",
-        icon: PresentationChartBarIcon,
-        children: [
-          { name: "Dashboard", tab: "Performance Dashboard" },
-          { name: "Performance Master", tab: "Performance Reviews" },
-          { name: "KPI", tab: "KPI & OKR" },
-          { name: "Goals", tab: "Goals" },
-          { name: "Appraisal", tab: "Performance Reviews" },
-          { name: "Promotion", tab: "Promotion" },
-          { name: "Increment", tab: "Increment" },
-          { name: "Reports", tab: "Reports" }
-        ]
-      },
-      {
-        name: "Learning",
-        categoryKey: "LEARNING",
-        icon: AcademicCapIcon,
-        children: [
-          { name: "Dashboard", tab: "Learning Dashboard" }
-        ]
-      },
-      {
-        name: "Asset Management",
-        categoryKey: "ASSET_MGMT",
-        icon: BuildingOffice2Icon,
-        children: [
-          { name: "Dashboard", tab: "Asset Dashboard" },
-          { name: "Asset List", tab: "Inventory" },
-          { name: "Asset Allocation", tab: "Asset Allocation" },
-          { name: "Asset Return", tab: "Asset Return" },
-          { name: "Asset History", tab: "Asset History" },
-          { name: "Maintenance", tab: "Maintenance" },
-          { name: "Reports", tab: "Reports" }
-        ]
-      },
-      {
-        name: "Document Management",
-        categoryKey: "DOCUMENT_MGMT",
-        icon: DocumentDuplicateIcon,
-        children: [
-          { name: "Letter Workspace", tab: "Letter Workspace" }
-        ]
-      },
+
+
+
       {
         name: "Exit Management",
         categoryKey: "EXIT_MGMT",
@@ -217,14 +155,7 @@ const Sidebar = ({ isOpen, setIsOpen, isPinned, setIsPinned }) => {
           { name: "Dashboard", tab: "Exit Dashboard" }
         ]
       },
-      {
-        name: "Workflow & Approval",
-        categoryKey: "WORKFLOW",
-        icon: InboxStackIcon,
-        children: [
-          { name: "Dashboard", tab: "Workflow Dashboard" }
-        ]
-      },
+
       {
         name: "Helpdesk",
         categoryKey: "HELPDESK",
@@ -246,32 +177,130 @@ const Sidebar = ({ isOpen, setIsOpen, isPinned, setIsPinned }) => {
         categoryKey: "SETTINGS",
         icon: Cog6ToothIcon,
         children: [
-          { name: "Dashboard", tab: "Settings Dashboard" },
-          { name: "Company Settings", tab: "Company Settings" },
-          { name: "Attendance Settings", tab: "Attendance Settings" },
-          { name: "Leave Settings", tab: "Leave Settings" },
-          { name: "Payroll Settings", tab: "Payroll Settings" },
-          { name: "Shift Settings", tab: "Shift Settings" },
-          { name: "Notification Settings", tab: "Notification Settings" },
-          { name: "Email Templates", tab: "Email Templates" },
-          { name: "Document Templates", tab: "Document Templates" },
-          { name: "Security", tab: "Security" },
-          { name: "Audit Logs", tab: "Audit Logs" }
+          { name: "Dashboard", tab: "Settings Dashboard" }
         ]
       }
     ];
   }, []);
 
+  const activeMenuItems = useMemo(() => {
+    const userRole = typeof user?.role === "object" ? user?.role?.name : user?.role;
+    if (!user || userRole === "SuperAdmin" || userRole === "Admin") {
+      return menuItems;
+    }
+
+    const userDept = String(user?.departmentName || user?.department || "").toLowerCase();
+    const isHrDept = userDept.includes("hr") || userDept.includes("human");
+
+    if (userRole === "DepartmentHR" || isHrDept || (user?.assignedModules && Array.isArray(user.assignedModules) && user.assignedModules.length > 0)) {
+      const allowed = (user?.assignedModules && Array.isArray(user.assignedModules) && user.assignedModules.length > 0)
+        ? user.assignedModules.map((m) => String(m).toLowerCase().trim())
+        : ["dashboard", "organization setup", "employee management", "recruitment", "attendance", "leave management", "payroll", "performance", "training", "asset", "helpdesk", "reports"];
+
+      return menuItems
+        .filter((item) => {
+          const itemName = item.name.toLowerCase().trim();
+          if (itemName === "dashboard overview" && allowed.some((m) => m.includes("dashboard"))) {
+            return true;
+          }
+          return allowed.some((m) => itemName.includes(m) || m.includes(itemName));
+        })
+        .map((item) => {
+          // If Organization Setup, restrict corporate setup items (Company Profile, Branch) for Department HR
+          if (item.name === "Organization Setup" && item.children) {
+            return {
+              ...item,
+              children: item.children.filter((child) => {
+                const childName = (child.name || "").toLowerCase();
+                return !["company profile", "branch"].includes(childName);
+              })
+            };
+          }
+          return item;
+        })
+        .filter((item) => !item.children || item.children.length > 0);
+    }
+
+    // Role: Employee -> Pure Employee Self-Service (ESS). Absolutely no Department, Org Setup, or HR Admin rights!
+    if (userRole === "Employee") {
+      return [
+        { path: "/employee/dashboard", name: "Dashboard Overview", icon: HomeIcon },
+        {
+          name: "My Profile",
+          categoryKey: "EMPLOYEE_MGMT",
+          icon: UserGroupIcon,
+          children: [
+            { name: "Personal Information", tab: "Employee Profile", path: "/employee/dashboard?category=EMPLOYEE_MGMT&tab=Employee%20Profile" },
+            { name: "My Documents", tab: "Documents", path: "/employee/dashboard?category=EMPLOYEE_MGMT&tab=Documents" },
+            { name: "My Assets", tab: "Assets", path: "/employee/dashboard?category=EMPLOYEE_MGMT&tab=Assets" },
+            { name: "Bank Details", tab: "Bank Details", path: "/employee/dashboard?category=EMPLOYEE_MGMT&tab=Bank%20Details" },
+            { name: "Salary Details", tab: "Salary Details", path: "/employee/dashboard?category=EMPLOYEE_MGMT&tab=Salary%20Details" },
+            { name: "Reporting Manager", tab: "Reporting Manager", path: "/employee/dashboard?category=EMPLOYEE_MGMT&tab=Reporting%20Manager" }
+          ]
+        },
+        {
+          name: "Attendance",
+          categoryKey: "EMP_ATTENDANCE",
+          icon: ClockIcon,
+          children: [
+            { name: "Today's Attendance", tab: "Today's Attendance", path: "/employee/dashboard?category=EMP_ATTENDANCE&tab=Today%27s%20Attendance" },
+            { name: "Attendance Calendar", tab: "Attendance Calendar", path: "/employee/dashboard?category=EMP_ATTENDANCE&tab=Attendance%20Calendar" },
+            { name: "Attendance History", tab: "Attendance History", path: "/employee/dashboard?category=EMP_ATTENDANCE&tab=Attendance%20History" },
+            { name: "Monthly Attendance", tab: "Monthly Attendance", path: "/employee/dashboard?category=EMP_ATTENDANCE&tab=Monthly%20Attendance" },
+            { name: "Regularization", tab: "Attendance Regularization", path: "/employee/dashboard?category=EMP_ATTENDANCE&tab=Attendance%20Regularization" },
+            { name: "Shift Details", tab: "Shift Details", path: "/employee/dashboard?category=EMP_ATTENDANCE&tab=Shift%20Details" }
+          ]
+        },
+        {
+          name: "Leave Management",
+          categoryKey: "EMP_LEAVE",
+          icon: CalendarDaysIcon,
+          children: [
+            { name: "Apply Leave", tab: "Apply Leave", path: "/employee/dashboard?category=EMP_LEAVE&tab=Apply%20Leave" },
+            { name: "My Leaves", tab: "My Leaves", path: "/employee/dashboard?category=EMP_LEAVE&tab=My%20Leaves" },
+            { name: "Holiday Calendar", tab: "Holiday Calendar", path: "/employee/dashboard?category=EMP_LEAVE&tab=Holiday%20Calendar" }
+          ]
+        },
+        {
+          name: "Payroll",
+          categoryKey: "EMP_PAYROLL",
+          icon: BanknotesIcon,
+          children: [
+            { name: "My Payslips", tab: "Salary Details", path: "/employee/dashboard?category=EMPLOYEE_MGMT&tab=Salary%20Details" }
+          ]
+        },
+        {
+          name: "Helpdesk",
+          categoryKey: "EMP_HELPDESK",
+          icon: ChatBubbleLeftRightIcon,
+          children: [
+            { name: "Support Tickets", tab: "Support Tickets", path: "/employee/dashboard?category=EMP_HELPDESK&tab=Support%20Tickets" }
+          ]
+        },
+        {
+          name: "Exit Management",
+          categoryKey: "EXIT_MGMT",
+          icon: ArrowRightOnRectangleIcon,
+          children: [
+            { name: "Resignation / Exit", tab: "Exit Workspace", path: "/employee/dashboard?category=EXIT_MGMT&tab=Exit%20Workspace" }
+          ]
+        }
+      ];
+    }
+
+    return menuItems;
+  }, [menuItems, user]);
+
   // Auto-expand category accordions on mount or query updates
   useEffect(() => {
     const activeCategory = searchParams.get("category");
     if (activeCategory) {
-      const match = menuItems.find((item) => item.categoryKey === activeCategory);
+      const match = activeMenuItems.find((item) => item.categoryKey === activeCategory);
       if (match) {
         setOpenMenus((prev) => ({ ...prev, [match.name]: true }));
       }
     }
-  }, [searchParams, menuItems]);
+  }, [searchParams, activeMenuItems]);
 
   const toggleMenu = (name) => {
     setOpenMenus((prev) => ({
@@ -286,10 +315,6 @@ const Sidebar = ({ isOpen, setIsOpen, isPinned, setIsPinned }) => {
     }
   };
 
-  const activeMenuItems = useMemo(() => {
-    return menuItems;
-  }, [menuItems]);
-
   return (
     <aside
       onMouseEnter={() => setIsOpen(true)}
@@ -300,8 +325,8 @@ const Sidebar = ({ isOpen, setIsOpen, isPinned, setIsPinned }) => {
       }}
       className={`fixed left-0 top-0 h-screen bg-white shadow-lg z-30 transition-all duration-300 overflow-hidden border-r border-gray-100 flex flex-col ${
         isOpen
-          ? "w-64 translate-x-0"
-          : "w-64 -translate-x-full lg:w-20 lg:translate-x-0"
+          ? "w-72 translate-x-0"
+          : "w-72 -translate-x-full lg:w-20 lg:translate-x-0"
       }`}
     >
       {/* 1. Header Brand Section with Diamond Logo + Solid TechnoVani Text */}
@@ -331,7 +356,7 @@ const Sidebar = ({ isOpen, setIsOpen, isPinned, setIsPinned }) => {
 
           if (!item.children) {
             // Single Link (Dashboard Overview)
-            const active = location.pathname === item.path;
+            const active = location.pathname === item.path && (!searchParams.get("category") || searchParams.get("category") === "EMP_DASHBOARD");
             return (
               <Link
                 key={item.path}
@@ -340,10 +365,10 @@ const Sidebar = ({ isOpen, setIsOpen, isPinned, setIsPinned }) => {
                 title={!isOpen ? item.name : undefined}
                 className={
                   isOpen
-                    ? `w-full flex items-center justify-between gap-3 px-3 py-2.5 rounded-lg font-medium text-sm transition-all duration-150 group relative ${
+                    ? `w-full flex items-center justify-between gap-3 px-3.5 py-2.5 rounded-lg font-semibold text-sm transition-all duration-150 group relative ${
                         active
                           ? "bg-blue-50 text-blue-600 font-semibold shadow-sm"
-                          : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"
+                          : "text-slate-700 hover:bg-slate-50 hover:text-slate-900"
                       }`
                     : `w-12 h-12 mx-auto flex items-center justify-center rounded-xl transition ${
                         active
@@ -356,29 +381,35 @@ const Sidebar = ({ isOpen, setIsOpen, isPinned, setIsPinned }) => {
                   <>
                     <div className="flex items-center gap-3 min-w-0">
                       <Icon className="w-6 h-6 shrink-0 sidebar-icon-inactive" />
-                      <span className="whitespace-nowrap overflow-hidden transition-all duration-300 truncate">
+                      <span className="whitespace-nowrap overflow-hidden transition-all duration-300 truncate font-semibold">
                         {item.name}
                       </span>
                     </div>
-                    <button
-                      onClick={(e) => {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        setIsPinned(!isPinned);
-                      }}
-                      className={`ml-auto p-1 rounded transition-all shrink-0 ${
-                        active
-                          ? isPinned
-                            ? "text-blue-600 hover:bg-blue-100"
-                            : "text-blue-400 opacity-0 group-hover:opacity-100 hover:bg-blue-100 hover:text-blue-700"
-                          : isPinned
-                            ? "text-slate-600 hover:bg-slate-200"
-                            : "text-slate-400 opacity-0 group-hover:opacity-100 hover:bg-slate-200 hover:text-slate-700"
-                      }`}
-                      title={isPinned ? "Unpin Sidebar" : "Pin Sidebar"}
-                    >
-                      <PinIcon pinned={isPinned} className="w-4 h-4" />
-                    </button>
+                    {item.badge ? (
+                      <span className="ml-auto bg-blue-100 text-blue-700 text-[10px] font-bold px-1.5 py-0.5 rounded shadow-xs">
+                        {item.badge}
+                      </span>
+                    ) : (
+                      <button
+                        onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          setIsPinned(!isPinned);
+                        }}
+                        className={`ml-auto p-1 rounded transition-all shrink-0 ${
+                          active
+                            ? isPinned
+                              ? "text-blue-600 hover:bg-blue-100"
+                              : "text-blue-400 opacity-0 group-hover:opacity-100 hover:bg-blue-100 hover:text-blue-700"
+                            : isPinned
+                              ? "text-slate-600 hover:bg-slate-200"
+                              : "text-slate-400 opacity-0 group-hover:opacity-100 hover:bg-slate-200 hover:text-slate-700"
+                        }`}
+                        title={isPinned ? "Unpin Sidebar" : "Pin Sidebar"}
+                      >
+                        <PinIcon pinned={isPinned} className="w-4 h-4" />
+                      </button>
+                    )}
                   </>
                 ) : (
                   <Icon className="w-6 h-6 shrink-0 sidebar-icon-inactive" />
@@ -389,7 +420,7 @@ const Sidebar = ({ isOpen, setIsOpen, isPinned, setIsPinned }) => {
 
           // Category accordion links
           const isCategoryExpanded = !!openMenus[item.name] && isOpen;
-          const isCategoryActive = location.pathname === "/hr-hub" && searchParams.get("category") === item.categoryKey;
+          const isCategoryActive = (location.pathname === "/hr-hub" || location.pathname === "/employee/dashboard") && searchParams.get("category") === item.categoryKey;
 
           return (
             <div key={item.name} className="space-y-0.5">
@@ -401,10 +432,10 @@ const Sidebar = ({ isOpen, setIsOpen, isPinned, setIsPinned }) => {
                 title={!isOpen ? item.name : undefined}
                 className={
                   isOpen
-                    ? `w-full flex items-center justify-between gap-3 px-3 py-2.5 rounded-lg font-medium text-sm transition-all duration-150 ${
+                    ? `w-full flex items-center justify-between gap-3 px-3.5 py-2.5 rounded-lg font-semibold text-sm transition-all duration-150 ${
                         isCategoryActive
                           ? "bg-blue-50 text-blue-600 font-semibold shadow-sm"
-                          : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"
+                          : "text-slate-700 hover:bg-slate-50 hover:text-slate-900"
                       }`
                     : `w-12 h-12 mx-auto flex items-center justify-center rounded-xl transition ${
                         isCategoryActive
@@ -417,7 +448,7 @@ const Sidebar = ({ isOpen, setIsOpen, isPinned, setIsPinned }) => {
                   <>
                     <div className="flex items-center gap-3 min-w-0">
                       <Icon className="w-6 h-6 shrink-0 sidebar-icon-inactive" />
-                      <span className="whitespace-nowrap overflow-hidden transition-all duration-300 text-left truncate">
+                      <span className="whitespace-nowrap overflow-hidden transition-all duration-300 text-left truncate font-semibold">
                         {item.name}
                       </span>
                     </div>
@@ -453,7 +484,7 @@ const Sidebar = ({ isOpen, setIsOpen, isPinned, setIsPinned }) => {
                       );
                     }
 
-                    const isChildActive = location.pathname === "/hr-hub" &&
+                    const isChildActive = (location.pathname === "/hr-hub" || location.pathname === "/employee/dashboard") &&
                       searchParams.get("category") === item.categoryKey &&
                       (searchParams.get("tab") === (child.tab || child.name) || (!searchParams.get("tab") && item.children[0]?.tab === (child.tab || child.name)));
 
@@ -466,10 +497,10 @@ const Sidebar = ({ isOpen, setIsOpen, isPinned, setIsPinned }) => {
                         key={child.name}
                         to={childPath}
                         onClick={closeOnMobile}
-                        className={`block text-left px-3 py-1.5 rounded-md text-xs transition-colors ${
+                        className={`block text-left px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
                           isChildActive
-                            ? "text-blue-600 bg-blue-50/90 font-semibold"
-                            : "text-slate-500 hover:text-slate-900 hover:bg-slate-50"
+                            ? "text-blue-600 bg-blue-50 font-semibold"
+                            : "text-slate-600 hover:text-slate-900 hover:bg-slate-50"
                         }`}
                       >
                         • {child.name}

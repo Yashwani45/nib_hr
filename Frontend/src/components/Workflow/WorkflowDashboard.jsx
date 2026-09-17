@@ -216,7 +216,7 @@ const WorkflowDashboard = ({ selectedTab, activeTab: propActiveTab, user }) => {
           <div>
             <div className="flex items-center gap-2 mb-1">
               <span className="text-[10px] font-black uppercase tracking-widest px-2.5 py-0.5 rounded-full bg-indigo-50 text-indigo-700 border border-indigo-100">
-                Enterprise Multi-Level Approvals
+                Multi-Level Approvals
               </span>
               <span className="text-[10px] font-bold text-slate-400">• Full Governance Lifecycle</span>
             </div>

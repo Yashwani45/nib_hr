@@ -192,7 +192,7 @@ const getInitialFormState = () => ({
 
   // Tab 17
   createdBy: "System Admin",
-  createdDate: new Date().toLocaleDateString(),
+  createdDate: new Date().toISOString().split("T")[0],
   updatedBy: "",
   updatedDate: "",
   lastLogin: "",
@@ -205,8 +205,43 @@ const EmployeeProfile = ({ records = [], dbData = {}, openCreateTrigger, onOpenE
   const [searchParams, setSearchParams] = useSearchParams();
   const { user } = useAuth();
 
-  const departmentsList = useMemo(() => dbData["departments"] || dbData["department"] || [], [dbData]);
-  const designationsList = useMemo(() => dbData["designations"] || dbData["designation"] || [], [dbData]);
+  const [liveDepartments, setLiveDepartments] = useState([]);
+  const [liveDesignations, setLiveDesignations] = useState([]);
+
+  React.useEffect(() => {
+    const fetchDropdownData = async () => {
+      try {
+        const [deptRes, desigRes] = await Promise.all([
+          getTableData("department"),
+          getTableData("designation")
+        ]);
+        const deptArray = Array.isArray(deptRes) ? deptRes : (deptRes?.data && Array.isArray(deptRes.data) ? deptRes.data : []);
+        if (deptArray.length > 0) {
+          setLiveDepartments(deptArray);
+        }
+        const desigArray = Array.isArray(desigRes) ? desigRes : (desigRes?.data && Array.isArray(desigRes.data) ? desigRes.data : []);
+        if (desigArray.length > 0) {
+          setLiveDesignations(desigArray);
+        }
+      } catch (err) {
+        console.error("Error fetching dropdown data in EmployeeProfile:", err);
+      }
+    };
+    fetchDropdownData();
+  }, []);
+
+  const departmentsList = useMemo(() => {
+    if (liveDepartments.length > 0) return liveDepartments;
+    const fromDb = dbData["Department"] || dbData["departments"] || dbData["department"] || [];
+    return Array.isArray(fromDb) ? fromDb : [];
+  }, [liveDepartments, dbData]);
+
+  const designationsList = useMemo(() => {
+    if (liveDesignations.length > 0) return liveDesignations;
+    const fromDb = dbData["Designation"] || dbData["designations"] || dbData["designation"] || [];
+    return Array.isArray(fromDb) ? fromDb : [];
+  }, [liveDesignations, dbData]);
+
   const userRole = typeof user?.role === "object" ? user?.role?.name : user?.role;
   const isAuthorizedAdmin = userRole === "SuperAdmin" || userRole === "Admin";
   const activeTabs = isAuthorizedAdmin
@@ -313,6 +348,34 @@ const EmployeeProfile = ({ records = [], dbData = {}, openCreateTrigger, onOpenE
   const [isEditing, setIsEditing] = useState(false);
   const [editingId, setEditingId] = useState(null);
   const [validationErrors, setValidationErrors] = useState({});
+
+  const availableDesignations = useMemo(() => {
+    const selectedDeptId = String(formFields?.departmentId || formFields?.department_id || "");
+    const selectedDeptName = String(formFields?.department || "").toLowerCase().trim();
+
+    const matched = designationsList.filter(d => {
+      const dDeptId = String(d.departmentId || d.department_id || "");
+      const dDeptName = String(d.department || d.dept_name || "").toLowerCase().trim();
+      return (selectedDeptId && dDeptId === selectedDeptId) || (selectedDeptName && dDeptName === selectedDeptName);
+    });
+
+    if (matched.length > 0) {
+      const companyWide = designationsList.filter(d => !d.departmentId && !d.department_id && !d.department);
+      return [...matched, ...companyWide];
+    }
+
+    if (designationsList.length > 0) {
+      return designationsList;
+    }
+
+    return [
+      { id: "desig_exec", desigName: "Executive" },
+      { id: "desig_sr_exec", desigName: "Senior Executive" },
+      { id: "desig_mgr", desigName: "Manager" },
+      { id: "desig_asst_mgr", desigName: "Assistant Manager" },
+      { id: "desig_specialist", desigName: "Specialist" }
+    ];
+  }, [designationsList, formFields?.departmentId, formFields?.department_id, formFields?.department]);
 
   // Dynamic Sub-records Addition states
   const [tempEducation, setTempEducation] = useState({ qualification: "", institute: "", university: "", passingYear: "", percentage: "", certificate: "" });
@@ -533,6 +596,20 @@ const EmployeeProfile = ({ records = [], dbData = {}, openCreateTrigger, onOpenE
     const freshState = getInitialFormState();
     // Auto-generate employee ID
     freshState.employeeId = `EMP-${Math.floor(100000 + Math.random() * 900000)}`;
+
+    const urlDept = searchParams.get("dept") || searchParams.get("department");
+    if (urlDept && departmentsList.length > 0) {
+      const matched = departmentsList.find(d => 
+        (d.deptName || d.dept_name || d.name || "").toLowerCase() === urlDept.toLowerCase() ||
+        String(d.id) === String(urlDept)
+      );
+      if (matched) {
+        freshState.departmentId = matched.id;
+        freshState.department_id = matched.id;
+        freshState.department = matched.deptName || matched.dept_name || matched.name;
+      }
+    }
+
     setFormFields(freshState);
     setIsEditing(false);
     setEditingId(null);
@@ -540,6 +617,12 @@ const EmployeeProfile = ({ records = [], dbData = {}, openCreateTrigger, onOpenE
     setModalTab("Basic Information");
     setShowModal(true);
   };
+
+  React.useEffect(() => {
+    if (openCreateTrigger) {
+      handleOpenAddForm();
+    }
+  }, [openCreateTrigger]);
 
   const handleOpenEditForm = (emp) => {
     const names = (emp.employeeName || emp.employee_name || "").split(" ");
@@ -654,7 +737,7 @@ const EmployeeProfile = ({ records = [], dbData = {}, openCreateTrigger, onOpenE
       ...formFields,
       // Record audits
       updatedBy: user?.email || "System Admin",
-      updatedDate: new Date().toLocaleDateString()
+      updatedDate: new Date().toISOString().split("T")[0]
     });
 
     const cleanFirstName = (formFields.firstName || "employee").toLowerCase().replace(/[^a-z0-9]/g, "");
@@ -808,25 +891,20 @@ const EmployeeProfile = ({ records = [], dbData = {}, openCreateTrigger, onOpenE
                   value={formFields.designationId || formFields.designation_id || ""}
                   onChange={(e) => {
                     const desigId = e.target.value;
-                    const desigObj = designationsList.find(d => String(d.id) === String(desigId));
+                    const desigObj = availableDesignations.find(d => String(d.id) === String(desigId));
                     setFormFields({
                       ...formFields,
                       designationId: desigId,
                       designation_id: desigId,
-                      designation: desigObj ? (desigObj.desigName || desigObj.desig_name || desigObj.title) : ""
+                      designation: desigObj ? (desigObj.desigName || desigObj.desig_name || desigObj.title || desigObj.name) : ""
                     });
                   }}
                   className="w-full text-xs bg-white border border-slate-200 rounded-xl px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-indigo-500 font-bold disabled:bg-slate-100 disabled:opacity-60"
                 >
                   <option value="">Select Designation</option>
-                  {designationsList
-                    .filter(d => 
-                      String(d.departmentId || d.department_id) === String(formFields.departmentId || formFields.department_id) &&
-                      (d.status === "Active" || String(d.id) === String(formFields.designationId || formFields.designation_id))
-                    )
-                    .map(d => (
-                      <option key={d.id} value={d.id}>{d.desigName || d.desig_name || d.title}</option>
-                    ))}
+                  {availableDesignations.map(d => (
+                    <option key={d.id} value={d.id}>{d.desigName || d.desig_name || d.title || d.name}</option>
+                  ))}
                 </select>
                 {validationErrors.designation && <p className="text-[10px] text-rose-500 mt-1 font-bold">{validationErrors.designation}</p>}
               </div>

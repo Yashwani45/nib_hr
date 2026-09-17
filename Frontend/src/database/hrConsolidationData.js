@@ -127,6 +127,14 @@ export const hrSchemas = {
       { name: "companyEmail", label: "Email", type: "email", required: true },
       { name: "password", label: "Password", type: "password", required: true },
       { name: "department", label: "Department", type: "text" }
+    ],
+    "Bank Details": [
+      { name: "employeeCode", label: "Employee Code", type: "text", required: true },
+      { name: "accountHolderName", label: "Account Holder Name", type: "text", required: true },
+      { name: "bankName", label: "Bank Name", type: "text", required: true },
+      { name: "accountNumber", label: "Account Number", type: "text", required: true },
+      { name: "ifscCode", label: "IFSC Code", type: "text", required: true },
+      { name: "branchName", label: "Branch Name", type: "text" }
     ]
   },
   "3. Recruitment & Onboarding": {
@@ -253,6 +261,18 @@ export const hrSchemas = {
       { name: "selfie_url", label: "Selfie Image URL", type: "text" },
       { name: "break_hours", label: "Break Duration (Hrs)", type: "number" },
       { name: "remarks", label: "Remarks", type: "text" }
+    ],
+    "Monthly Attendance": [
+      { name: "empId", label: "Employee Code", type: "text", required: true },
+      { name: "name", label: "Employee Name", type: "text", required: true },
+      { name: "date", label: "Attendance Date", type: "date", required: true },
+      { name: "checkIn", label: "Check In Time", type: "text" },
+      { name: "checkOut", label: "Check Out Time", type: "text" },
+      { name: "workingHours", label: "Working Hours", type: "number" },
+      { name: "status", label: "Attendance Status", type: "select", options: ["Present", "Absent", "Late", "Half Day", "On Leave", "Holiday"] },
+      { name: "shift", label: "Shift", type: "text" },
+      { name: "overtime", label: "Overtime Hours", type: "number" },
+      { name: "remarks", label: "Remarks", type: "textarea" }
     ],
     "Attendance Regularization": [
       { name: "empId", label: "Employee ID", type: "text", required: true },

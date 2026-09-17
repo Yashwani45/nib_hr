@@ -114,7 +114,26 @@ const provisionEmployeeTables = async (tenantDb) => {
       "lastPasswordChange VARCHAR(255) NULL",
       "recordStatus VARCHAR(255) NULL",
       "activityTimeline TEXT NULL",
-      "profile_data LONGTEXT NULL"
+      "profile_data LONGTEXT NULL",
+      "gender VARCHAR(50) NULL",
+      "designation TEXT NULL",
+      "attendanceMode TEXT NULL",
+      "casualLeaveBalance INT NULL DEFAULT 12",
+      "sickLeaveBalance INT NULL DEFAULT 8",
+      "earnedLeaveBalance INT NULL DEFAULT 15",
+      "highestDegree TEXT NULL",
+      "specialization TEXT NULL",
+      "university TEXT NULL",
+      "passingYear TEXT NULL",
+      "educationGpa TEXT NULL",
+      "prevCompany TEXT NULL",
+      "prevDesignation TEXT NULL",
+      "totalExpYears TEXT NULL",
+      "prevSalary TEXT NULL",
+      "technicalSkills TEXT NULL",
+      "certifications TEXT NULL",
+      "kpiValue TEXT NULL",
+      "lastWorkingDay DATE NULL"
     ];
     for (const targetTbl of ['employees', 'employee_profile']) {
       let existingCols = [];
@@ -1210,12 +1229,6 @@ const provisionBusinessUnitsTable = async (tenantDb) => {
         \`deleted_at\` TIMESTAMP NULL
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
     `).catch(() => {});
-
-    // Ensure departments has business_unit_id
-    const deptCols = (await tenantDb.query("SHOW COLUMNS FROM `departments`", { type: QueryTypes.SELECT })).map(c => c.Field.toLowerCase());
-    if (!deptCols.includes('business_unit_id')) {
-      await tenantDb.query("ALTER TABLE `departments` ADD COLUMN `business_unit_id` CHAR(36) NULL").catch(() => {});
-    }
   } catch (err) {
     console.warn('[table.controller] provisionBusinessUnitsTable notice:', err.message);
   }
@@ -1269,6 +1282,26 @@ const provisionReportingHierarchiesTable = async (tenantDb) => {
     }
   } catch (err) {
     console.warn('[table.controller] provisionReportingHierarchiesTable notice:', err.message);
+  }
+};
+
+const provisionNotificationsTable = async (tenantDb) => {
+  try {
+    await tenantDb.query(`
+      CREATE TABLE IF NOT EXISTS \`notifications\` (
+        \`id\` CHAR(36) NOT NULL PRIMARY KEY,
+        \`title\` VARCHAR(255) NOT NULL,
+        \`message\` TEXT NULL,
+        \`type\` VARCHAR(50) DEFAULT 'System',
+        \`isRead\` TINYINT(1) DEFAULT 0,
+        \`recipient_id\` VARCHAR(100) NULL,
+        \`created_at\` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        \`updated_at\` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        \`deleted_at\` TIMESTAMP NULL
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+    `).catch(() => {});
+  } catch (err) {
+    console.warn('[table.controller] provisionNotificationsTable notice:', err.message);
   }
 };
 
@@ -1381,14 +1414,35 @@ const ALLOWED_TABLES = [
   'competencies',
   'skills',
   'goal_categories',
-  'performance_improvement_plans'
+  'performance_improvement_plans',
+  'branches',
+  'exit_requests',
+  'notice_periods',
+  'exit_clearances',
+  'asset_returns',
+  'no_dues',
+  'fnf_settlements',
+  'exit_interviews',
+  'experience_letters',
+  'documents',
+  'salary_structures',
+  'helpdesk',
+  'notifications'
 ];
 
 const TABLE_NAME_MAP = {
   'branch': 'branches',
+  'branches': 'branches',
   'department': 'departments',
+  'departments': 'departments',
   'designation': 'designations',
+  'designations': 'designations',
   'employee_profile': 'employees',
+  'employees': 'employees',
+  'documents': 'document_logs',
+  'salary_structures': 'salary_structure',
+  'helpdesk': 'hr_tickets',
+  'exit_dashboard': 'exit_requests',
   'business_unit': 'business_units',
   'business_units': 'business_units',
   'cost_center': 'cost_centers',
@@ -1469,6 +1523,39 @@ const validateTableName = (tableName) => {
   return TABLE_NAME_MAP[clean] || clean;
 };
 
+
+const isHrOrAdminUser = async (req) => {
+  const userRoleStr = String(typeof req.user?.role === 'object' ? req.user?.role?.name : req.user?.role || '').toLowerCase().trim();
+  if (userRoleStr === 'admin' || userRoleStr === 'superadmin' || userRoleStr === 'departmenthr' || userRoleStr.includes('hr') || userRoleStr.includes('admin')) {
+    return true;
+  }
+  
+  const userDept = String(req.user?.departmentName || req.user?.department || req.user?.employee?.department || '').toLowerCase().trim();
+  if (userDept.includes('hr') || userDept.includes('human') || userDept.includes('admin') || userDept.includes('resource')) {
+    return true;
+  }
+
+  // Check tenant DB employees table for user's department or designation as fallback
+  if (req.tenantDb && req.user?.email) {
+    try {
+      const [empRec] = await req.tenantDb.query(
+        "SELECT department, designation, role FROM employees WHERE LOWER(email) = ? OR LOWER(company_email) = ? LIMIT 1",
+        { replacements: [req.user.email.toLowerCase().trim(), req.user.email.toLowerCase().trim()], type: QueryTypes.SELECT }
+      ).catch(() => [null]);
+      if (empRec) {
+        const empDept = String(empRec.department || '').toLowerCase().trim();
+        const empDesig = String(empRec.designation || '').toLowerCase().trim();
+        const empRole = String(empRec.role || '').toLowerCase().trim();
+        if (empDept.includes('hr') || empDept.includes('human') || empDept.includes('admin') || empDept.includes('resource') || 
+            empDesig.includes('hr') || empRole.includes('hr') || empRole.includes('admin')) {
+          return true;
+        }
+      }
+    } catch (e) {}
+  }
+  return false;
+};
+
 // GET: Fetch all rows from a table
 const getTableData = asyncHandler(async (req, res) => {
   const tableName = validateTableName(req.params.tableName);
@@ -1493,6 +1580,10 @@ const getTableData = asyncHandler(async (req, res) => {
 
   if (tableName === 'reporting_hierarchy' || tableName === 'reporting_hierarchies') {
     await provisionReportingHierarchiesTable(req.tenantDb);
+  }
+
+  if (tableName === 'notifications') {
+    await provisionNotificationsTable(req.tenantDb);
   }
 
   if (tableName === 'employees' || tableName === 'employee_profile') {
@@ -1827,22 +1918,62 @@ const sanitizeDataForTable = async (tenantDb, tableName, inputData) => {
   const parseToMysqlDate = (val) => {
     if (!val) return null;
     const str = String(val).trim();
-    const dmyMatch = str.match(/^(\d{1,2})[-/](\d{1,2})[-/](\d{4})$/);
-    if (dmyMatch) {
-      const [, day, month, year] = dmyMatch;
-      return `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
-    }
+
+    // 1. Standard ISO format: YYYY-MM-DD
     const ymdMatch = str.match(/^(\d{4})[-/](\d{1,2})[-/](\d{1,2})$/);
     if (ymdMatch) {
-      const [, year, month, day] = ymdMatch;
-      return `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
+      const year = ymdMatch[1];
+      const m = parseInt(ymdMatch[2], 10);
+      const d = parseInt(ymdMatch[3], 10);
+      if (m >= 1 && m <= 12 && d >= 1 && d <= 31) {
+        return `${year}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+      }
     }
+
+    // 2. Either D/M/YYYY or M/D/YYYY
+    const slashMatch = str.match(/^(\d{1,2})[-/](\d{1,2})[-/](\d{4})$/);
+    if (slashMatch) {
+      const num1 = parseInt(slashMatch[1], 10);
+      const num2 = parseInt(slashMatch[2], 10);
+      const year = slashMatch[3];
+
+      let day, month;
+      if (num2 > 12) {
+        // If 2nd number > 12, it cannot be month, so it must be M/D/YYYY (e.g. 9/13/2026)
+        month = num1;
+        day = num2;
+      } else if (num1 > 12) {
+        // If 1st number > 12, it must be D/M/YYYY (e.g. 13/9/2026)
+        day = num1;
+        month = num2;
+      } else {
+        // Both <= 12, let JS Date determine or fallback to M/D/YYYY
+        const parsedNative = new Date(str);
+        if (!isNaN(parsedNative.getTime())) {
+          return parsedNative.toISOString().split('T')[0];
+        }
+        month = num1;
+        day = num2;
+      }
+
+      if (month >= 1 && month <= 12 && day >= 1 && day <= 31) {
+        return `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+      }
+    }
+
+    // 3. Fallback to native JS Date parsing
     const parsed = new Date(str);
     if (!isNaN(parsed.getTime())) {
-      return parsed.toISOString().split('T')[0];
+      const y = parsed.getFullYear();
+      const m = String(parsed.getMonth() + 1).padStart(2, '0');
+      const d = String(parsed.getDate()).padStart(2, '0');
+      return `${y}-${m}-${d}`;
     }
+
     return null;
   };
+
+  const snakeToCamel = (str) => str.replace(/_([a-z0-9])/g, (_, g) => g.toUpperCase());
 
   const sanitized = {};
   for (const rawKey of Object.keys(inputData)) {
@@ -1850,21 +1981,85 @@ const sanitizeDataForTable = async (tenantDb, tableName, inputData) => {
     if (val === undefined || val === '') continue;
 
     let targetCol = aliasMap[rawKey] || camelToSnake(rawKey);
-
+    let camelCol = snakeToCamel(rawKey);
     const finalVal = (typeof val === 'object' && val !== null) ? JSON.stringify(val) : val;
 
-    if (validColumns.length === 0 || validColumns.includes(targetCol)) {
+    if (validColumns.length === 0) {
       sanitized[targetCol] = finalVal;
-    } else if (validColumns.includes(rawKey)) {
-      sanitized[rawKey] = finalVal;
+    } else {
+      let matched = false;
+      if (validColumns.includes(targetCol)) {
+        sanitized[targetCol] = finalVal;
+        matched = true;
+      }
+      if (validColumns.includes(rawKey)) {
+        sanitized[rawKey] = finalVal;
+        matched = true;
+      }
+      if (validColumns.includes(camelCol)) {
+        sanitized[camelCol] = finalVal;
+        matched = true;
+      }
+      if (!matched) {
+        const found = validColumns.find(c => c.toLowerCase() === targetCol.toLowerCase() || c.toLowerCase() === rawKey.toLowerCase());
+        if (found) {
+          sanitized[found] = finalVal;
+        }
+      }
+    }
+  }
+
+  // Explicit Company Table Bidirectional Synchronization
+  if (tableName === 'company') {
+    const compPairs = [
+      ['companyName', 'company_name'],
+      ['companyCode', 'company_code'],
+      ['shortName', 'short_name'],
+      ['regNumber', 'reg_number'],
+      ['cinNumber', 'cin_number'],
+      ['panNumber', 'pan_number'],
+      ['tanNumber', 'tan_number'],
+      ['gstNumber', 'gst_number'],
+      ['pfNumber', 'pf_number'],
+      ['esiNumber', 'esi_number'],
+      ['financialYear', 'financial_year']
+    ];
+
+    compPairs.forEach(([camel, snake]) => {
+      const val = sanitized[camel] !== undefined ? sanitized[camel] : sanitized[snake];
+      if (val !== undefined) {
+        if (validColumns.includes(camel)) sanitized[camel] = val;
+        if (validColumns.includes(snake)) sanitized[snake] = val;
+      }
+    });
+
+    // Auto-generate unique companyCode if missing
+    if (!sanitized.companyCode && !sanitized.company_code) {
+      const baseName = sanitized.companyName || sanitized.company_name || 'COMP';
+      const genCode = String(baseName).trim().toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 6) || 'COMP';
+      const uniqueCode = `${genCode}${String(Date.now()).slice(-3)}`;
+      if (validColumns.includes('companyCode')) sanitized.companyCode = uniqueCode;
+      if (validColumns.includes('company_code')) sanitized.company_code = uniqueCode;
+    }
+
+    if (validColumns.includes('status') && !sanitized.status) {
+      sanitized.status = 'Active';
     }
   }
 
   // Format date fields to YYYY-MM-DD
   dateColumns.forEach(dateCol => {
-    if (sanitized[dateCol]) {
+    if (sanitized[dateCol] !== undefined && sanitized[dateCol] !== null && sanitized[dateCol] !== '') {
       const formatted = parseToMysqlDate(sanitized[dateCol]);
-      if (formatted) sanitized[dateCol] = formatted;
+      if (formatted) {
+        sanitized[dateCol] = formatted;
+      } else {
+        if (dateCol.toLowerCase().includes('created') || dateCol.toLowerCase().includes('updated')) {
+          sanitized[dateCol] = new Date().toISOString().split('T')[0];
+        } else {
+          sanitized[dateCol] = null;
+        }
+      }
     }
   });
 
@@ -2094,43 +2289,125 @@ const sanitizeDataForTable = async (tenantDb, tableName, inputData) => {
   return sanitized;
 };
 
-// Helper to check duplicate emails in table or globally
-const checkDuplicateEmailInTable = async (req, tableName, inputData, currentId = null) => {
+// Helper to check duplicate records (email or employee code) in table or globally
+const checkDuplicateRecordInTable = async (req, tableName, inputData, currentId = null) => {
   const tenantDb = req.tenantDb;
-  const emailVal = [inputData.company_email, inputData.companyEmail, inputData.personal_email, inputData.personalEmail, inputData.email, inputData.hr_email, inputData.hrEmail]
-    .find(e => e && String(e).trim() !== '');
-  if (!emailVal) return;
+  if (!tenantDb) return;
 
-  const cleanEmail = String(emailVal).trim().toLowerCase();
-
-  const reqUserEmail = req.user && req.user.email ? req.user.email.toLowerCase() : null;
-  console.log('checkDuplicateEmailInTable Debug:', { cleanEmail, reqUserEmail, currentId, tableName });
-
-  // Check active table columns in MySQL for email uniqueness within this table
   try {
     const [colResults] = await tenantDb.query(`SHOW COLUMNS FROM \`${tableName}\``);
     const cols = colResults.map(c => c.Field);
-    const emailCols = ['company_email', 'personal_email', 'email', 'hr_email'].filter(c => cols.includes(c));
 
-    if (emailCols.length > 0) {
-      const whereConditions = emailCols.map(c => `LOWER(\`${c}\`) = :email`).join(' OR ');
-      let query = `SELECT id FROM \`${tableName}\` WHERE (${whereConditions})`;
-      const replacements = { email: cleanEmail };
+    // 1. Check Duplicate Email
+    const emailVals = [
+      inputData.officialEmail, inputData.official_email,
+      inputData.company_email, inputData.companyEmail,
+      inputData.personal_email, inputData.personalEmail,
+      inputData.email, inputData.hr_email, inputData.hrEmail
+    ].map(e => String(e || '').trim().toLowerCase()).filter(Boolean);
 
-      if (currentId) {
-        query += ` AND \`id\` != :currentId`;
-        replacements.currentId = currentId;
+    const uniqueEmails = [...new Set(emailVals)];
+    if (uniqueEmails.length > 0) {
+      const emailCols = ['officialEmail', 'official_email', 'company_email', 'companyEmail', 'personal_email', 'personalEmail', 'email', 'hr_email', 'hrEmail']
+        .filter(c => cols.includes(c));
+
+      if (emailCols.length > 0) {
+        const conditions = [];
+        const replacements = {};
+        uniqueEmails.forEach((em, idx) => {
+          const colChecks = emailCols.map(c => `LOWER(\`${c}\`) = :em_${idx}`).join(' OR ');
+          conditions.push(`(${colChecks})`);
+          replacements[`em_${idx}`] = em;
+        });
+
+        let query = `SELECT id, employee_name, employeeName, firstName, lastName, email, officialEmail FROM \`${tableName}\` WHERE (${conditions.join(' OR ')})`;
+        if (currentId) {
+          query += ` AND \`id\` != :currentId`;
+          replacements.currentId = currentId;
+        }
+        query += ` LIMIT 1`;
+
+        const [dupEmailRows] = await tenantDb.query(query, { replacements });
+        if (dupEmailRows && dupEmailRows.length > 0) {
+          const existing = dupEmailRows[0];
+          const name = existing.employee_name || existing.employeeName || `${existing.firstName || ''} ${existing.lastName || ''}`.trim() || 'Existing Employee';
+          throw new ApiError(400, `Record already exists! An employee with email '${uniqueEmails[0]}' is already registered in the database (${name}, ID: #${existing.id.slice(0, 8)}). Duplicate entry not allowed.`);
+        }
       }
-      query += ` LIMIT 1`;
+    }
 
-      const [dupRows] = await tenantDb.query(query, { replacements });
-      if (dupRows && dupRows.length > 0) {
-        throw new ApiError(400, 'Email already exists. Please use a unique email address.');
+    // 2. Check Duplicate Employee Code (for employees / employee_profile)
+    if (tableName === 'employees' || tableName === 'employee_profile') {
+      const codeVals = [
+        inputData.employeeCode, inputData.employee_code,
+        inputData.emp_code, inputData.empCode, inputData.code
+      ].map(c => String(c || '').trim()).filter(Boolean);
+
+      const uniqueCodes = [...new Set(codeVals)];
+      if (uniqueCodes.length > 0) {
+        const codeCols = ['employeeCode', 'emp_code', 'employee_code', 'code'].filter(c => cols.includes(c));
+        if (codeCols.length > 0) {
+          const conditions = [];
+          const replacements = {};
+          uniqueCodes.forEach((cd, idx) => {
+            const colChecks = codeCols.map(c => `LOWER(\`${c}\`) = :cd_${idx}`).join(' OR ');
+            conditions.push(`(${colChecks})`);
+            replacements[`cd_${idx}`] = cd.toLowerCase();
+          });
+
+          let query = `SELECT id, employee_name, employeeName, firstName, lastName, employeeCode, emp_code FROM \`${tableName}\` WHERE (${conditions.join(' OR ')})`;
+          if (currentId) {
+            query += ` AND \`id\` != :currentId`;
+            replacements.currentId = currentId;
+          }
+          query += ` LIMIT 1`;
+
+          const [dupCodeRows] = await tenantDb.query(query, { replacements });
+          if (dupCodeRows && dupCodeRows.length > 0) {
+            const existing = dupCodeRows[0];
+            const name = existing.employee_name || existing.employeeName || `${existing.firstName || ''} ${existing.lastName || ''}`.trim() || 'Existing Employee';
+            throw new ApiError(400, `Record already exists! An employee with Employee Code '${uniqueCodes[0]}' is already registered in the database (${name}, ID: #${existing.id.slice(0, 8)}). Duplicate entry not allowed.`);
+          }
+        }
       }
     }
   } catch (e) {
     if (e instanceof ApiError) throw e;
   }
+};
+
+const checkDuplicateEmailInTable = checkDuplicateRecordInTable;
+
+// Helper to format duplicate entry error messages appropriately for any table
+const formatDuplicateEntryError = (err, tableName) => {
+  const msg = err.message || '';
+  const lowerMsg = msg.toLowerCase();
+  if (lowerMsg.includes('emp_code') || lowerMsg.includes('employeecode')) {
+    return new ApiError(400, 'Employee Code already exists. Please use a unique Employee Code.');
+  }
+  if (lowerMsg.includes('branch_code') || lowerMsg.includes('branchcode')) {
+    return new ApiError(400, 'Branch Code already exists. Please use a unique Branch Code.');
+  }
+  if (lowerMsg.includes('dept_code') || lowerMsg.includes('deptcode') || lowerMsg.includes('department_code')) {
+    return new ApiError(400, 'Department Code already exists. Please use a unique Department Code.');
+  }
+  if (lowerMsg.includes('desig_code') || lowerMsg.includes('desigcode') || lowerMsg.includes('designation_code')) {
+    return new ApiError(400, 'Designation Code already exists. Please use a unique Designation Code.');
+  }
+  if (lowerMsg.includes('company_code') || lowerMsg.includes('companycode')) {
+    return new ApiError(400, 'Company Code already exists. Please use a unique Company Code.');
+  }
+  if (lowerMsg.includes('email') || lowerMsg.includes('company_email') || lowerMsg.includes('personal_email')) {
+    return new ApiError(400, 'Email already exists. Please use a unique email address.');
+  }
+  const dupMatch = msg.match(/Duplicate entry '([^']+)' for key '([^']+)'/i);
+  if (dupMatch) {
+    const val = dupMatch[1];
+    const keyParts = dupMatch[2].split('.');
+    const keyName = (keyParts.length > 1 ? keyParts[1] : keyParts[0]).replace(/_/g, ' ');
+    return new ApiError(400, `A record with this ${keyName} ('${val}') already exists. Please use a unique value.`);
+  }
+  return new ApiError(400, `Duplicate entry: A record with this value already exists in ${tableName}.`);
 };
 
 // POST: Insert a row into a table
@@ -2139,15 +2416,22 @@ const createTableRecord = asyncHandler(async (req, res) => {
   const rawData = req.body;
 
   const userRole = typeof req.user.role === 'object' ? req.user.role?.name : req.user.role;
-  if ((tableName === 'employees' || tableName === 'employee_profile') && userRole === 'Employee') {
-    throw new ApiError(403, 'Access denied: Employees cannot register new employee profiles.');
+  const userRoleStr = String(userRole || '').toLowerCase().trim();
+  const isHrOrAdmin = await isHrOrAdminUser(req);
+
+  if ((tableName === 'employees' || tableName === 'employee_profile') && userRoleStr === 'employee' && !isHrOrAdmin) {
+    const rawEmail = String(rawData.email || rawData.company_email || rawData.companyEmail || rawData.personal_email || rawData.personalEmail || '').toLowerCase().trim();
+    const userEmail = String(req.user.email || '').toLowerCase().trim();
+    const isSelfRegistration = rawEmail && rawEmail === userEmail;
+    if (!isSelfRegistration) {
+      throw new ApiError(403, 'Access denied: Employees without HR permissions cannot register new employee profiles.');
+    }
   }
 
   // Recruitment RBAC create validations
-  const userRoleStr = String(userRole || '').toLowerCase().trim();
   const allRecruitmentTables = ['job_requisition', 'candidate_database', 'ats_applicant_tracking', 'job_postings', 'job_posting', 'interviews', 'offer_letters', 'onboarding_tasks', 'joining_records'];
   if (allRecruitmentTables.includes(tableName)) {
-    if (userRoleStr === 'employee') {
+    if (userRoleStr === 'employee' && !isHrOrAdmin) {
       throw new ApiError(403, 'Access denied: Employees cannot create recruitment records.');
     }
     if (userRoleStr === 'manager') {
@@ -2271,26 +2555,40 @@ const createTableRecord = asyncHandler(async (req, res) => {
     }
   }
 
-  // Ensure employees always have a unique email if left empty/omitted
+  // Ensure employees always have a valid email
   if (tableName === 'employees' || tableName === 'employee_profile') {
-    const existingEmail = [rawData.company_email, rawData.companyEmail, rawData.personal_email, rawData.personalEmail, rawData.email, rawData.hr_email, rawData.hrEmail]
-      .find(e => e && String(e).trim() !== '');
-    if (!existingEmail) {
+    const existingEmail = [
+      rawData.officialEmail,
+      rawData.official_email,
+      rawData.company_email,
+      rawData.companyEmail,
+      rawData.personal_email,
+      rawData.personalEmail,
+      rawData.email,
+      rawData.hr_email,
+      rawData.hrEmail
+    ].find(e => e && String(e).trim() !== '');
+
+    if (existingEmail) {
+      rawData.email = rawData.email || existingEmail;
+      rawData.officialEmail = rawData.officialEmail || existingEmail;
+    } else {
       const cleanFirst = (rawData.first_name || rawData.firstName || rawData.employee_name || rawData.name || 'emp').toLowerCase().replace(/[^a-z0-9]/g, '');
       const cleanLast = (rawData.last_name || rawData.lastName || '').toLowerCase().replace(/[^a-z0-9]/g, '');
       const uniqueTag = Date.now().toString().slice(-4) + Math.floor(Math.random() * 1000);
       const generatedEmail = `${cleanFirst}${cleanLast ? '.' + cleanLast : ''}${uniqueTag}@nib.com`;
       rawData.email = generatedEmail;
       rawData.company_email = generatedEmail;
+      rawData.officialEmail = generatedEmail;
     }
   }
 
-  // Check duplicate email from database before insert
-  await checkDuplicateEmailInTable(req, tableName, rawData);
+  // Check duplicate record (email or employee code) from database before insert
+  await checkDuplicateRecordInTable(req, tableName, rawData);
 
   // If creating an employee record, automatically provision a matching User account
   if (tableName === 'employees' || tableName === 'employee_profile') {
-    const userEmail = rawData.company_email || rawData.companyEmail || rawData.personal_email || rawData.personalEmail || rawData.email;
+    const userEmail = rawData.officialEmail || rawData.official_email || rawData.company_email || rawData.companyEmail || rawData.personal_email || rawData.personalEmail || rawData.email;
     if (userEmail) {
       try {
         const rawPassword = rawData.password || rawData.hr_password || rawData.hrPassword || 'securepassword';
@@ -2327,8 +2625,26 @@ const createTableRecord = asyncHandler(async (req, res) => {
   }
 
   const formattedData = await sanitizeDataForTable(req.tenantDb, tableName, rawData);
-  delete formattedData.created_at;
-  delete formattedData.updated_at;
+  
+  // Ensure created_at / updated_at are properly handled if columns exist in MySQL table
+  try {
+    const [cols] = await req.tenantDb.query(`SHOW COLUMNS FROM \`${tableName}\``);
+    const colNames = cols.map(c => c.Field);
+    const nowStr = new Date().toISOString().slice(0, 19).replace('T', ' ');
+    if (colNames.includes('created_at')) {
+      formattedData.created_at = formattedData.created_at || nowStr;
+    } else {
+      delete formattedData.created_at;
+    }
+    if (colNames.includes('updated_at')) {
+      formattedData.updated_at = formattedData.updated_at || nowStr;
+    } else {
+      delete formattedData.updated_at;
+    }
+  } catch (e) {
+    delete formattedData.created_at;
+    delete formattedData.updated_at;
+  }
   delete formattedData.createdAt;
   delete formattedData.updatedAt;
   delete formattedData.deleted_at;
@@ -2388,13 +2704,27 @@ const createTableRecord = asyncHandler(async (req, res) => {
   } catch (insertErr) {
     if (insertErr instanceof ApiError) throw insertErr;
     if (insertErr.code === 'ER_DUP_ENTRY' || insertErr.message.includes('Duplicate entry') || insertErr.name === 'SequelizeUniqueConstraintError') {
-      const msg = insertErr.message || '';
-      if (msg.includes('emp_code') || msg.includes('employee_code')) {
-        throw new ApiError(400, 'Employee Code already exists. Please use a unique Employee Code.');
-      }
-      throw new ApiError(400, 'Email already exists. Please use a unique email address.');
+      throw formatDuplicateEntryError(insertErr, tableName);
     }
-    if (insertErr.message.includes("Table") && insertErr.message.includes("doesn't exist")) {
+    if (insertErr.message && (insertErr.message.includes("Field '") && insertErr.message.includes("doesn't have a default value") || insertErr.code === 'ER_NO_DEFAULT_FOR_FIELD')) {
+      const match = insertErr.message.match(/Field '([^']+)' doesn't have a default value/);
+      if (match && match[1]) {
+        const missingField = match[1];
+        console.warn(`[Auto-Fix Default Value] Modifying column ${tableName}.${missingField} to allow default value...`);
+        if (missingField.includes('created') || missingField.includes('updated')) {
+          await req.tenantDb.query(`ALTER TABLE \`${tableName}\` MODIFY COLUMN \`${missingField}\` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP`).catch(() => {});
+        } else {
+          await req.tenantDb.query(`ALTER TABLE \`${tableName}\` MODIFY COLUMN \`${missingField}\` VARCHAR(255) NULL DEFAULT ''`).catch(() => {});
+        }
+        // Retry insertion
+        await req.tenantDb.query(
+          `INSERT INTO \`${tableName}\` (${columns}) VALUES (${placeholders})`,
+          { replacements: formattedData }
+        );
+      } else {
+        throw insertErr;
+      }
+    } else if (insertErr.message.includes("Table") && insertErr.message.includes("doesn't exist")) {
       console.warn(`[Self-Healing Table Provisioner] Table '${tableName}' missing in MySQL. Auto-provisioning DDL...`);
 
       const colDefinitions = keys.map(key => {
@@ -2453,6 +2783,52 @@ const createTableRecord = asyncHandler(async (req, res) => {
     }
   }
 
+  if (tableName === 'company') {
+    if (!formattedData.id) {
+      try {
+        const [lastIdRows] = await req.tenantDb.query("SELECT LAST_INSERT_ID() as id");
+        if (lastIdRows && lastIdRows[0] && lastIdRows[0].id) {
+          formattedData.id = lastIdRows[0].id;
+        }
+      } catch (e) {}
+    }
+    // Sync to Master DB company registry
+    try {
+      const { masterSequelize } = require('../../config/database');
+      const compCode = formattedData.companyCode || formattedData.company_code;
+      const compName = formattedData.companyName || formattedData.company_name;
+      if (compCode && compName) {
+        await masterSequelize.query(`
+          INSERT INTO company (companyCode, companyName, email, phone, gstNumber, panNumber, state, city, pincode, status)
+          VALUES (:companyCode, :companyName, :email, :phone, :gstNumber, :panNumber, :state, :city, :pincode, :status)
+          ON DUPLICATE KEY UPDATE
+            companyName = VALUES(companyName),
+            email = VALUES(email),
+            phone = VALUES(phone),
+            gstNumber = VALUES(gstNumber),
+            panNumber = VALUES(panNumber),
+            state = VALUES(state),
+            city = VALUES(city),
+            pincode = VALUES(pincode),
+            status = VALUES(status)
+        `, {
+          replacements: {
+            companyCode: compCode,
+            companyName: compName,
+            email: formattedData.email || '',
+            phone: formattedData.phone || '',
+            gstNumber: formattedData.gstNumber || formattedData.gst_number || '',
+            panNumber: formattedData.panNumber || formattedData.pan_number || '',
+            state: formattedData.state || '',
+            city: formattedData.city || '',
+            pincode: formattedData.pincode || '',
+            status: formattedData.status || 'Active'
+          }
+        }).catch(e => console.warn('[Master Company Sync Notice]', e.message));
+      }
+    } catch (e) {}
+  }
+
   res.status(201).json(new ApiResponse(201, formattedData, `Successfully created record in table: ${tableName}`));
 });
 
@@ -2466,9 +2842,10 @@ const updateTableRecord = asyncHandler(async (req, res) => {
 
   // Recruitment RBAC update validations
   const userRoleStr = String(userRole || '').toLowerCase().trim();
+  const isHrOrAdmin = await isHrOrAdminUser(req);
   const allRecruitmentTables = ['job_requisition', 'candidate_database', 'ats_applicant_tracking', 'job_postings', 'job_posting', 'interviews', 'offer_letters', 'onboarding_tasks', 'joining_records'];
   if (allRecruitmentTables.includes(tableName)) {
-    if (userRoleStr === 'employee') {
+    if (userRoleStr === 'employee' && !isHrOrAdmin) {
       if (tableName === 'onboarding_tasks') {
         const [existingTask] = await req.tenantDb.query(
           `SELECT candidate_email FROM onboarding_tasks WHERE id = ? LIMIT 1`,
@@ -2582,7 +2959,8 @@ const updateTableRecord = asyncHandler(async (req, res) => {
     if (existingEmp) {
       const isSelf = (existingEmp.user_id === req.user.id) || 
                      (existingEmp.email && existingEmp.email.toLowerCase() === req.user.email.toLowerCase());
-      if (userRole === 'Employee' && !isSelf) {
+      const isHrOrAdmin = await isHrOrAdminUser(req);
+      if (userRole === 'Employee' && !isSelf && !isHrOrAdmin) {
         throw new ApiError(403, 'Access denied: Employees cannot modify other employees\' profiles.');
       }
 
@@ -2727,8 +3105,8 @@ const updateTableRecord = asyncHandler(async (req, res) => {
     }
   }
 
-  // Check duplicate email from database before update
-  await checkDuplicateEmailInTable(req, tableName, rawData, id);
+  // Check duplicate record (email or employee code) from database before update
+  await checkDuplicateRecordInTable(req, tableName, rawData, id);
 
   const formattedData = await sanitizeDataForTable(req.tenantDb, tableName, rawData);
   delete formattedData.id;
@@ -2832,11 +3210,7 @@ const updateTableRecord = asyncHandler(async (req, res) => {
   } catch (updateErr) {
     if (updateErr instanceof ApiError) throw updateErr;
     if (updateErr.code === 'ER_DUP_ENTRY' || updateErr.message.includes('Duplicate entry') || updateErr.name === 'SequelizeUniqueConstraintError') {
-      const msg = updateErr.message || '';
-      if (msg.includes('emp_code') || msg.includes('employee_code')) {
-        throw new ApiError(400, 'Employee Code already exists. Please use a unique Employee Code.');
-      }
-      throw new ApiError(400, 'Email already exists. Please use a unique email address.');
+      throw formatDuplicateEntryError(updateErr, tableName);
     }
     throw updateErr;
   }
@@ -2880,6 +3254,50 @@ const updateTableRecord = asyncHandler(async (req, res) => {
     }
   }
 
+  if (tableName === 'company') {
+    try {
+      const { masterSequelize } = require('../../config/database');
+      const compCode = formattedData.companyCode || formattedData.company_code;
+      const compName = formattedData.companyName || formattedData.company_name;
+      if (compCode || compName) {
+        await masterSequelize.query(`
+          UPDATE company SET
+            companyName = COALESCE(:companyName, companyName),
+            email = COALESCE(:email, email),
+            phone = COALESCE(:phone, phone),
+            gstNumber = COALESCE(:gstNumber, gstNumber),
+            panNumber = COALESCE(:panNumber, panNumber),
+            state = COALESCE(:state, state),
+            city = COALESCE(:city, city),
+            pincode = COALESCE(:pincode, pincode),
+            status = COALESCE(:status, status)
+          WHERE companyCode = :compCode OR companyName = :compName
+        `, {
+          replacements: {
+            compCode: compCode || '',
+            compName: compName || '',
+            companyName: compName || null,
+            email: formattedData.email || null,
+            phone: formattedData.phone || null,
+            gstNumber: formattedData.gstNumber || formattedData.gst_number || null,
+            panNumber: formattedData.panNumber || formattedData.pan_number || null,
+            state: formattedData.state || null,
+            city: formattedData.city || null,
+            pincode: formattedData.pincode || null,
+            status: formattedData.status || null
+          }
+        }).catch(e => console.warn('[Master Company Update Notice]', e.message));
+
+        if (compName) {
+          await masterSequelize.query(
+            "UPDATE tenants SET company_name = ? WHERE db_name = ? OR id = ?",
+            { replacements: [compName, req.companyCode?.toLowerCase() || '', req.companyCode || ''] }
+          ).catch(() => {});
+        }
+      }
+    } catch (e) {}
+  }
+
   res.status(200).json(new ApiResponse(200, { id, ...formattedData }, `Successfully updated record in table: ${tableName}`));
 });
 
@@ -2889,15 +3307,17 @@ const deleteTableRecord = asyncHandler(async (req, res) => {
   const { id } = req.params;
 
   const userRole = typeof req.user.role === 'object' ? req.user.role?.name : req.user.role;
-  if ((tableName === 'employees' || tableName === 'employee_profile') && userRole === 'Employee') {
+  const userRoleStr = String(userRole || '').toLowerCase().trim();
+  const isHrOrAdmin = await isHrOrAdminUser(req);
+
+  if ((tableName === 'employees' || tableName === 'employee_profile') && userRoleStr === 'employee' && !isHrOrAdmin) {
     throw new ApiError(403, 'Access denied: Employees cannot delete employee records.');
   }
 
   // Recruitment RBAC delete validations
-  const userRoleStr = String(userRole || '').toLowerCase().trim();
   const allRecruitmentTables = ['job_requisition', 'candidate_database', 'ats_applicant_tracking', 'job_postings', 'job_posting', 'interviews', 'offer_letters', 'onboarding_tasks', 'joining_records'];
   if (allRecruitmentTables.includes(tableName)) {
-    if (userRoleStr === 'employee') {
+    if (userRoleStr === 'employee' && !isHrOrAdmin) {
       throw new ApiError(403, 'Access denied: Employees cannot delete recruitment records.');
     }
     if (userRoleStr === 'manager') {
@@ -2927,14 +3347,18 @@ const deleteTableRecord = asyncHandler(async (req, res) => {
   }
 
   let deptName = null;
-  if (tableName === 'department') {
-    const [deptRows] = await req.tenantDb.query(
-      "SELECT deptName, dept_name, name FROM `department` WHERE `id` = ? LIMIT 1",
-      { replacements: [id] }
-    );
-    if (deptRows && deptRows.length > 0) {
-      deptName = deptRows[0].deptName || deptRows[0].dept_name || deptRows[0].name;
-    }
+  let deptHrEmail = null;
+  if (tableName === 'department' || tableName === 'departments') {
+    try {
+      const [deptRows] = await req.tenantDb.query(
+        `SELECT * FROM \`${tableName}\` WHERE \`id\` = ? LIMIT 1`,
+        { replacements: [id] }
+      );
+      if (deptRows && deptRows.length > 0) {
+        deptName = deptRows[0].deptName || deptRows[0].dept_name || deptRows[0].name;
+        deptHrEmail = deptRows[0].hr_email || deptRows[0].hrEmail;
+      }
+    } catch (dErr) {}
   }
 
   // Execute direct SQL DELETE to permanently remove record from MySQL database
@@ -2943,33 +3367,56 @@ const deleteTableRecord = asyncHandler(async (req, res) => {
     { replacements: [id] }
   );
 
-  if (tableName === 'department' && deptName) {
-    try {
-      let companyName = req.user?.companyName;
-      const tenantId = req.headers['x-company-code'] || req.user?.companyCode;
-      
-      if (!companyName && tenantId && String(tenantId).toUpperCase() !== 'NIB') {
-        const { masterSequelize } = require('../../config/database');
-        const tenantRows = await masterSequelize.query(
-          "SELECT company_name FROM tenants WHERE id = ? OR db_name = ? LIMIT 1",
-          { 
-            replacements: [tenantId, `nib_hr_${String(tenantId).toLowerCase()}`], 
-            type: QueryTypes.SELECT 
+  // If department or departments, ensure full cross-table and master DB synchronization
+  if (tableName === 'department' || tableName === 'departments') {
+    const { masterSequelize } = require('../../config/database');
+    const altTable = tableName === 'department' ? 'departments' : 'department';
+    await req.tenantDb.query(`DELETE FROM \`${altTable}\` WHERE \`id\` = ?`, { replacements: [id] }).catch(() => {});
+
+    if (masterSequelize) {
+      await masterSequelize.query(`DELETE FROM departments WHERE id = ?`, { replacements: [id] }).catch(() => {});
+      await masterSequelize.query(`DELETE FROM department WHERE id = ?`, { replacements: [id] }).catch(() => {});
+    }
+
+    if (deptHrEmail) {
+      const cleanEmail = String(deptHrEmail).trim().toLowerCase();
+      await req.tenantDb.query(`DELETE FROM departments WHERE LOWER(hr_email) = ?`, { replacements: [cleanEmail] }).catch(() => {});
+      await req.tenantDb.query(`DELETE FROM department WHERE LOWER(hr_email) = ?`, { replacements: [cleanEmail] }).catch(() => {});
+      await req.tenantDb.query(`DELETE FROM users WHERE LOWER(email) = ?`, { replacements: [cleanEmail] }).catch(() => {});
+      if (masterSequelize) {
+        await masterSequelize.query(`DELETE FROM departments WHERE LOWER(hr_email) = ?`, { replacements: [cleanEmail] }).catch(() => {});
+        await masterSequelize.query(`DELETE FROM department WHERE LOWER(hr_email) = ?`, { replacements: [cleanEmail] }).catch(() => {});
+        await masterSequelize.query(`DELETE FROM users WHERE LOWER(email) = ?`, { replacements: [cleanEmail] }).catch(() => {});
+      }
+    }
+
+    if (deptName) {
+      try {
+        let companyName = req.user?.companyName;
+        const tenantId = req.headers['x-company-code'] || req.user?.companyCode;
+        
+        if (!companyName && tenantId && String(tenantId).toUpperCase() !== 'NIB') {
+          const tenantRows = await masterSequelize.query(
+            "SELECT company_name FROM tenants WHERE id = ? OR db_name = ? LIMIT 1",
+            { 
+              replacements: [tenantId, `nib_hr_${String(tenantId).toLowerCase()}`], 
+              type: QueryTypes.SELECT 
+            }
+          );
+          if (tenantRows && tenantRows.length > 0) {
+            companyName = tenantRows[0].company_name;
           }
-        );
-        if (tenantRows && tenantRows.length > 0) {
-          companyName = tenantRows[0].company_name;
         }
-      }
 
-      if (!companyName) {
-        companyName = 'NIB';
-      }
+        if (!companyName) {
+          companyName = 'NIB';
+        }
 
-      const { deleteDepartmentFolder } = require('../../utils/companyFolderScaffolder');
-      deleteDepartmentFolder(companyName, deptName);
-    } catch (delErr) {
-      console.warn('[Table Delete Department Folder Notice]', delErr.message);
+        const { deleteDepartmentFolder } = require('../../utils/companyFolderScaffolder');
+        deleteDepartmentFolder(companyName, deptName);
+      } catch (delErr) {
+        console.warn('[Table Delete Department Folder Notice]', delErr.message);
+      }
     }
   }
 

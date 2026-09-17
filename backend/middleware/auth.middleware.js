@@ -34,7 +34,7 @@ const verifyJWT = asyncHandler(async (req, res, next) => {
                 e.id as emp_id, e.firstName, e.lastName, e.department, e.department_id 
          FROM users u 
          LEFT JOIN roles r ON u.role_id = r.id 
-         LEFT JOIN employees e ON u.id = e.user_id 
+         LEFT JOIN employees e ON (u.id = e.user_id OR LOWER(u.email) = LOWER(e.email)) 
          WHERE u.id = ? OR u.email = ? LIMIT 1`,
         { replacements: [decoded.id || '', decoded.email || ''], type: QueryTypes.SELECT }
       );
@@ -48,13 +48,16 @@ const verifyJWT = asyncHandler(async (req, res, next) => {
         req.user = {
           id: user.id,
           email: user.email,
+          department: user.department || '',
+          departmentName: user.department || '',
+          departmentId: user.department_id || '',
           role: {
             id: user.role_id,
             name: user.role_name || 'Admin',
             roleName: user.role_name || 'Admin'
           },
-          employee: user.emp_id ? {
-            id: user.emp_id,
+          employee: (user.emp_id || user.department) ? {
+            id: user.emp_id || user.id,
             first_name: user.firstName || user.first_name || '',
             last_name: user.lastName || user.last_name || '',
             department: user.department || '',

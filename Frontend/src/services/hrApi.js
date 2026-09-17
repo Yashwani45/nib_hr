@@ -27,6 +27,11 @@ export const apiFetch = async (path, options = {}) => {
     }
   } catch (e) {}
 
+  const selectedCode = localStorage.getItem("selected_company_code");
+  if (selectedCode) {
+    companyCode = selectedCode;
+  }
+
   const headers = {
     "X-Company-Code": companyCode,
     ...(options.headers || {}),
