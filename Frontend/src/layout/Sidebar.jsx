@@ -234,8 +234,7 @@ const Sidebar = ({ isOpen, setIsOpen, isPinned, setIsPinned }) => {
             { name: "My Documents", tab: "Documents", path: "/employee/dashboard?category=EMPLOYEE_MGMT&tab=Documents" },
             { name: "My Assets", tab: "Assets", path: "/employee/dashboard?category=EMPLOYEE_MGMT&tab=Assets" },
             { name: "Bank Details", tab: "Bank Details", path: "/employee/dashboard?category=EMPLOYEE_MGMT&tab=Bank%20Details" },
-            { name: "Salary Details", tab: "Salary Details", path: "/employee/dashboard?category=EMPLOYEE_MGMT&tab=Salary%20Details" },
-            { name: "Reporting Manager", tab: "Reporting Manager", path: "/employee/dashboard?category=EMPLOYEE_MGMT&tab=Reporting%20Manager" }
+            { name: "Salary Details", tab: "Salary Details", path: "/employee/dashboard?category=EMPLOYEE_MGMT&tab=Salary%20Details" }
           ]
         },
         {
@@ -243,22 +242,7 @@ const Sidebar = ({ isOpen, setIsOpen, isPinned, setIsPinned }) => {
           categoryKey: "EMP_ATTENDANCE",
           icon: ClockIcon,
           children: [
-            { name: "Today's Attendance", tab: "Today's Attendance", path: "/employee/dashboard?category=EMP_ATTENDANCE&tab=Today%27s%20Attendance" },
-            { name: "Attendance Calendar", tab: "Attendance Calendar", path: "/employee/dashboard?category=EMP_ATTENDANCE&tab=Attendance%20Calendar" },
-            { name: "Attendance History", tab: "Attendance History", path: "/employee/dashboard?category=EMP_ATTENDANCE&tab=Attendance%20History" },
-            { name: "Monthly Attendance", tab: "Monthly Attendance", path: "/employee/dashboard?category=EMP_ATTENDANCE&tab=Monthly%20Attendance" },
-            { name: "Regularization", tab: "Attendance Regularization", path: "/employee/dashboard?category=EMP_ATTENDANCE&tab=Attendance%20Regularization" },
-            { name: "Shift Details", tab: "Shift Details", path: "/employee/dashboard?category=EMP_ATTENDANCE&tab=Shift%20Details" }
-          ]
-        },
-        {
-          name: "Leave Management",
-          categoryKey: "EMP_LEAVE",
-          icon: CalendarDaysIcon,
-          children: [
-            { name: "Apply Leave", tab: "Apply Leave", path: "/employee/dashboard?category=EMP_LEAVE&tab=Apply%20Leave" },
-            { name: "My Leaves", tab: "My Leaves", path: "/employee/dashboard?category=EMP_LEAVE&tab=My%20Leaves" },
-            { name: "Holiday Calendar", tab: "Holiday Calendar", path: "/employee/dashboard?category=EMP_LEAVE&tab=Holiday%20Calendar" }
+            { name: "Monthly Attendance", tab: "Monthly Attendance", path: "/employee/dashboard?category=EMP_ATTENDANCE&tab=Monthly%20Attendance" }
           ]
         },
         {
@@ -267,22 +251,6 @@ const Sidebar = ({ isOpen, setIsOpen, isPinned, setIsPinned }) => {
           icon: BanknotesIcon,
           children: [
             { name: "My Payslips", tab: "Salary Details", path: "/employee/dashboard?category=EMPLOYEE_MGMT&tab=Salary%20Details" }
-          ]
-        },
-        {
-          name: "Helpdesk",
-          categoryKey: "EMP_HELPDESK",
-          icon: ChatBubbleLeftRightIcon,
-          children: [
-            { name: "Support Tickets", tab: "Support Tickets", path: "/employee/dashboard?category=EMP_HELPDESK&tab=Support%20Tickets" }
-          ]
-        },
-        {
-          name: "Exit Management",
-          categoryKey: "EXIT_MGMT",
-          icon: ArrowRightOnRectangleIcon,
-          children: [
-            { name: "Resignation / Exit", tab: "Exit Workspace", path: "/employee/dashboard?category=EXIT_MGMT&tab=Exit%20Workspace" }
           ]
         }
       ];

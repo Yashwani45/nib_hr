@@ -1,0 +1,36 @@
+# Dependencies
+node_modules/
+*/node_modules/
+
+# Build Outputs
+dist/
+Frontend/dist/
+build/
+
+# Temporary and Debug Directories/Files
+scratch/
+*/scratch/
+powershell.cmd
+*.tmp
+*.temp
+
+# Logs
+*.log
+logs/
+backend/logs/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Environment Variables
+.env
+.env.local
+.env.*.local
+backend/.env
+
+# Editor & OS Files
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+desktop.ini
