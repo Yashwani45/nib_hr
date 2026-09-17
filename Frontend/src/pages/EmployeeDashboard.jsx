@@ -2277,31 +2277,6 @@ const EmployeeDashboard = () => {
 
               {(activeTab === "Employee Profile" || activeTab === "Fill Details" || activeCategory === "EMP_PROFILE") && (
                 <div className="space-y-6 w-full">
-                  {canManageEmployees && (
-                    <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm flex flex-col sm:flex-row justify-between items-center gap-4">
-                      <div className="flex flex-col w-full sm:w-80">
-                        <span className="text-[10px] font-black text-slate-500 uppercase tracking-wider">Select Employee to Manage Profile:</span>
-                        <select
-                          value={selectedEmployeeId || ""}
-                          onChange={(e) => setSelectedEmployeeId(e.target.value)}
-                          className="mt-1 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold text-slate-700 shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                        >
-                          <option value="">-- Choose Employee --</option>
-                          {allEmployeesList.map(emp => (
-                            <option key={emp.id} value={emp.id}>
-                              {emp.employeeName || emp.employee_name || 'Unnamed'} ({emp.email})
-                            </option>
-                          ))}
-                        </select>
-                      </div>
-                      {selectedEmployeeId && (
-                        <div className="text-right text-xs text-slate-400 font-mono font-bold">
-                          Selected ID: #{selectedEmployeeId}
-                        </div>
-                      )}
-                    </div>
-                  )}
-
                   <div className="flex flex-col lg:flex-row gap-6">
                   {/* Left Side: 17 Tabs Sidebar Checklist */}
                   <div className="w-full lg:w-64 bg-slate-50 border border-slate-200 rounded-2xl p-3 space-y-1 shrink-0 max-h-[80vh] overflow-y-auto">
