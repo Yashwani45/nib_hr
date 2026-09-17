@@ -247,7 +247,15 @@ const EmployeeDashboard = () => {
     createdBy: "System Admin"
   });
 
-  const [profileTab, setProfileTab] = useState(searchParams.get("profileTab") || "Basic Information");
+  const [profileTab, setProfileTab] = useState(() => {
+    const p = searchParams.get("profileTab");
+    if (p === "Basic Information" || p === "Official Information") return "Information";
+    return p || "Information";
+  });
+  const [informationSubTab, setInformationSubTab] = useState(() => {
+    const p = searchParams.get("profileTab");
+    return p === "Official Information" ? "Official Information" : "Basic Information";
+  });
   const userRole = typeof user?.role === "object" ? user?.role?.name : user?.role;
   const isAdmin = userRole === "SuperAdmin" || userRole === "Admin" || userRole === "Company Admin";
   const userDeptStr = String(currentUserProfile?.department || user?.departmentName || user?.department || "").toLowerCase();
@@ -271,8 +279,7 @@ const EmployeeDashboard = () => {
   }, [departmentName]);
 
   const profileSectionsList = [
-    "Basic Information",
-    "Official Information",
+    "Information",
     "Contact Information",
     "Education",
     "Experience",
@@ -372,23 +379,28 @@ const EmployeeDashboard = () => {
   }, [currentUserProfile, user]);
 
   const effectiveProfileTab = useMemo(() => {
-    if (activeTab === "Personal Information" || activeTab === "Basic Information") return "Basic Information";
-    if (activeTab === "Official Information" || activeTab === "Organization Details") return "Official Information";
+    if (activeTab === "Personal Information" || activeTab === "Basic Information" || activeTab === "Official Information" || activeTab === "Organization Details" || activeTab === "Information") return "Information";
     if (activeTab === "Contact Details" || activeTab === "Address Details" || activeTab === "Contact Information") return "Contact Information";
     if (activeTab === "Education") return "Education";
     if (activeTab === "Experience") return "Experience";
     if (activeTab === "Documents" || activeTab === "My Documents") return "Documents";
-    return "Basic Information";
+    return "Information";
   }, [activeTab]);
 
   useEffect(() => {
     const urlSubTab = searchParams.get("profileTab");
-    if (urlSubTab && profileSectionsList.includes(urlSubTab)) {
+    if (urlSubTab === "Basic Information") {
+      setProfileTab("Information");
+      setInformationSubTab("Basic Information");
+    } else if (urlSubTab === "Official Information") {
+      setProfileTab("Information");
+      setInformationSubTab("Official Information");
+    } else if (urlSubTab && profileSectionsList.includes(urlSubTab)) {
       setProfileTab(urlSubTab);
     } else if (effectiveProfileTab && profileSectionsList.includes(effectiveProfileTab) && effectiveProfileTab !== "Dashboard Home" && effectiveProfileTab !== "Employee Profile") {
       setProfileTab(effectiveProfileTab);
     } else if (!profileSectionsList.includes(profileTab)) {
-      setProfileTab("Basic Information");
+      setProfileTab("Information");
     }
   }, [searchParams, effectiveProfileTab, profileSectionsList, profileTab]);
 
@@ -2318,8 +2330,37 @@ const EmployeeDashboard = () => {
                       }
                     `}</style>
                     <div className="space-y-6">
-                      {profileTab === "Basic Information" && (
-                        <div className="space-y-4">
+                      {(profileTab === "Information" || profileTab === "Basic Information" || profileTab === "Official Information") && (
+                        <div className="space-y-6">
+                          {/* Two Buttons inside Information: Basic Information & Official Information */}
+                          <div className="flex flex-wrap items-center gap-2 p-1.5 bg-slate-100 rounded-2xl border border-slate-200/80 w-fit">
+                            <button
+                              type="button"
+                              onClick={() => setInformationSubTab("Basic Information")}
+                              className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all shadow-xs ${
+                                informationSubTab === "Basic Information"
+                                  ? "bg-indigo-600 text-white shadow-md shadow-indigo-600/20"
+                                  : "text-slate-600 hover:text-slate-900 hover:bg-white/70"
+                              }`}
+                            >
+                              <span>👤</span> Basic Information
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setInformationSubTab("Official Information")}
+                              className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all shadow-xs ${
+                                informationSubTab === "Official Information"
+                                  ? "bg-indigo-600 text-white shadow-md shadow-indigo-600/20"
+                                  : "text-slate-600 hover:text-slate-900 hover:bg-white/70"
+                              }`}
+                            >
+                              <span>🏢</span> Official Information
+                            </button>
+                          </div>
+
+                          {/* Sub-view 1: Basic Information */}
+                          {informationSubTab === "Basic Information" && (
+                            <div className="space-y-4 animate-fadeIn">
                           <div className="flex flex-wrap items-center justify-between gap-2 pb-2 border-b border-slate-200">
                             <h4 className="text-xs font-black uppercase text-indigo-950 tracking-wider flex items-center gap-2">
                               <span>👤</span> Basic Information
@@ -2476,10 +2517,11 @@ const EmployeeDashboard = () => {
                             </div>
                           </div>
                         </div>
-                      )}
+                          )}
 
-                      {profileTab === "Official Information" && (
-                        <div className="space-y-4">
+                          {/* Sub-view 2: Official Information */}
+                          {informationSubTab === "Official Information" && (
+                            <div className="space-y-4 animate-fadeIn">
                           <div className="flex flex-wrap items-center justify-between gap-2 pb-2 border-b border-slate-200">
                             <h4 className="text-xs font-black uppercase text-indigo-950 tracking-wider flex items-center gap-2">
                               <span>🏢</span> Official Information
@@ -2578,6 +2620,8 @@ const EmployeeDashboard = () => {
                               />
                             </div>
                           </div>
+                        </div>
+                          )}
                         </div>
                       )}
 
@@ -2845,8 +2889,9 @@ const EmployeeDashboard = () => {
                           onClick={() => {
                             setIsNewRegistration(true);
                             setEmployeeForm(getEmptyEmployeeForm());
-                            setProfileTab("Basic Information");
-                            alert("Form reset! Sabhi fields khali ho gayi hain. Kripya '1. Basic Information' se shuru karein.");
+                            setProfileTab("Information");
+                            setInformationSubTab("Basic Information");
+                            alert("Form reset! Sabhi fields khali ho gayi hain. Kripya '1. Information' se shuru karein.");
                           }}
                           className="px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-xl transition"
                         >
