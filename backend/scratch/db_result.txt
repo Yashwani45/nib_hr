@@ -1,1 +1,22 @@
-[]
+[
+  {
+    "id": "join-1",
+    "candidateName": null,
+    "candidate_name": "David Miller",
+    "candidateEmail": null,
+    "candidate_email": "david.miller@outlook.com",
+    "jobTitle": null,
+    "job_title": "Node.js Backend Architect",
+    "joiningDate": null,
+    "joining_date": "2026-08-20",
+    "status": "Verified",
+    "employeeCode": null,
+    "employee_code": "EMP-908712",
+    "createdAt": "2026-08-07T17:58:52.000Z",
+    "created_at": "2026-08-07T17:58:52.000Z",
+    "updatedAt": "2026-08-07T17:58:52.000Z",
+    "updated_at": "2026-08-07T17:58:52.000Z",
+    "deletedAt": null,
+    "deleted_at": null
+  }
+]

@@ -183,7 +183,6 @@ const seedTenantDB = async (tenantDb) => {
           id: require('crypto').randomUUID(),
           employeeName: (seed.firstName + ' ' + seed.lastName).trim(),
           email: seed.email,
-          password: 'securepassword',
           department: seed.roleName === 'SuperAdmin' ? 'Administration' : 'IT'
         }).catch(err => {
           logger.warn(`[Seeder Warning] Failed to seed employee profile for '${seed.email}': ` + err.message);

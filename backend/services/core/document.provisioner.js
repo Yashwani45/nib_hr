@@ -60,7 +60,9 @@ async function provisionDocumentTables(tenantDb) {
         \`company_id\` CHAR(36) NULL,
         \`branch_id\` CHAR(36) NULL,
         \`department_id\` CHAR(36) NULL,
+        \`department\` VARCHAR(255) NULL,
         \`employee_id\` VARCHAR(50) NULL,
+        \`employee_name\` VARCHAR(255) NULL,
         \`candidate_id\` VARCHAR(50) NULL,
         \`title\` VARCHAR(200) NOT NULL,
         \`description\` TEXT,
@@ -68,6 +70,7 @@ async function provisionDocumentTables(tenantDb) {
         \`file_name\` VARCHAR(255) NULL,
         \`original_file_name\` VARCHAR(255) NULL,
         \`storage_key\` VARCHAR(500) NULL,
+        \`file_url\` TEXT NULL,
         \`storage_provider\` VARCHAR(50) DEFAULT 'local',
         \`mime_type\` VARCHAR(100) NULL,
         \`file_size\` INT DEFAULT 0,
@@ -90,6 +93,21 @@ async function provisionDocumentTables(tenantDb) {
         FOREIGN KEY (\`document_type_id\`) REFERENCES \`document_types\`(\`id\`)
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
     `);
+
+    // Self-healing columns for documents table
+    try {
+      const docCols = await tenantDb.query("SHOW COLUMNS FROM `documents`", { type: QueryTypes.SELECT });
+      const docColNames = (docCols || []).map(c => c.Field.toLowerCase());
+      if (!docColNames.includes('employee_name')) {
+        await tenantDb.query("ALTER TABLE `documents` ADD COLUMN `employee_name` VARCHAR(255) NULL").catch(() => {});
+      }
+      if (!docColNames.includes('department')) {
+        await tenantDb.query("ALTER TABLE `documents` ADD COLUMN `department` VARCHAR(255) NULL").catch(() => {});
+      }
+      if (!docColNames.includes('file_url')) {
+        await tenantDb.query("ALTER TABLE `documents` ADD COLUMN `file_url` TEXT NULL").catch(() => {});
+      }
+    } catch (dhErr) {}
 
     // 4. Create document_versions
     await tenantDb.query(`
@@ -214,29 +232,40 @@ async function provisionDocumentTables(tenantDb) {
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
     `);
 
-    // Pre-seed some default types if table is empty
-    const [typesCount] = await tenantDb.query('SELECT COUNT(*) as count FROM `document_types`', { type: QueryTypes.SELECT });
-    if (typesCount && typesCount[0].count === 0) {
-      const crypto = require('crypto');
-      const seedTypes = [
-        { code: 'OFFER', name: 'Offer Letter', category: 'Offer Letter', requires_approval: 1, requires_acknowledgement: 1, requires_acceptance: 1, requires_signature: 1 },
-        { code: 'CONTRACT', name: 'Employment Contract', category: 'Contract', requires_approval: 1, requires_acknowledgement: 1, requires_acceptance: 1, requires_signature: 1 },
-        { code: 'POLICY', name: 'Company Policy', category: 'Policy', requires_approval: 0, requires_acknowledgement: 1, requires_acceptance: 0, requires_signature: 0 }
-      ];
+    // Pre-seed default document types if missing
+    const crypto = require('crypto');
+    const seedTypes = [
+      { code: 'OFFER', name: 'Offer Letter', category: 'Offer Letter', requires_approval: 1, requires_acknowledgement: 1, requires_acceptance: 1, requires_signature: 1 },
+      { code: 'CONTRACT', name: 'Employment Contract', category: 'Contract', requires_approval: 1, requires_acknowledgement: 1, requires_acceptance: 1, requires_signature: 1 },
+      { code: 'POLICY', name: 'Company Policy', category: 'Policy', requires_approval: 0, requires_acknowledgement: 1, requires_acceptance: 0, requires_signature: 0 },
+      { code: 'AADHAAR', name: 'Aadhar Card', category: 'Identification', requires_approval: 1, requires_acknowledgement: 0, requires_acceptance: 0, requires_signature: 0 },
+      { code: 'PAN', name: 'PAN Card', category: 'Identification', requires_approval: 1, requires_acknowledgement: 0, requires_acceptance: 0, requires_signature: 0 },
+      { code: '10TH_MARKSHEET', name: '10th Marksheet', category: 'Education', requires_approval: 1, requires_acknowledgement: 0, requires_acceptance: 0, requires_signature: 0 },
+      { code: '12TH_MARKSHEET', name: '12th Marksheet', category: 'Education', requires_approval: 1, requires_acknowledgement: 0, requires_acceptance: 0, requires_signature: 0 },
+      { code: 'DEGREE', name: 'Degree Certificate', category: 'Education', requires_approval: 1, requires_acknowledgement: 0, requires_acceptance: 0, requires_signature: 0 },
+      { code: 'EXPERIENCE', name: 'Experience Letter', category: 'Experience', requires_approval: 1, requires_acknowledgement: 0, requires_acceptance: 0, requires_signature: 0 },
+      { code: 'RESUME', name: 'Resume', category: 'Profile', requires_approval: 1, requires_acknowledgement: 0, requires_acceptance: 0, requires_signature: 0 },
+      { code: 'OTHER', name: 'Other Document', category: 'General', requires_approval: 1, requires_acknowledgement: 0, requires_acceptance: 0, requires_signature: 0 }
+    ];
 
-      for (const t of seedTypes) {
+    for (const t of seedTypes) {
+      const [existing] = await tenantDb.query('SELECT id FROM `document_types` WHERE code = ? OR LOWER(name) = LOWER(?) LIMIT 1', {
+        replacements: [t.code, t.name],
+        type: QueryTypes.SELECT
+      }).catch(() => [null]);
+
+      if (!existing) {
         await tenantDb.query(`
           INSERT INTO \`document_types\` (id, code, name, description, category, requires_approval, requires_acknowledgement, requires_acceptance, requires_signature, status, created_by)
           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'Active', 'System Seed')
         `, [
-          crypto.randomUUID(), t.code, t.name, `${t.name} core document type template.`, t.category, t.requires_approval, t.requires_acknowledgement, t.requires_acceptance, t.requires_signature
-        ]);
+          crypto.randomUUID(), t.code, t.name, `${t.name} official employee document type.`, t.category, t.requires_approval, t.requires_acknowledgement, t.requires_acceptance, t.requires_signature
+        ]).catch(() => {});
       }
-      console.log('[Document Provisioner] Seeding completed.');
     }
 
     const [templatesCount] = await tenantDb.query('SELECT COUNT(*) as count FROM `document_templates`', { type: QueryTypes.SELECT });
-    if (templatesCount && templatesCount[0].count === 0) {
+    if (templatesCount && (Number(templatesCount.count) === 0 || templatesCount.count === 0)) {
       const crypto = require('crypto');
       const types = await tenantDb.query('SELECT id, code, name FROM `document_types`', { type: QueryTypes.SELECT });
       for (const type of types) {

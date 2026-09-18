@@ -92,14 +92,8 @@ const getTenantConnection = async (tenantId) => {
       "ALTER TABLE employees MODIFY COLUMN gender VARCHAR(50) NULL",
       "ALTER TABLE employees MODIFY COLUMN date_of_birth DATE NULL",
       "ALTER TABLE employees MODIFY COLUMN date_of_joining DATE NULL",
-      "ALTER TABLE employees MODIFY COLUMN company_email VARCHAR(255) NULL",
-      "ALTER TABLE employees MODIFY COLUMN branch_id CHAR(36) NULL",
-      "ALTER TABLE employees MODIFY COLUMN department_id CHAR(36) NULL",
-      "ALTER TABLE employees MODIFY COLUMN designation_id CHAR(36) NULL",
-      "ALTER TABLE employees MODIFY COLUMN shift_id CHAR(36) NULL",
       "ALTER TABLE employees ADD COLUMN employee_name VARCHAR(255) NULL",
       "ALTER TABLE employees ADD COLUMN email VARCHAR(255) NULL",
-      "ALTER TABLE employees ADD COLUMN password VARCHAR(255) NULL",
       "ALTER TABLE employees ADD COLUMN department VARCHAR(255) NULL"
     ];
     for (const sql of alterSqlList) {

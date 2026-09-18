@@ -245,10 +245,19 @@ function deleteCompanyFolder(companyFolder) {
   }
 }
 
+/**
+ * Saves/updates employee profile.json inside Backend/public/[Company]/[Department]/[EmployeeId]/profile.json
+ */
+function scaffoldPublicEmployeeProfile(companyName, deptName, employeeData) {
+  // Disabled: Employee profile data is stored in the database, profile.json is not created on disk.
+  return null;
+}
+
 module.exports = {
   scaffoldCompanyFolder,
   scaffoldDepartmentFolder,
   scaffoldEmployeeRecord,
+  scaffoldPublicEmployeeProfile,
   deleteDepartmentFolder,
   deleteCompanyFolder,
   sanitizeCompanyFolder

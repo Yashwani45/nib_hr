@@ -108,10 +108,11 @@ const downloadDocumentFile = asyncHandler(async (req, res) => {
 
   if (!doc) throw new ApiError(404, 'Document not found.');
 
-  const userRole = String(req.user?.role?.roleName || req.user?.role?.name || '').toLowerCase();
+  const userRole = String(req.user?.role?.roleName || req.user?.role?.name || req.user?.role || '').toLowerCase();
   const empCode = req.user.employee?.employeeCode || req.user.employee?.id || req.user.username;
+  const isPrivileged = userRole.includes('admin') || userRole.includes('super') || userRole.includes('hr') || userRole.includes('manager') || userRole.includes('head') || userRole.includes('dept');
 
-  if (userRole !== 'admin' && userRole !== 'hr' && doc.employee_id !== empCode && doc.candidate_id !== empCode) {
+  if (!isPrivileged && doc.employee_id !== empCode && doc.candidate_id !== empCode) {
     const [assign] = await req.tenantDb.query(
       'SELECT id FROM `document_assignments` WHERE document_id = ? AND (employee_id = ? OR candidate_id = ?) LIMIT 1',
       { replacements: [id, empCode, empCode], type: QueryTypes.SELECT }
@@ -119,7 +120,18 @@ const downloadDocumentFile = asyncHandler(async (req, res) => {
     if (!assign) throw new ApiError(403, 'Access denied: You do not have permission to download this document.');
   }
 
-  const filePath = path.join(__dirname, '../../uploads', doc.storage_key);
+  let filePath = path.join(__dirname, '../../uploads', doc.storage_key);
+  if (!fs.existsSync(filePath)) {
+    const cleanKey = String(doc.storage_key || doc.file_url || '').replace(/^\/?public\//, '');
+    const publicPath1 = path.join(__dirname, '../../public', cleanKey);
+    const publicPath2 = path.join(__dirname, '../public', cleanKey);
+    if (fs.existsSync(publicPath1)) {
+      filePath = publicPath1;
+    } else if (fs.existsSync(publicPath2)) {
+      filePath = publicPath2;
+    }
+  }
+
   if (!fs.existsSync(filePath)) {
     throw new ApiError(404, 'Physical file not found on secure server storage.');
   }
@@ -146,7 +158,18 @@ const getDocumentPreview = asyncHandler(async (req, res) => {
 
   if (!doc) throw new ApiError(404, 'Document not found.');
 
-  const filePath = path.join(__dirname, '../../uploads', doc.storage_key);
+  let filePath = path.join(__dirname, '../../uploads', doc.storage_key);
+  if (!fs.existsSync(filePath)) {
+    const cleanKey = String(doc.storage_key || doc.file_url || '').replace(/^\/?public\//, '');
+    const publicPath1 = path.join(__dirname, '../../public', cleanKey);
+    const publicPath2 = path.join(__dirname, '../public', cleanKey);
+    if (fs.existsSync(publicPath1)) {
+      filePath = publicPath1;
+    } else if (fs.existsSync(publicPath2)) {
+      filePath = publicPath2;
+    }
+  }
+
   if (!fs.existsSync(filePath)) {
     throw new ApiError(404, 'Physical file not found.');
   }

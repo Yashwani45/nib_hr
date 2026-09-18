@@ -44,9 +44,14 @@ const getStatusVariant = (status) => {
 };
 
 export const getEmptyEmployeeForm = () => ({
+  // Hero Card
   photo: "",
   employeeId: "",
   employeeCode: "",
+  employeeStatus: "Active",
+  company: "",
+
+  // Card 1: Basic Information
   firstName: "",
   middleName: "",
   lastName: "",
@@ -55,73 +60,30 @@ export const getEmptyEmployeeForm = () => ({
   maritalStatus: "Single",
   bloodGroup: "",
   nationality: "Indian",
-  company: "",
-  branch: "",
+
+  // Card 2: Official Information
+  officialEmail: "",
   department: "",
   designation: "",
+  dateOfJoining: "",
   reportingManager: "",
   employeeType: "Full-Time",
-  employeeStatus: "Active",
-  officialEmail: "",
-  dateOfJoining: "",
+  shift: "General Shift",
+  weeklyOff: "Sunday",
+
+  // Card 3: Contact Information
   mobileNumber: "",
   alternateMobile: "",
   personalEmail: "",
   currentAddress: "",
   permanentAddress: "",
-  city: "",
-  state: "",
-  country: "India",
-  pinCode: "",
-  aadhaarNumber: "",
-  panNumber: "",
-  passportNumber: "",
-  drivingLicense: "",
-  voterId: "",
-  uanNumber: "",
-  esicNumber: "",
-  bankName: "",
-  accountHolderName: "",
-  accountNumber: "",
-  ifscCode: "",
-  branchName: "",
-  salaryStructure: "",
-  basicSalary: "",
-  grossSalary: "",
-  ctc: "",
-  pfApplicable: false,
-  esiApplicable: false,
-  tdsApplicable: false,
-  emergencyContactName: "",
-  emergencyRelation: "",
-  emergencyMobile: "",
+
+  // Card 4: Education & Experience
   highestDegree: "",
   specialization: "",
   university: "",
-  passingYear: "",
-  educationGpa: "",
   prevCompany: "",
-  prevDesignation: "",
-  totalExpYears: "",
-  prevSalary: "",
-  technicalSkills: "",
-  certifications: "",
-  shift: "General Shift",
-  weeklyOff: "Sunday",
-  attendanceMode: "Biometric",
-  casualLeaveBalance: 12,
-  sickLeaveBalance: 8,
-  earnedLeaveBalance: 15,
-  assets: [],
-  documents: {},
-  kpiValue: "",
-  rating: "3",
-  resignationDate: "",
-  lastWorkingDay: "",
-  exitReason: "",
-  exitInterview: "",
-  clearanceStatus: "",
-  createdBy: "System Admin"
+  prevDesignation: ""
 });
 
 const EmployeeDashboard = () => {
@@ -143,6 +105,10 @@ const EmployeeDashboard = () => {
   const [candidateList, setCandidateList] = useState([]);
   const [interviewsList, setInterviewsList] = useState([]);
   const [offerLettersList, setOfferLettersList] = useState([]);
+  const [allDocumentsList, setAllDocumentsList] = useState([]);
+  const [customDocType, setCustomDocType] = useState("");
+  const [customDocFile, setCustomDocFile] = useState(null);
+  const [uploadingDoc, setUploadingDoc] = useState(false);
   
   const [empCheckedIn, setEmpCheckedIn] = useState(false);
   const [empPunchTime, setEmpPunchTime] = useState("");
@@ -175,6 +141,7 @@ const EmployeeDashboard = () => {
   const [regularizationLogs, setRegularizationLogs] = useState([]);
   const [newRegularization, setNewRegularization] = useState({ date: "", punchType: "Check-In", requestedCheckIn: "", requestedCheckOut: "", reason: "", attachment: "" });
   const [isNewRegistration, setIsNewRegistration] = useState(false);
+  const [isEditingProfile, setIsEditingProfile] = useState(false);
   const [duplicateWarningModal, setDuplicateWarningModal] = useState(null);
 
   const [employeeForm, setEmployeeForm] = useState({
@@ -331,9 +298,9 @@ const EmployeeDashboard = () => {
     const resolvedOfficialEmail = details.officialEmail || details.official_email || details.email || data.officialEmail || data.official_email || user?.email || "";
     const resolvedDept = details.department || details.department_name || details.deptName || details.dept_name || data.department || user?.departmentName || user?.department || "";
     const resolvedDesignation = details.designation || details.designation_name || details.designationName || data.designation || user?.designation || "";
-    const resolvedBranch = details.branch || details.branch_name || data.branch || "Headquarters";
-    const resolvedCompany = details.company || details.company_name || data.company || "NIB Insurance";
-    const resolvedJoiningDate = details.dateOfJoining || details.joining_date || details.joiningDate || data.dateOfJoining || data.joining_date || "2026-01-15";
+    const resolvedBranch = details.branch || details.branch_name || data.branch || "";
+    const resolvedCompany = details.company || details.company_name || data.company || (user?.companyName || "");
+    const resolvedJoiningDate = details.dateOfJoining || details.joining_date || details.joiningDate || data.dateOfJoining || data.joining_date || "";
 
     return {
       ...details,
@@ -351,25 +318,25 @@ const EmployeeDashboard = () => {
       dateOfJoining: resolvedJoiningDate,
       gender: data.gender || details.gender || "Male",
       maritalStatus: data.maritalStatus || details.maritalStatus || "Single",
-      bloodGroup: data.bloodGroup || details.bloodGroup || "O+",
+      bloodGroup: data.bloodGroup || details.bloodGroup || "",
       nationality: data.nationality || details.nationality || "Indian",
-      dateOfBirth: data.dateOfBirth || details.dateOfBirth || details.dob || "1995-05-15",
-      mobileNumber: data.mobileNumber || details.mobileNumber || details.phone || details.mobile || "9876543210",
+      dateOfBirth: data.dateOfBirth || details.dateOfBirth || details.dob || "",
+      mobileNumber: data.mobileNumber || details.mobileNumber || details.phone || details.mobile || "",
       personalEmail: data.personalEmail || details.personalEmail || details.personal_email || (user?.email || ""),
-      currentAddress: data.currentAddress || details.currentAddress || details.address || "123, Tech City, Main Road",
-      city: data.city || details.city || "Indore",
-      state: data.state || details.state || "Madhya Pradesh",
+      currentAddress: data.currentAddress || details.currentAddress || details.address || "",
+      city: data.city || details.city || "",
+      state: data.state || details.state || "",
       country: data.country || details.country || "India",
-      pinCode: data.pinCode || details.pinCode || "452001",
-      highestDegree: data.highestDegree || details.highestDegree || "Bachelor of Technology",
-      specialization: data.specialization || details.specialization || "Computer Science",
-      university: data.university || details.university || "RGPV University",
-      passingYear: data.passingYear || details.passingYear || "2018",
-      educationGpa: data.educationGpa || details.educationGpa || "8.5 CGPA",
-      prevCompany: data.prevCompany || details.prevCompany || "Apex Solutions Ltd",
-      prevDesignation: data.prevDesignation || details.prevDesignation || "Software Engineer",
-      totalExpYears: data.totalExpYears || details.totalExpYears || "3.5 Years",
-      prevSalary: data.prevSalary || details.prevSalary || "6,50,000",
+      pinCode: data.pinCode || details.pinCode || "",
+      highestDegree: data.highestDegree || details.highestDegree || "",
+      specialization: data.specialization || details.specialization || "",
+      university: data.university || details.university || "",
+      passingYear: data.passingYear || details.passingYear || "",
+      educationGpa: data.educationGpa || details.educationGpa || "",
+      prevCompany: data.prevCompany || details.prevCompany || "",
+      prevDesignation: data.prevDesignation || details.prevDesignation || "",
+      totalExpYears: data.totalExpYears || details.totalExpYears || "",
+      prevSalary: data.prevSalary || details.prevSalary || "",
       documents: {
         ...(details.documents || {}),
         ...(data.documents || {})
@@ -413,7 +380,7 @@ const EmployeeDashboard = () => {
 
   useEffect(() => {
     if (profileDetails && Object.keys(profileDetails).length > 0) {
-      if (userRole === "Employee" || !isNewRegistration) {
+      if (!isNewRegistration) {
         setEmployeeForm(prev => ({
           ...getEmptyEmployeeForm(),
           ...prev,
@@ -486,13 +453,14 @@ const EmployeeDashboard = () => {
 
       // Auxiliary recruitment & organization telemetry
       try {
-        const [jobRes, candRes, intRes, offRes, tickRes, regRes] = await Promise.all([
+        const [jobRes, candRes, intRes, offRes, tickRes, regRes, docRes] = await Promise.all([
           apiFetch("/api/table/job_postings").catch(() => ({ data: [] })),
           apiFetch("/api/table/candidate_database").catch(() => ({ data: [] })),
           apiFetch("/api/table/interviews").catch(() => ({ data: [] })),
           apiFetch("/api/table/offer_letters").catch(() => ({ data: [] })),
           apiFetch("/api/table/hr_tickets").catch(() => ({ data: [] })),
-          apiFetch("/api/table/attendance_regularization").catch(() => ({ data: [] }))
+          apiFetch("/api/table/attendance_regularization").catch(() => ({ data: [] })),
+          apiFetch("/api/table/documents").catch(() => ({ data: [] }))
         ]);
         if (jobRes?.data) setJobPostingsList(jobRes.data);
         if (candRes?.data) setCandidateList(candRes.data);
@@ -500,6 +468,7 @@ const EmployeeDashboard = () => {
         if (offRes?.data) setOfferLettersList(offRes.data);
         if (tickRes?.data) setAllTicketsList(tickRes.data);
         if (regRes?.data) setAllRegularizationsList(regRes.data);
+        if (docRes?.data) setAllDocumentsList(docRes.data);
       } catch (eAux) {
         console.warn("Auxiliary telemetry load error:", eAux);
       }
@@ -513,11 +482,11 @@ const EmployeeDashboard = () => {
         setCompanyDepartmentsList(merged);
       } catch (e) {}
 
-      const profile = empsList.find(e => {
+      let profile = empsList.find(e => {
         if (canManageEmployees && selectedEmployeeId) {
-          return e.id === selectedEmployeeId;
+          return String(e.id) === String(selectedEmployeeId) || (e.employeeCode && String(e.employeeCode) === String(selectedEmployeeId));
         }
-        const dbEmail = String(e.email || "").toLowerCase().trim();
+        const dbEmail = String(e.email || e.companyEmail || "").toLowerCase().trim();
         const loginEmail = String(user?.email || "").toLowerCase().trim();
         const dbUsername = dbEmail.split('@')[0];
         const loginUsername = loginEmail.split('@')[0];
@@ -526,6 +495,14 @@ const EmployeeDashboard = () => {
                (e.companyEmail && String(e.companyEmail).toLowerCase().trim() === loginEmail) ||
                (e.employeeCode && user?.username && String(e.employeeCode).toLowerCase().trim() === String(user.username).toLowerCase().trim());
       });
+
+      // For SuperAdmin or Admin without a specific employee matched, default to the first employee in tenant
+      if (!profile && canManageEmployees && empsList.length > 0) {
+        profile = empsList[0];
+        if (!selectedEmployeeId) {
+          setSelectedEmployeeId(profile.id);
+        }
+      }
       
       if (profile) {
         setCurrentUserProfile(profile);
@@ -1144,14 +1121,6 @@ const EmployeeDashboard = () => {
 
     const constructedName = `${effectiveFirstName} ${effectiveLastName}`.trim();
     
-    const profileDataStr = JSON.stringify({
-      ...employeeForm,
-      firstName: effectiveFirstName,
-      lastName: effectiveLastName,
-      updatedBy: user?.email || "Employee Self",
-      updatedDate: new Date().toLocaleDateString()
-    });
-
     const cleanFirstName = (effectiveFirstName || "employee").toLowerCase().replace(/[^a-z0-9]/g, "");
     const cleanLastName = (effectiveLastName || "staff").toLowerCase().replace(/[^a-z0-9]/g, "");
     const fallbackEmail = `${cleanFirstName}.${cleanLastName}${Date.now().toString().slice(-4)}@nib.com`;
@@ -1161,25 +1130,52 @@ const EmployeeDashboard = () => {
         ? employeeForm.personalEmail.trim()
         : fallbackEmail;
 
-    const payload = {
-      ...employeeForm,
+    // Strict UI-only profile fields
+    const cleanProfileData = {
+      photo: employeeForm.photo || "",
+      employeeId: employeeForm.employeeId || "",
+      employeeCode: employeeForm.employeeCode || "",
+      employeeStatus: employeeForm.employeeStatus || "Active",
+      company: employeeForm.company || "",
       firstName: effectiveFirstName,
+      middleName: employeeForm.middleName || "",
       lastName: effectiveLastName,
-      employee_name: constructedName,
-      employeeName: constructedName,
-      emp_code: employeeForm.employeeCode || employeeForm.empCode || undefined,
-      employeeCode: employeeForm.employeeCode || employeeForm.empCode || undefined,
-      email: effectiveEmail,
+      gender: employeeForm.gender || "Male",
+      dateOfBirth: employeeForm.dateOfBirth || "",
+      maritalStatus: employeeForm.maritalStatus || "Single",
+      bloodGroup: employeeForm.bloodGroup || "",
+      nationality: employeeForm.nationality || "Indian",
       officialEmail: employeeForm.officialEmail || effectiveEmail,
-      companyEmail: employeeForm.officialEmail || effectiveEmail,
       department: employeeForm.department || "Operations",
-      profile_data: profileDataStr
+      designation: employeeForm.designation || "",
+      dateOfJoining: employeeForm.dateOfJoining || "",
+      reportingManager: employeeForm.reportingManager || "",
+      employeeType: employeeForm.employeeType || "Full-Time",
+      shift: employeeForm.shift || "General Shift",
+      weeklyOff: employeeForm.weeklyOff || "Sunday",
+      mobileNumber: employeeForm.mobileNumber || "",
+      alternateMobile: employeeForm.alternateMobile || "",
+      personalEmail: employeeForm.personalEmail || "",
+      currentAddress: employeeForm.currentAddress || "",
+      permanentAddress: employeeForm.permanentAddress || "",
+      highestDegree: employeeForm.highestDegree || "",
+      specialization: employeeForm.specialization || "",
+      university: employeeForm.university || "",
+      prevCompany: employeeForm.prevCompany || "",
+      prevDesignation: employeeForm.prevDesignation || ""
     };
 
-    delete payload.created_at;
-    delete payload.updated_at;
-    delete payload.createdAt;
-    delete payload.updatedAt;
+    const payload = {
+      ...cleanProfileData,
+      id: employeeForm.id || undefined,
+      employee_name: constructedName,
+      employeeName: constructedName,
+      emp_code: employeeForm.employeeCode || undefined,
+      employeeCode: employeeForm.employeeCode || undefined,
+      email: effectiveEmail,
+      officialEmail: employeeForm.officialEmail || effectiveEmail,
+      profile_data: JSON.stringify(cleanProfileData)
+    };
 
     // 1. Client-side duplicate check against allEmployeesList
     const targetEmail = (employeeForm.officialEmail || employeeForm.personalEmail || employeeForm.email || effectiveEmail || "").toLowerCase().trim();
@@ -1223,34 +1219,38 @@ const EmployeeDashboard = () => {
       });
       return;
     }
-
     try {
+      const savedEmpId = employeeForm.id || ((typeof crypto !== "undefined" && crypto.randomUUID) ? crypto.randomUUID() : "emp-" + Math.random().toString(36).substring(2, 15));
+      const isUpdatingExisting = Boolean(employeeForm.id && !isNewRegistration);
       if (employeeForm.id) {
         await apiFetch(`/api/table/employees/${employeeForm.id}`, {
           method: "PUT",
           body: JSON.stringify(payload)
         });
       } else {
-        const newId = (typeof crypto !== "undefined" && crypto.randomUUID) ? crypto.randomUUID() : "emp-" + Math.random().toString(36).substring(2, 15);
         await apiFetch("/api/table/employees", {
           method: "POST",
           body: JSON.stringify({
             ...payload,
-            id: newId
+            id: savedEmpId
           })
         });
       }
       
-      if (userRole === "Employee") {
-        await loadDashboardData();
-        alert("✅ Profile details updated and saved to database successfully!");
+      await loadDashboardData();
+
+      if (isUpdatingExisting) {
+        setIsEditingProfile(false);
+        alert("✅ Profile updated and saved to database successfully! Changes are saved.");
       } else {
-        // Reset form for admin registering a new employee
+        // Automatically clear all form fields back to blank for the next registration
         setIsNewRegistration(true);
+        setIsEditingProfile(true);
         setEmployeeForm(getEmptyEmployeeForm());
         setSelectedEmployeeId("");
-        await loadDashboardData();
-        alert("✅ Data uploaded and saved to database successfully!");
+        setProfileTab("Information");
+        setInformationSubTab("Basic Information");
+        alert("✅ Employee registered and saved to database successfully! Form has been cleared for the next registration. You can click 'Load Saved Profile' anytime to view or edit.");
       }
     } catch (err) {
       const msg = err.message || "Failed to save profile.";
@@ -1640,6 +1640,10 @@ const EmployeeDashboard = () => {
     try {
       const fd = new FormData();
       fd.append("file", file);
+      fd.append("companyName", currentUserProfile?.company || "");
+      fd.append("department", currentUserProfile?.department || employeeForm.department || "General");
+      fd.append("employeeId", currentUserProfile?.employeeCode || currentUserProfile?.empId || currentUserProfile?.id || employeeForm.employeeCode || "EMP");
+      fd.append("employeeName", employeeName || currentUserProfile?.name || "Employee");
       const url = await uploadEmployeeFile(fd);
       setNewLeave(prev => ({ ...prev, attachment: url }));
       alert("Attachment uploaded successfully!");
@@ -1743,6 +1747,57 @@ const EmployeeDashboard = () => {
 
   return (
     <div className="space-y-6">
+      {/* SuperAdmin / Admin Employee Inspection Banner & Switcher */}
+      {canManageEmployees && allEmployeesList.length > 0 && (
+        <div className="bg-gradient-to-r from-slate-900 via-indigo-950 to-blue-950 text-white p-3.5 sm:p-4 rounded-2xl shadow-md border border-indigo-700/40 flex flex-col md:flex-row md:items-center justify-between gap-3 animate-fade-in">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-indigo-600/30 border border-indigo-500/40 flex items-center justify-center text-lg shrink-0">
+              👥
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="px-2 py-0.5 rounded text-[9px] font-black uppercase tracking-wider bg-indigo-500/30 text-indigo-200 border border-indigo-400/30">
+                  {userRole} Workspace Mode
+                </span>
+                <span className="text-[11px] text-slate-300 font-semibold">
+                  {allEmployeesList.length} Total Workforce Profiles
+                </span>
+              </div>
+              <p className="text-xs font-bold text-white mt-0.5">
+                Inspecting: <span className="text-emerald-400 font-extrabold">{currentUserProfile?.employeeName || currentUserProfile?.firstName || "Select Employee"}</span> ({currentUserProfile?.employeeCode || "--"}) • {currentUserProfile?.designation || "Staff"}
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2 self-end md:self-center">
+            <label className="text-xs font-semibold text-indigo-200 whitespace-nowrap">Switch Employee:</label>
+            <select
+              value={selectedEmployeeId || currentUserProfile?.id || ""}
+              onChange={(e) => {
+                const newId = e.target.value;
+                setSelectedEmployeeId(newId);
+                setSearchParams(prev => {
+                  const updated = new URLSearchParams(prev);
+                  updated.set("profileEmpId", newId);
+                  return updated;
+                });
+              }}
+              className="bg-slate-800 text-white text-xs font-bold rounded-xl px-3 py-2 border border-indigo-500/50 focus:outline-none focus:ring-2 focus:ring-indigo-400 cursor-pointer max-w-[280px] truncate"
+            >
+              {allEmployeesList.map(emp => {
+                const name = emp.employeeName || `${emp.firstName || ''} ${emp.lastName || ''}`.trim() || emp.name || "Employee";
+                const code = emp.employeeCode || emp.emp_code || emp.id?.slice(0, 6);
+                const dept = emp.department || "Operations";
+                return (
+                  <option key={emp.id} value={emp.id} className="bg-slate-900 text-white">
+                    {name} ({code}) - {dept}
+                  </option>
+                );
+              })}
+            </select>
+          </div>
+        </div>
+      )}
+
       {/* 1. Header Welcome Bar */}
       <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between bg-white p-6 rounded-2xl border border-slate-100 shadow-sm">
         <div>
@@ -2315,7 +2370,7 @@ const EmployeeDashboard = () => {
           {(activeCategory === "EMPLOYEE_MGMT" || activeCategory === "EMP_PROFILE") && (
             <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm space-y-6">
               {/* Header */}
-              {activeCategory !== "EMP_PROFILE" && (
+              {activeCategory !== "EMP_PROFILE" && activeTab !== "Employee Profile" && (isEditingProfile || isNewRegistration) && (
                 <div className="flex flex-col sm:flex-row items-center gap-5 border-b pb-5 border-slate-100">
                   {profileDetails.photo ? (
                     <img src={profileDetails.photo} alt="Avatar" className="w-16 h-16 rounded-full border border-indigo-200 object-cover shadow-xs" />
@@ -2338,567 +2393,740 @@ const EmployeeDashboard = () => {
                 </div>
               )}
 
-              {(activeTab === "Employee Profile" || activeTab === "Fill Details" || activeCategory === "EMP_PROFILE") && (
-                <div className="space-y-6 w-full">
-                  <div className="flex flex-col lg:flex-row gap-6">
-                  {/* Left Side: 17 Tabs Sidebar Checklist */}
-                  <div className="w-full lg:w-64 bg-slate-50 border border-slate-200 rounded-2xl p-3 space-y-1 shrink-0 max-h-[80vh] overflow-y-auto">
-                    <p className="text-[10px] font-black uppercase text-slate-400 px-3 pb-2 border-b mb-2">Profile Sections</p>
-                    {profileSectionsList.map((t, idx) => {
-                      const isActive = profileTab === t;
-                      return (
-                        <button
-                          key={t}
-                          type="button"
-                          onClick={() => handleTabClick(t)}
-                          className={`w-full text-left px-3 py-2 rounded-xl text-[10px] font-black uppercase tracking-wider transition ${
-                            isActive
-                              ? "bg-indigo-600 text-white shadow-md shadow-indigo-600/10"
-                              : "text-slate-600 hover:bg-slate-200/50"
-                          }`}
-                        >
-                          {idx + 1}. {t.toUpperCase()}
-                        </button>
-                      );
-                    })}
-                  </div>
+              {(activeTab === "Employee Profile" || activeCategory === "EMP_PROFILE") && (() => {
+                const activeProfile = (employeeForm.firstName || employeeForm.employeeCode) ? employeeForm : profileDetails;
+                const displayPhoto = activeProfile.photo || profileDetails.photo || "";
+                const displayFirstName = activeProfile.firstName || profileDetails.firstName || "";
+                const displayMiddleName = activeProfile.middleName || profileDetails.middleName || "";
+                const displayLastName = activeProfile.lastName || profileDetails.lastName || "";
+                const displayName = `${displayFirstName} ${displayLastName}`.trim() || employeeName || "Employee";
+                const displayCode = activeProfile.employeeCode || profileDetails.employeeCode || "--";
+                const displayId = activeProfile.employeeId || activeProfile.id || profileDetails.employeeId || profileDetails.id || "";
+                const displayDesignation = activeProfile.designation || profileDetails.designation || "Staff Professional";
+                const displayDepartment = activeProfile.department || profileDetails.department || "Operations";
+                const displayCompany = activeProfile.company || profileDetails.company || "Aarogya Homeopathy Clinic";
+                const displayStatus = activeProfile.employeeStatus || profileDetails.employeeStatus || "Active";
+                const displayGender = activeProfile.gender || profileDetails.gender || "Male";
+                const displayDob = activeProfile.dateOfBirth || profileDetails.dateOfBirth || "";
+                const displayMarital = activeProfile.maritalStatus || profileDetails.maritalStatus || "Single";
+                const displayBlood = activeProfile.bloodGroup || profileDetails.bloodGroup || "";
+                const displayNationality = activeProfile.nationality || profileDetails.nationality || "Indian";
+                const displayOfficialEmail = activeProfile.officialEmail || profileDetails.officialEmail || "";
+                const displayDoj = activeProfile.dateOfJoining || profileDetails.dateOfJoining || "";
+                const displayManager = activeProfile.reportingManager || profileDetails.reportingManager || "";
+                const displayEmpType = activeProfile.employeeType || profileDetails.employeeType || "Full-Time";
+                const displayShift = activeProfile.shift || profileDetails.shift || "General Shift";
+                const displayWeeklyOff = activeProfile.weeklyOff || profileDetails.weeklyOff || "Sunday";
+                const displayMobile = activeProfile.mobileNumber || profileDetails.mobileNumber || "";
+                const displayAltMobile = activeProfile.alternateMobile || profileDetails.alternateMobile || "";
+                const displayPersonalEmail = activeProfile.personalEmail || profileDetails.personalEmail || "";
+                const displayCurrentAddress = activeProfile.currentAddress || profileDetails.currentAddress || "";
+                const displayPermanentAddress = activeProfile.permanentAddress || profileDetails.permanentAddress || "";
+                const displayDegree = activeProfile.highestDegree || profileDetails.highestDegree || "";
+                const displaySpecialization = activeProfile.specialization || profileDetails.specialization || "";
+                const displayUniversity = activeProfile.university || profileDetails.university || "";
+                const displayPrevCompany = activeProfile.prevCompany || profileDetails.prevCompany || "";
+                const displayPrevDesig = activeProfile.prevDesignation || profileDetails.prevDesignation || "";
 
-                  {/* Right Side: Tab specific input forms */}
-                  <form 
-                    onSubmit={handleSaveProfile} 
+                                const handleStartEdit = () => {
+                  setEmployeeForm(prev => ({
+                    ...getEmptyEmployeeForm(),
+                    ...profileDetails,
+                    ...prev,
+                    documents: profileDetails.documents || prev.documents || {},
+                    assets: profileDetails.assets || prev.assets || []
+                  }));
+                  setIsEditingProfile(true);
+                };
+
+                const handleCancelEdit = () => {
+                  setIsEditingProfile(false);
+                  setEmployeeForm(prev => ({
+                    ...getEmptyEmployeeForm(),
+                    ...profileDetails,
+                    documents: profileDetails.documents || {},
+                    assets: profileDetails.assets || []
+                  }));
+                };
+
+                return (
+                  <form
+                    id="employee-profile-form"
+                    onSubmit={handleSaveProfile}
                     onKeyDown={(e) => {
-                      if (e.key === 'Enter' && e.target.tagName !== 'TEXTAREA') {
+                      if (e.key === "Enter" && e.target.tagName !== "TEXTAREA") {
                         e.preventDefault();
                       }
                     }}
-                    className="flex-1 bg-slate-50/30 border border-slate-200 p-6 rounded-2xl space-y-6 flex flex-col justify-between profile-form-container"
+                    className="space-y-6 w-full animate-fadeIn"
                   >
-                    <style>{`
-                      .profile-form-container input,
-                      .profile-form-container select,
-                      .profile-form-container textarea {
-                        color: #0f172a !important;
-                      }
-                    `}</style>
-                    <div className="space-y-6">
-                      {(profileTab === "Information" || profileTab === "Basic Information" || profileTab === "Official Information") && (
-                        <div className="space-y-6">
-                          {/* Two Buttons inside Information: Basic Information & Official Information */}
-                          <div className="flex flex-wrap items-center gap-2 p-1.5 bg-slate-100 rounded-2xl border border-slate-200/80 w-fit">
-                            <button
-                              type="button"
-                              onClick={() => setInformationSubTab("Basic Information")}
-                              className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all shadow-xs ${
-                                informationSubTab === "Basic Information"
-                                  ? "bg-indigo-600 text-white shadow-md shadow-indigo-600/20"
-                                  : "text-slate-600 hover:text-slate-900 hover:bg-white/70"
-                              }`}
-                            >
-                              <span>👤</span> Basic Information
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => setInformationSubTab("Official Information")}
-                              className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all shadow-xs ${
-                                informationSubTab === "Official Information"
-                                  ? "bg-indigo-600 text-white shadow-md shadow-indigo-600/20"
-                                  : "text-slate-600 hover:text-slate-900 hover:bg-white/70"
-                              }`}
-                            >
-                              <span>🏢</span> Official Information
-                            </button>
-                          </div>
-
-                          {/* Sub-view 1: Basic Information */}
-                          {informationSubTab === "Basic Information" && (
-                            <div className="space-y-4 animate-fadeIn">
-                          <div className="flex flex-wrap items-center justify-between gap-2 pb-2 border-b border-slate-200">
-                            <h4 className="text-xs font-black uppercase text-indigo-950 tracking-wider flex items-center gap-2">
-                              <span>👤</span> Basic Information
-                            </h4>
-                            <span className="inline-flex items-center gap-1.5 text-[10px] font-black px-2.5 py-1 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-full shadow-2xs">
-                              <span>🛡️</span> Prefilled by Admin / Department Head
-                            </span>
-                          </div>
-                          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                            <div>
-                              <label className="block text-[10px] font-black text-slate-500 uppercase tracking-wider mb-1">Employee Photo URL</label>
-                              <input
-                                type="text"
-                                placeholder="https://imageUrl.jpg"
-                                value={employeeForm.photo || ""}
-                                onChange={(e) => setEmployeeForm({ ...employeeForm, photo: e.target.value })}
-                                className="w-full text-xs bg-white border border-slate-200 rounded-xl px-3 py-2 focus:outline-none focus:ring-1 focus:ring-indigo-500 font-bold font-mono mb-2"
-                              />
+                    {/* Hero Overview Header Card */}
+                    <div className="bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 text-white p-6 sm:p-8 rounded-3xl shadow-xl flex flex-col md:flex-row items-center justify-between gap-6 relative overflow-hidden">
+                      <div className="absolute -right-10 -bottom-10 w-64 h-64 bg-indigo-500/10 rounded-full blur-3xl pointer-events-none" />
+                      <div className="flex flex-col sm:flex-row items-center gap-6 z-10 text-center sm:text-left">
+                        <div className="relative group shrink-0">
+                          {displayPhoto ? (
+                            <img
+                              src={displayPhoto}
+                              alt={displayName}
+                              className="w-24 h-24 sm:w-28 sm:h-28 rounded-2xl object-cover ring-4 ring-white/20 shadow-2xl"
+                            />
+                          ) : (
+                            <div className="w-24 h-24 sm:w-28 sm:h-28 rounded-2xl bg-gradient-to-br from-indigo-500 to-purple-600 text-white flex items-center justify-center font-black text-3xl uppercase ring-4 ring-white/20 shadow-2xl">
+                              {(displayFirstName?.[0] || "E")}{(displayLastName?.[0] || "")}
+                            </div>
+                          )}
+                          {isEditingProfile && (
+                            <label className="absolute inset-0 bg-black/60 hover:bg-black/75 rounded-2xl flex flex-col items-center justify-center text-white text-[10px] font-bold cursor-pointer transition opacity-90 group-hover:opacity-100 p-1 text-center">
+                              <span className="text-base">📷</span>
+                              <span>Change Photo</span>
                               <input
                                 type="file"
                                 accept="image/*"
+                                className="hidden"
                                 onChange={async (e) => {
-                                  const file = e.target.files[0];
+                                  const file = e.target.files?.[0];
                                   if (!file) return;
                                   const fd = new FormData();
                                   fd.append("file", file);
-                                  fd.append("employeeName", employeeName);
-                                  fd.append("employeeId", employeeForm.employeeId || employeeForm.id);
+                                  fd.append("companyName", currentUserProfile?.company || employeeForm.company || "");
+                                  fd.append("department", employeeForm.department || currentUserProfile?.department || "General");
+                                  fd.append("employeeId", employeeForm.employeeCode || employeeForm.employeeId || employeeForm.id || currentUserProfile?.employeeCode || currentUserProfile?.empId || "EMP");
+                                  fd.append("employeeName", displayName || "Employee");
                                   try {
                                     const url = await uploadEmployeeFile(fd);
                                     if (url) {
                                       setEmployeeForm(prev => ({ ...prev, photo: url }));
-                                      alert("Photo uploaded successfully!");
+                                      alert("Photo updated successfully!");
                                     }
                                   } catch (err) {
                                     alert("Upload failed: " + err.message);
                                   }
                                 }}
-                                className="w-full text-[10px] text-slate-500 file:mr-2 file:py-1 file:px-2 file:rounded-md file:border-0 file:text-[10px] file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100 cursor-pointer"
                               />
-                              {employeeForm.photo && (
-                                <img src={employeeForm.photo} alt="Preview" className="w-12 h-12 rounded-full border border-slate-200 mt-2 object-cover shadow-2xs" />
-                              )}
-                            </div>
-                            <div>
-                              <label className="block text-[10px] font-black text-slate-500 uppercase tracking-wider mb-1">Employee ID (Auto)</label>
+                            </label>
+                          )}
+                        </div>
+                        <div className="space-y-2">
+                          <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2">
+                            <h2 className="text-2xl sm:text-3xl font-black tracking-tight text-white">{displayName}</h2>
+                            {isEditingProfile ? (
+                              <select
+                                value={employeeForm.employeeStatus || "Active"}
+                                onChange={(e) => setEmployeeForm(prev => ({ ...prev, employeeStatus: e.target.value }))}
+                                className="px-2.5 py-1 rounded-full text-xs font-bold bg-slate-800 text-emerald-300 border border-emerald-400/40 focus:outline-none focus:ring-1 focus:ring-emerald-400 cursor-pointer"
+                              >
+                                <option value="Active" className="bg-slate-900 text-white">Active</option>
+                                <option value="Probation" className="bg-slate-900 text-white">Probation</option>
+                                <option value="Notice Period" className="bg-slate-900 text-white">Notice Period</option>
+                                <option value="Inactive" className="bg-slate-900 text-white">Inactive</option>
+                              </select>
+                            ) : (
+                              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider bg-emerald-500/20 text-emerald-300 border border-emerald-400/30">
+                                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                                {displayStatus}
+                              </span>
+                            )}
+                          </div>
+                          <p className="text-sm font-bold text-indigo-300">
+                            {displayDesignation} • <span className="text-slate-300">{displayDepartment}</span>
+                          </p>
+                          <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2 text-xs font-mono text-slate-300 pt-1">
+                            <span className="px-2.5 py-1 bg-white/10 rounded-lg border border-white/10">Code: <b className="text-white font-bold">{displayCode}</b></span>
+                            <span className="px-2.5 py-1 bg-white/10 rounded-lg border border-white/10">Emp ID: <b className="text-white font-bold">#{displayId ? String(displayId).slice(0, 10) : "--"}</b></span>
+                            {displayCompany && <span className="px-2.5 py-1 bg-white/10 rounded-lg border border-white/10 text-slate-300">{displayCompany}</span>}
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Action Buttons */}
+                      <div className="flex flex-wrap items-center justify-center gap-3 z-10 shrink-0">
+                        {!isEditingProfile ? (
+                          <button
+                            type="button"
+                            onClick={handleStartEdit}
+                            className="px-6 py-3 bg-indigo-600 hover:bg-indigo-500 active:bg-indigo-700 text-white text-xs font-black uppercase tracking-wider rounded-2xl shadow-lg shadow-indigo-600/40 hover:shadow-indigo-600/60 transition-all flex items-center gap-2 cursor-pointer transform hover:-translate-y-0.5"
+                          >
+                            <span className="text-base">✏️</span> Edit Profile
+                          </button>
+                        ) : (
+                          <div className="flex items-center gap-2.5">
+                            <button
+                              type="button"
+                              onClick={handleCancelEdit}
+                              className="px-5 py-2.5 bg-white/10 hover:bg-white/20 active:bg-white/30 text-white text-xs font-black uppercase tracking-wider rounded-2xl border border-white/20 transition flex items-center gap-1.5 cursor-pointer"
+                            >
+                              <span>✕</span> Cancel
+                            </button>
+                            <button
+                              type="submit"
+                              className="px-6 py-2.5 bg-emerald-600 hover:bg-emerald-500 active:bg-emerald-700 text-white text-xs font-black uppercase tracking-wider rounded-2xl shadow-lg shadow-emerald-600/40 hover:shadow-emerald-600/60 transition flex items-center gap-2 cursor-pointer transform hover:-translate-y-0.5"
+                            >
+                              <span>💾</span> Save Changes
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Detail Cards in 2x2 Grid */}
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                      {/* Card 1: 👤 Basic Information */}
+                      <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-xs space-y-4">
+                        <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+                          <h4 className="text-xs font-black uppercase tracking-wider text-slate-900 flex items-center gap-2">
+                            <span className="text-base">👤</span> Basic Information
+                          </h4>
+                          {!isEditingProfile && (
+                            <button
+                              type="button"
+                              onClick={handleStartEdit}
+                              className="text-[11px] font-bold text-indigo-600 hover:text-indigo-700 flex items-center gap-1 cursor-pointer"
+                            >
+                              Edit <span>✏️</span>
+                            </button>
+                          )}
+                        </div>
+                        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 text-xs">
+                          {/* First Name */}
+                          <div className="bg-slate-50/80 border border-slate-100 rounded-xl p-3">
+                            <span className="text-[10px] font-bold uppercase text-slate-400 block tracking-wider">First Name</span>
+                            {isEditingProfile ? (
                               <input
-                                type="text"
-                                placeholder="Auto-generated upon registration"
-                                value={employeeForm.employeeId || ""}
-                                readOnly
-                                className="w-full text-xs bg-slate-100 border border-slate-200 rounded-xl px-3 py-2 text-slate-500 font-bold cursor-not-allowed"
-                              />
-                            </div>
-                            <div>
-                              <div className="flex items-center justify-between mb-1">
-                                <label className="block text-[10px] font-black text-slate-500 uppercase tracking-wider">Employee Code *</label>
-                                {!canManageEmployees && <span className="text-[9px] font-bold text-slate-400">Assigned by Admin</span>}
-                              </div>
-                              <input
-                                type="text"
-                                placeholder="e.g. EMP-101"
-                                value={employeeForm.employeeCode || ""}
-                                readOnly={!canManageEmployees}
-                                onChange={(e) => setEmployeeForm({ ...employeeForm, employeeCode: e.target.value })}
-                                className={`w-full text-xs border border-slate-200 rounded-xl px-3 py-2 font-bold ${
-                                  !canManageEmployees ? 'bg-slate-100 text-slate-600 cursor-not-allowed' : 'bg-white focus:outline-none focus:ring-1 focus:ring-indigo-500'
-                                }`}
-                              />
-                            </div>
-                            <div>
-                              <label className="block text-[10px] font-black text-slate-500 uppercase tracking-wider mb-1">First Name *</label>
-                              <input
-                                id="firstNameInput"
                                 type="text"
                                 required
-                                placeholder="Enter first name"
                                 value={employeeForm.firstName || ""}
-                                onChange={(e) => setEmployeeForm({ ...employeeForm, firstName: e.target.value })}
-                                className="w-full text-xs bg-white border border-slate-200 rounded-xl px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500 font-bold"
+                                onChange={(e) => setEmployeeForm(prev => ({ ...prev, firstName: e.target.value }))}
+                                placeholder="First Name"
+                                className="w-full text-xs font-bold text-slate-900 bg-white border border-indigo-200 focus:border-indigo-500 rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-1 focus:ring-indigo-500 mt-1"
                               />
-                            </div>
-                            <div>
-                              <label className="block text-[10px] font-black text-slate-500 uppercase tracking-wider mb-1">Middle Name</label>
+                            ) : (
+                              <span className="font-extrabold text-slate-800 block mt-0.5">{displayFirstName || "--"}</span>
+                            )}
+                          </div>
+
+                          {/* Middle Name */}
+                          <div className="bg-slate-50/80 border border-slate-100 rounded-xl p-3">
+                            <span className="text-[10px] font-bold uppercase text-slate-400 block tracking-wider">Middle Name</span>
+                            {isEditingProfile ? (
                               <input
                                 type="text"
-                                placeholder="Enter middle name"
                                 value={employeeForm.middleName || ""}
-                                onChange={(e) => setEmployeeForm({ ...employeeForm, middleName: e.target.value })}
-                                className="w-full text-xs bg-white border border-slate-200 rounded-xl px-3 py-2 focus:outline-none focus:ring-1 focus:ring-indigo-500 font-bold"
+                                onChange={(e) => setEmployeeForm(prev => ({ ...prev, middleName: e.target.value }))}
+                                placeholder="Middle Name"
+                                className="w-full text-xs font-bold text-slate-900 bg-white border border-indigo-200 focus:border-indigo-500 rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-1 focus:ring-indigo-500 mt-1"
                               />
-                            </div>
-                            <div>
-                              <label className="block text-[10px] font-black text-slate-500 uppercase tracking-wider mb-1">Last Name</label>
+                            ) : (
+                              <span className="font-extrabold text-slate-800 block mt-0.5">{displayMiddleName || "--"}</span>
+                            )}
+                          </div>
+
+                          {/* Last Name */}
+                          <div className="bg-slate-50/80 border border-slate-100 rounded-xl p-3">
+                            <span className="text-[10px] font-bold uppercase text-slate-400 block tracking-wider">Last Name</span>
+                            {isEditingProfile ? (
                               <input
                                 type="text"
-                                placeholder="Enter last name"
                                 value={employeeForm.lastName || ""}
-                                onChange={(e) => setEmployeeForm({ ...employeeForm, lastName: e.target.value })}
-                                className="w-full text-xs bg-white border border-slate-200 rounded-xl px-3 py-2 focus:outline-none focus:ring-1 focus:ring-indigo-500 font-bold"
+                                onChange={(e) => setEmployeeForm(prev => ({ ...prev, lastName: e.target.value }))}
+                                placeholder="Last Name"
+                                className="w-full text-xs font-bold text-slate-900 bg-white border border-indigo-200 focus:border-indigo-500 rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-1 focus:ring-indigo-500 mt-1"
                               />
-                            </div>
-                            <div>
-                              <label className="block text-[10px] font-black text-slate-500 uppercase tracking-wider mb-1">Gender</label>
+                            ) : (
+                              <span className="font-extrabold text-slate-800 block mt-0.5">{displayLastName || "--"}</span>
+                            )}
+                          </div>
+
+                          {/* Gender */}
+                          <div className="bg-slate-50/80 border border-slate-100 rounded-xl p-3">
+                            <span className="text-[10px] font-bold uppercase text-slate-400 block tracking-wider">Gender</span>
+                            {isEditingProfile ? (
                               <select
                                 value={employeeForm.gender || "Male"}
-                                onChange={(e) => setEmployeeForm({ ...employeeForm, gender: e.target.value })}
-                                className="w-full text-xs bg-white border border-slate-200 rounded-xl px-3 py-2 focus:outline-none focus:ring-1 focus:ring-indigo-500 font-bold"
+                                onChange={(e) => setEmployeeForm(prev => ({ ...prev, gender: e.target.value }))}
+                                className="w-full text-xs font-bold text-slate-900 bg-white border border-indigo-200 focus:border-indigo-500 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-indigo-500 mt-1"
                               >
                                 <option value="Male">Male</option>
                                 <option value="Female">Female</option>
                                 <option value="Other">Other</option>
                               </select>
-                            </div>
-                            <div>
-                              <label className="block text-[10px] font-black text-slate-500 uppercase tracking-wider mb-1">Date of Birth</label>
+                            ) : (
+                              <span className="font-extrabold text-slate-800 block mt-0.5">{displayGender || "--"}</span>
+                            )}
+                          </div>
+
+                          {/* Date of Birth */}
+                          <div className="bg-slate-50/80 border border-slate-100 rounded-xl p-3">
+                            <span className="text-[10px] font-bold uppercase text-slate-400 block tracking-wider">Date of Birth</span>
+                            {isEditingProfile ? (
                               <input
                                 type="date"
-                                value={employeeForm.dateOfBirth || ""}
-                                onChange={(e) => setEmployeeForm({ ...employeeForm, dateOfBirth: e.target.value })}
-                                className="w-full text-xs bg-white border border-slate-200 rounded-xl px-3 py-2 focus:outline-none focus:ring-1 focus:ring-indigo-500 font-bold"
+                                value={employeeForm.dateOfBirth ? String(employeeForm.dateOfBirth).slice(0, 10) : ""}
+                                onChange={(e) => setEmployeeForm(prev => ({ ...prev, dateOfBirth: e.target.value }))}
+                                className="w-full text-xs font-bold text-slate-900 bg-white border border-indigo-200 focus:border-indigo-500 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-indigo-500 mt-1"
                               />
-                            </div>
-                            <div>
-                              <label className="block text-[10px] font-black text-slate-500 uppercase tracking-wider mb-1">Marital Status</label>
+                            ) : (
+                              <span className="font-extrabold text-slate-800 block mt-0.5">{displayDob || "--"}</span>
+                            )}
+                          </div>
+
+                          {/* Marital Status */}
+                          <div className="bg-slate-50/80 border border-slate-100 rounded-xl p-3">
+                            <span className="text-[10px] font-bold uppercase text-slate-400 block tracking-wider">Marital Status</span>
+                            {isEditingProfile ? (
                               <select
                                 value={employeeForm.maritalStatus || "Single"}
-                                onChange={(e) => setEmployeeForm({ ...employeeForm, maritalStatus: e.target.value })}
-                                className="w-full text-xs bg-white border border-slate-200 rounded-xl px-3 py-2 focus:outline-none focus:ring-1 focus:ring-indigo-500 font-bold"
+                                onChange={(e) => setEmployeeForm(prev => ({ ...prev, maritalStatus: e.target.value }))}
+                                className="w-full text-xs font-bold text-slate-900 bg-white border border-indigo-200 focus:border-indigo-500 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-indigo-500 mt-1"
                               >
                                 <option value="Single">Single</option>
                                 <option value="Married">Married</option>
                                 <option value="Divorced">Divorced</option>
+                                <option value="Widowed">Widowed</option>
                               </select>
-                            </div>
-                            <div>
-                              <label className="block text-[10px] font-black text-slate-500 uppercase tracking-wider mb-1">Blood Group</label>
-                              <input
-                                type="text"
-                                placeholder="e.g. O+"
+                            ) : (
+                              <span className="font-extrabold text-slate-800 block mt-0.5">{displayMarital || "--"}</span>
+                            )}
+                          </div>
+
+                          {/* Blood Group */}
+                          <div className="bg-slate-50/80 border border-slate-100 rounded-xl p-3">
+                            <span className="text-[10px] font-bold uppercase text-slate-400 block tracking-wider">Blood Group</span>
+                            {isEditingProfile ? (
+                              <select
                                 value={employeeForm.bloodGroup || ""}
-                                onChange={(e) => setEmployeeForm({ ...employeeForm, bloodGroup: e.target.value })}
-                                className="w-full text-xs bg-white border border-slate-200 rounded-xl px-3 py-2 focus:outline-none focus:ring-1 focus:ring-indigo-500 font-bold"
-                              />
-                            </div>
-                            <div>
-                              <label className="block text-[10px] font-black text-slate-500 uppercase tracking-wider mb-1">Nationality</label>
+                                onChange={(e) => setEmployeeForm(prev => ({ ...prev, bloodGroup: e.target.value }))}
+                                className="w-full text-xs font-bold text-slate-900 bg-white border border-indigo-200 focus:border-indigo-500 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-indigo-500 mt-1"
+                              >
+                                <option value="">Select</option>
+                                <option value="A+">A+</option>
+                                <option value="A-">A-</option>
+                                <option value="B+">B+</option>
+                                <option value="B-">B-</option>
+                                <option value="O+">O+</option>
+                                <option value="O-">O-</option>
+                                <option value="AB+">AB+</option>
+                                <option value="AB-">AB-</option>
+                              </select>
+                            ) : (
+                              <span className="font-extrabold text-indigo-700 block mt-0.5">{displayBlood || "--"}</span>
+                            )}
+                          </div>
+
+                          {/* Nationality */}
+                          <div className="bg-slate-50/80 border border-slate-100 rounded-xl p-3 sm:col-span-2">
+                            <span className="text-[10px] font-bold uppercase text-slate-400 block tracking-wider">Nationality</span>
+                            {isEditingProfile ? (
                               <input
                                 type="text"
-                                value={employeeForm.nationality || ""} placeholder="e.g. Indian"
-                                onChange={(e) => setEmployeeForm({ ...employeeForm, nationality: e.target.value })}
-                                className="w-full text-xs bg-white border border-slate-200 rounded-xl px-3 py-2 focus:outline-none focus:ring-1 focus:ring-indigo-500 font-bold"
+                                value={employeeForm.nationality || "Indian"}
+                                onChange={(e) => setEmployeeForm(prev => ({ ...prev, nationality: e.target.value }))}
+                                placeholder="e.g. Indian"
+                                className="w-full text-xs font-bold text-slate-900 bg-white border border-indigo-200 focus:border-indigo-500 rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-1 focus:ring-indigo-500 mt-1"
                               />
-                            </div>
+                            ) : (
+                              <span className="font-extrabold text-slate-800 block mt-0.5">{displayNationality || "--"}</span>
+                            )}
                           </div>
                         </div>
-                          )}
+                      </div>
 
-                          {/* Sub-view 2: Official Information */}
-                          {informationSubTab === "Official Information" && (
-                            <div className="space-y-4 animate-fadeIn">
-                          <div className="flex flex-wrap items-center justify-between gap-2 pb-2 border-b border-slate-200">
-                            <h4 className="text-xs font-black uppercase text-indigo-950 tracking-wider flex items-center gap-2">
-                              <span>🏢</span> Official Information
-                            </h4>
-                            <span className="inline-flex items-center gap-1.5 text-[10px] font-black px-2.5 py-1 bg-indigo-50 text-indigo-700 border border-indigo-200 rounded-full shadow-2xs">
-                              <span>🛡️</span> Prefilled & Managed by Admin / Dept Head
-                            </span>
+                      {/* Card 2: 🏢 Official Information */}
+                      <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-xs space-y-4">
+                        <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+                          <h4 className="text-xs font-black uppercase tracking-wider text-slate-900 flex items-center gap-2">
+                            <span className="text-base">🏢</span> Official Information
+                          </h4>
+                          {!isEditingProfile && (
+                            <button
+                              type="button"
+                              onClick={handleStartEdit}
+                              className="text-[11px] font-bold text-indigo-600 hover:text-indigo-700 flex items-center gap-1 cursor-pointer"
+                            >
+                              Edit <span>✏️</span>
+                            </button>
+                          )}
+                        </div>
+                        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 text-xs">
+                          {/* Official Email */}
+                          <div className="bg-slate-50/80 border border-slate-100 rounded-xl p-3 sm:col-span-2">
+                            <span className="text-[10px] font-bold uppercase text-slate-400 block tracking-wider">Official Email</span>
+                            {isEditingProfile ? (
+                              <input
+                                type="email"
+                                value={employeeForm.officialEmail || ""}
+                                onChange={(e) => setEmployeeForm(prev => ({ ...prev, officialEmail: e.target.value }))}
+                                placeholder="employee@company.com"
+                                className="w-full text-xs font-bold text-slate-900 bg-white border border-indigo-200 focus:border-indigo-500 rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-1 focus:ring-indigo-500 mt-1 font-mono"
+                              />
+                            ) : (
+                              <span className="font-extrabold text-slate-800 block mt-0.5 truncate">{displayOfficialEmail || "--"}</span>
+                            )}
                           </div>
-                          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                            <div>
-                              <label className="block text-[10px] font-black text-slate-500 uppercase tracking-wider mb-1">Company</label>
+
+                          {/* Department */}
+                          <div className="bg-slate-50/80 border border-slate-100 rounded-xl p-3">
+                            <span className="text-[10px] font-bold uppercase text-slate-400 block tracking-wider">Department</span>
+                            {isEditingProfile ? (
                               <input
                                 type="text"
-                                value={employeeForm.company || ""} placeholder="e.g. TechnoVani Pvt Ltd"
-                                readOnly={!canManageEmployees}
-                                onChange={(e) => setEmployeeForm({ ...employeeForm, company: e.target.value })}
-                                className={`w-full text-xs border border-slate-200 rounded-xl px-3 py-2 font-bold ${
-                                  !canManageEmployees ? 'bg-slate-100 text-slate-600 cursor-not-allowed' : 'bg-white focus:outline-none focus:ring-1 focus:ring-indigo-500'
-                                }`}
+                                value={employeeForm.department || ""}
+                                onChange={(e) => setEmployeeForm(prev => ({ ...prev, department: e.target.value }))}
+                                placeholder="Department"
+                                className="w-full text-xs font-bold text-slate-900 bg-white border border-indigo-200 focus:border-indigo-500 rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-1 focus:ring-indigo-500 mt-1"
                               />
-                            </div>
-                            <div>
-                              <label className="block text-[10px] font-black text-slate-500 uppercase tracking-wider mb-1">Branch</label>
+                            ) : (
+                              <span className="font-extrabold text-indigo-700 block mt-0.5">{displayDepartment || "--"}</span>
+                            )}
+                          </div>
+
+                          {/* Designation */}
+                          <div className="bg-slate-50/80 border border-slate-100 rounded-xl p-3">
+                            <span className="text-[10px] font-bold uppercase text-slate-400 block tracking-wider">Designation</span>
+                            {isEditingProfile ? (
                               <input
                                 type="text"
-                                value={employeeForm.branch || ""} placeholder="e.g. Headquarters / Mumbai"
-                                readOnly={!canManageEmployees}
-                                onChange={(e) => setEmployeeForm({ ...employeeForm, branch: e.target.value })}
-                                className={`w-full text-xs border border-slate-200 rounded-xl px-3 py-2 font-bold ${
-                                  !canManageEmployees ? 'bg-slate-100 text-slate-600 cursor-not-allowed' : 'bg-white focus:outline-none focus:ring-1 focus:ring-indigo-500'
-                                }`}
+                                value={employeeForm.designation || ""}
+                                onChange={(e) => setEmployeeForm(prev => ({ ...prev, designation: e.target.value }))}
+                                placeholder="Designation"
+                                className="w-full text-xs font-bold text-slate-900 bg-white border border-indigo-200 focus:border-indigo-500 rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-1 focus:ring-indigo-500 mt-1"
                               />
-                            </div>
-                            <div>
-                              <label className="block text-[10px] font-black text-slate-500 uppercase tracking-wider mb-1">Department</label>
+                            ) : (
+                              <span className="font-extrabold text-slate-800 block mt-0.5">{displayDesignation || "--"}</span>
+                            )}
+                          </div>
+
+                          {/* Joining Date */}
+                          <div className="bg-slate-50/80 border border-slate-100 rounded-xl p-3">
+                            <span className="text-[10px] font-bold uppercase text-slate-400 block tracking-wider">Joining Date</span>
+                            {isEditingProfile ? (
+                              <input
+                                type="date"
+                                value={employeeForm.dateOfJoining ? String(employeeForm.dateOfJoining).slice(0, 10) : ""}
+                                onChange={(e) => setEmployeeForm(prev => ({ ...prev, dateOfJoining: e.target.value }))}
+                                className="w-full text-xs font-bold text-slate-900 bg-white border border-indigo-200 focus:border-indigo-500 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-indigo-500 mt-1"
+                              />
+                            ) : (
+                              <span className="font-extrabold text-slate-800 block mt-0.5">{displayDoj || "--"}</span>
+                            )}
+                          </div>
+
+                          {/* Reporting Manager */}
+                          <div className="bg-slate-50/80 border border-slate-100 rounded-xl p-3">
+                            <span className="text-[10px] font-bold uppercase text-slate-400 block tracking-wider">Reporting Manager</span>
+                            {isEditingProfile ? (
                               <input
                                 type="text"
-                                value={employeeForm.department || ""} placeholder="e.g. Human Resources"
-                                readOnly={!canManageEmployees}
-                                onChange={(e) => setEmployeeForm({ ...employeeForm, department: e.target.value })}
-                                className={`w-full text-xs border border-slate-200 rounded-xl px-3 py-2 font-bold ${
-                                  !canManageEmployees ? 'bg-slate-100 text-slate-600 cursor-not-allowed' : 'bg-white focus:outline-none focus:ring-1 focus:ring-indigo-500'
-                                }`}
+                                value={employeeForm.reportingManager || ""}
+                                onChange={(e) => setEmployeeForm(prev => ({ ...prev, reportingManager: e.target.value }))}
+                                placeholder="Reporting Manager"
+                                className="w-full text-xs font-bold text-slate-900 bg-white border border-indigo-200 focus:border-indigo-500 rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-1 focus:ring-indigo-500 mt-1"
                               />
-                            </div>
-                            <div>
-                              <label className="block text-[10px] font-black text-slate-500 uppercase tracking-wider mb-1">Designation</label>
-                              <input
-                                type="text"
-                                value={employeeForm.designation || ""} placeholder="e.g. Senior Software Engineer"
-                                readOnly={!canManageEmployees}
-                                onChange={(e) => setEmployeeForm({ ...employeeForm, designation: e.target.value })}
-                                className={`w-full text-xs border border-slate-200 rounded-xl px-3 py-2 font-bold ${
-                                  !canManageEmployees ? 'bg-slate-100 text-slate-600 cursor-not-allowed' : 'bg-white focus:outline-none focus:ring-1 focus:ring-indigo-500'
-                                }`}
-                              />
-                            </div>
-                            <div>
-                              <label className="block text-[10px] font-black text-slate-500 uppercase tracking-wider mb-1">Employment Type</label>
+                            ) : (
+                              <span className="font-extrabold text-slate-800 block mt-0.5">{displayManager || "--"}</span>
+                            )}
+                          </div>
+
+                          {/* Employment Type */}
+                          <div className="bg-slate-50/80 border border-slate-100 rounded-xl p-3">
+                            <span className="text-[10px] font-bold uppercase text-slate-400 block tracking-wider">Employment Type</span>
+                            {isEditingProfile ? (
                               <select
-                                value={employeeForm.employeeType || currentUserProfile?.employeeType || "Full-Time"}
-                                disabled={!canManageEmployees}
-                                onChange={(e) => setEmployeeForm({ ...employeeForm, employeeType: e.target.value })}
-                                className={`w-full text-xs border border-slate-200 rounded-xl px-3 py-2 font-bold ${
-                                  !canManageEmployees ? 'bg-slate-100 text-slate-600 cursor-not-allowed' : 'bg-white focus:outline-none focus:ring-1 focus:ring-indigo-500'
-                                }`}
+                                value={employeeForm.employeeType || "Full-Time"}
+                                onChange={(e) => setEmployeeForm(prev => ({ ...prev, employeeType: e.target.value }))}
+                                className="w-full text-xs font-bold text-slate-900 bg-white border border-indigo-200 focus:border-indigo-500 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-indigo-500 mt-1"
                               >
                                 <option value="Full-Time">Full-Time</option>
                                 <option value="Part-Time">Part-Time</option>
                                 <option value="Contract">Contract</option>
                                 <option value="Intern">Intern</option>
                               </select>
-                            </div>
-                            <div>
-                              <label className="block text-[10px] font-black text-slate-500 uppercase tracking-wider mb-1">Official Email</label>
+                            ) : (
+                              <span className="font-extrabold text-slate-800 block mt-0.5">{displayEmpType || "--"}</span>
+                            )}
+                          </div>
+
+                          {/* Shift Policy */}
+                          <div className="bg-slate-50/80 border border-slate-100 rounded-xl p-3">
+                            <span className="text-[10px] font-bold uppercase text-slate-400 block tracking-wider">Shift Policy</span>
+                            {isEditingProfile ? (
                               <input
-                                type="email"
-                                value={employeeForm.officialEmail || ""} placeholder="e.g. employee@company.com"
-                                readOnly={!canManageEmployees}
-                                onChange={(e) => setEmployeeForm({ ...employeeForm, officialEmail: e.target.value })}
-                                className={`w-full text-xs border border-slate-200 rounded-xl px-3 py-2 font-bold font-mono ${
-                                  !canManageEmployees ? 'bg-slate-100 text-slate-600 cursor-not-allowed' : 'bg-white focus:outline-none focus:ring-1 focus:ring-indigo-500'
-                                }`}
+                                type="text"
+                                value={employeeForm.shift || "General Shift"}
+                                onChange={(e) => setEmployeeForm(prev => ({ ...prev, shift: e.target.value }))}
+                                placeholder="Shift Policy"
+                                className="w-full text-xs font-bold text-slate-900 bg-white border border-indigo-200 focus:border-indigo-500 rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-1 focus:ring-indigo-500 mt-1"
                               />
-                            </div>
-                            <div>
-                              <label className="block text-[10px] font-black text-slate-500 uppercase tracking-wider mb-1">Date of Joining</label>
+                            ) : (
+                              <span className="font-extrabold text-slate-800 block mt-0.5 truncate">{displayShift || "General Shift"}</span>
+                            )}
+                          </div>
+
+                          {/* Weekly Off */}
+                          <div className="bg-slate-50/80 border border-slate-100 rounded-xl p-3">
+                            <span className="text-[10px] font-bold uppercase text-slate-400 block tracking-wider">Weekly Off</span>
+                            {isEditingProfile ? (
                               <input
-                                type="date"
-                                value={employeeForm.dateOfJoining || ""}
-                                readOnly={!canManageEmployees}
-                                onChange={(e) => setEmployeeForm({ ...employeeForm, dateOfJoining: e.target.value })}
-                                className={`w-full text-xs border border-slate-200 rounded-xl px-3 py-2 font-bold ${
-                                  !canManageEmployees ? 'bg-slate-100 text-slate-600 cursor-not-allowed' : 'bg-white focus:outline-none focus:ring-1 focus:ring-indigo-500'
-                                }`}
+                                type="text"
+                                value={employeeForm.weeklyOff || "Sunday"}
+                                onChange={(e) => setEmployeeForm(prev => ({ ...prev, weeklyOff: e.target.value }))}
+                                placeholder="Weekly Off"
+                                className="w-full text-xs font-bold text-slate-900 bg-white border border-indigo-200 focus:border-indigo-500 rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-1 focus:ring-indigo-500 mt-1"
                               />
-                            </div>
+                            ) : (
+                              <span className="font-extrabold text-slate-800 block mt-0.5">{displayWeeklyOff || "Sunday"}</span>
+                            )}
                           </div>
                         </div>
+                      </div>
+
+                      {/* Card 3: 📞 Contact Information */}
+                      <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-xs space-y-4">
+                        <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+                          <h4 className="text-xs font-black uppercase tracking-wider text-slate-900 flex items-center gap-2">
+                            <span className="text-base">📞</span> Contact Information
+                          </h4>
+                          {!isEditingProfile && (
+                            <button
+                              type="button"
+                              onClick={handleStartEdit}
+                              className="text-[11px] font-bold text-indigo-600 hover:text-indigo-700 flex items-center gap-1 cursor-pointer"
+                            >
+                              Edit <span>✏️</span>
+                            </button>
                           )}
                         </div>
-                      )}
-
-                      {profileTab === "Contact Information" && (
-                        <div className="space-y-4">
-                          <h4 className="text-xs font-black uppercase text-indigo-950 tracking-wider border-b pb-2 border-slate-200">
-                            📞 Contact Details
-                          </h4>
-                          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                            <div>
-                              <label className="block text-[10px] font-black text-slate-500 uppercase tracking-wider mb-1">Mobile Number *</label>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                          {/* Mobile Number */}
+                          <div className="bg-slate-50/80 border border-slate-100 rounded-xl p-3">
+                            <span className="text-[10px] font-bold uppercase text-slate-400 block tracking-wider">Mobile Number</span>
+                            {isEditingProfile ? (
                               <input
-                                type="text"
-                                required
-                                placeholder="e.g. +91 98765 43210"
+                                type="tel"
                                 value={employeeForm.mobileNumber || ""}
-                                onChange={(e) => setEmployeeForm({ ...employeeForm, mobileNumber: e.target.value })}
-                                className="w-full text-xs bg-white border border-slate-200 rounded-xl px-3 py-2 focus:outline-none focus:ring-1 focus:ring-indigo-500 font-bold font-mono"
+                                onChange={(e) => setEmployeeForm(prev => ({ ...prev, mobileNumber: e.target.value }))}
+                                placeholder="e.g. +91 9876543210"
+                                className="w-full text-xs font-bold text-slate-900 bg-white border border-indigo-200 focus:border-indigo-500 rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-1 focus:ring-indigo-500 mt-1 font-mono"
                               />
-                            </div>
-                            <div>
-                              <label className="block text-[10px] font-black text-slate-500 uppercase tracking-wider mb-1">Alternate Mobile</label>
+                            ) : (
+                              <span className="font-extrabold text-slate-800 block mt-0.5">{displayMobile || "--"}</span>
+                            )}
+                          </div>
+
+                          {/* Alternate Mobile */}
+                          <div className="bg-slate-50/80 border border-slate-100 rounded-xl p-3">
+                            <span className="text-[10px] font-bold uppercase text-slate-400 block tracking-wider">Alternate Mobile</span>
+                            {isEditingProfile ? (
                               <input
-                                type="text"
-                                placeholder="e.g. +91 98765 43211"
+                                type="tel"
                                 value={employeeForm.alternateMobile || ""}
-                                onChange={(e) => setEmployeeForm({ ...employeeForm, alternateMobile: e.target.value })}
-                                className="w-full text-xs bg-white border border-slate-200 rounded-xl px-3 py-2 focus:outline-none focus:ring-1 focus:ring-indigo-500 font-bold font-mono"
+                                onChange={(e) => setEmployeeForm(prev => ({ ...prev, alternateMobile: e.target.value }))}
+                                placeholder="Alternate Contact"
+                                className="w-full text-xs font-bold text-slate-900 bg-white border border-indigo-200 focus:border-indigo-500 rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-1 focus:ring-indigo-500 mt-1 font-mono"
                               />
-                            </div>
-                            <div>
-                              <label className="block text-[10px] font-black text-slate-500 uppercase tracking-wider mb-1">Personal Email</label>
+                            ) : (
+                              <span className="font-extrabold text-slate-800 block mt-0.5">{displayAltMobile || "--"}</span>
+                            )}
+                          </div>
+
+                          {/* Personal Email */}
+                          <div className="bg-slate-50/80 border border-slate-100 rounded-xl p-3 sm:col-span-2">
+                            <span className="text-[10px] font-bold uppercase text-slate-400 block tracking-wider">Personal Email</span>
+                            {isEditingProfile ? (
                               <input
                                 type="email"
-                                placeholder="e.g. employee.personal@gmail.com"
                                 value={employeeForm.personalEmail || ""}
-                                onChange={(e) => setEmployeeForm({ ...employeeForm, personalEmail: e.target.value })}
-                                className="w-full text-xs bg-white border border-slate-200 rounded-xl px-3 py-2 focus:outline-none focus:ring-1 focus:ring-indigo-500 font-bold font-mono"
+                                onChange={(e) => setEmployeeForm(prev => ({ ...prev, personalEmail: e.target.value }))}
+                                placeholder="personal@gmail.com"
+                                className="w-full text-xs font-bold text-slate-900 bg-white border border-indigo-200 focus:border-indigo-500 rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-1 focus:ring-indigo-500 mt-1 font-mono"
                               />
-                            </div>
-                            <div className="sm:col-span-2">
-                              <label className="block text-[10px] font-black text-slate-500 uppercase tracking-wider mb-1">Current Address</label>
+                            ) : (
+                              <span className="font-extrabold text-slate-800 block mt-0.5">{displayPersonalEmail || "--"}</span>
+                            )}
+                          </div>
+
+                          {/* Current Address */}
+                          <div className="bg-slate-50/80 border border-slate-100 rounded-xl p-3 sm:col-span-2">
+                            <span className="text-[10px] font-bold uppercase text-slate-400 block tracking-wider">Current Address</span>
+                            {isEditingProfile ? (
                               <textarea
                                 rows="2"
                                 value={employeeForm.currentAddress || ""}
-                                onChange={(e) => setEmployeeForm({ ...employeeForm, currentAddress: e.target.value })}
-                                className="w-full text-xs bg-white border border-slate-200 rounded-xl px-3 py-2 focus:outline-none focus:ring-1 focus:ring-indigo-500 font-bold"
-                              ></textarea>
-                            </div>
-                            <div className="sm:col-span-2">
-                              <label className="block text-[10px] font-black text-slate-500 uppercase tracking-wider mb-1">Permanent Address</label>
+                                onChange={(e) => setEmployeeForm(prev => ({ ...prev, currentAddress: e.target.value }))}
+                                placeholder="Current Residential Address"
+                                className="w-full text-xs font-bold text-slate-900 bg-white border border-indigo-200 focus:border-indigo-500 rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-1 focus:ring-indigo-500 mt-1"
+                              />
+                            ) : (
+                              <span className="font-medium text-slate-800 block mt-0.5 leading-relaxed">{displayCurrentAddress || "--"}</span>
+                            )}
+                          </div>
+
+                          {/* Permanent Address */}
+                          <div className="bg-slate-50/80 border border-slate-100 rounded-xl p-3 sm:col-span-2">
+                            <span className="text-[10px] font-bold uppercase text-slate-400 block tracking-wider">Permanent Address</span>
+                            {isEditingProfile ? (
                               <textarea
                                 rows="2"
                                 value={employeeForm.permanentAddress || ""}
-                                onChange={(e) => setEmployeeForm({ ...employeeForm, permanentAddress: e.target.value })}
-                                className="w-full text-xs bg-white border border-slate-200 rounded-xl px-3 py-2 focus:outline-none focus:ring-1 focus:ring-indigo-500 font-bold"
-                              ></textarea>
-                            </div>
+                                onChange={(e) => setEmployeeForm(prev => ({ ...prev, permanentAddress: e.target.value }))}
+                                placeholder="Permanent Address"
+                                className="w-full text-xs font-bold text-slate-900 bg-white border border-indigo-200 focus:border-indigo-500 rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-1 focus:ring-indigo-500 mt-1"
+                              />
+                            ) : (
+                              <span className="font-medium text-slate-800 block mt-0.5 leading-relaxed">{displayPermanentAddress || "--"}</span>
+                            )}
                           </div>
                         </div>
-                      )}
+                      </div>
 
-                      {profileTab === "Education" && (
-                        <div className="space-y-4">
-                          <h4 className="text-xs font-black uppercase text-indigo-950 tracking-wider border-b pb-2 border-slate-200">
-                            🎓 Education
+                      {/* Card 4: 🎓 Education & 💼 Experience */}
+                      <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-xs space-y-4">
+                        <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+                          <h4 className="text-xs font-black uppercase tracking-wider text-slate-900 flex items-center gap-2">
+                            <span className="text-base">🎓</span> Education &amp; Experience
                           </h4>
-                          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                            <div>
-                              <label className="block text-[10px] font-black text-slate-500 uppercase tracking-wider mb-1">Highest Degree</label>
+                          {!isEditingProfile && (
+                            <button
+                              type="button"
+                              onClick={handleStartEdit}
+                              className="text-[11px] font-bold text-indigo-600 hover:text-indigo-700 flex items-center gap-1 cursor-pointer"
+                            >
+                              Edit <span>✏️</span>
+                            </button>
+                          )}
+                        </div>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                          {/* Highest Degree */}
+                          <div className="bg-slate-50/80 border border-slate-100 rounded-xl p-3">
+                            <span className="text-[10px] font-bold uppercase text-slate-400 block tracking-wider">Highest Degree</span>
+                            {isEditingProfile ? (
                               <input
                                 type="text"
                                 value={employeeForm.highestDegree || ""}
-                                onChange={(e) => setEmployeeForm({ ...employeeForm, highestDegree: e.target.value })}
-                                className="w-full text-xs bg-white border border-slate-200 rounded-xl px-3 py-2 focus:outline-none focus:ring-1 focus:ring-indigo-500 font-bold"
+                                onChange={(e) => setEmployeeForm(prev => ({ ...prev, highestDegree: e.target.value }))}
+                                placeholder="e.g. B.Tech / MBA / MCA"
+                                className="w-full text-xs font-bold text-slate-900 bg-white border border-indigo-200 focus:border-indigo-500 rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-1 focus:ring-indigo-500 mt-1"
                               />
-                            </div>
-                            <div>
-                              <label className="block text-[10px] font-black text-slate-500 uppercase tracking-wider mb-1">Specialization</label>
+                            ) : (
+                              <span className="font-extrabold text-slate-800 block mt-0.5">{displayDegree || "--"}</span>
+                            )}
+                          </div>
+
+                          {/* Specialization */}
+                          <div className="bg-slate-50/80 border border-slate-100 rounded-xl p-3">
+                            <span className="text-[10px] font-bold uppercase text-slate-400 block tracking-wider">Specialization</span>
+                            {isEditingProfile ? (
                               <input
                                 type="text"
                                 value={employeeForm.specialization || ""}
-                                onChange={(e) => setEmployeeForm({ ...employeeForm, specialization: e.target.value })}
-                                className="w-full text-xs bg-white border border-slate-200 rounded-xl px-3 py-2 focus:outline-none focus:ring-1 focus:ring-indigo-500 font-bold"
+                                onChange={(e) => setEmployeeForm(prev => ({ ...prev, specialization: e.target.value }))}
+                                placeholder="e.g. Computer Science"
+                                className="w-full text-xs font-bold text-slate-900 bg-white border border-indigo-200 focus:border-indigo-500 rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-1 focus:ring-indigo-500 mt-1"
                               />
-                            </div>
-                            <div>
-                              <label className="block text-[10px] font-black text-slate-500 uppercase tracking-wider mb-1">University Name</label>
+                            ) : (
+                              <span className="font-extrabold text-slate-800 block mt-0.5">{displaySpecialization || "--"}</span>
+                            )}
+                          </div>
+
+                          {/* University */}
+                          <div className="bg-slate-50/80 border border-slate-100 rounded-xl p-3 sm:col-span-2">
+                            <span className="text-[10px] font-bold uppercase text-slate-400 block tracking-wider">University</span>
+                            {isEditingProfile ? (
                               <input
                                 type="text"
                                 value={employeeForm.university || ""}
-                                onChange={(e) => setEmployeeForm({ ...employeeForm, university: e.target.value })}
-                                className="w-full text-xs bg-white border border-slate-200 rounded-xl px-3 py-2 focus:outline-none focus:ring-1 focus:ring-indigo-500 font-bold"
+                                onChange={(e) => setEmployeeForm(prev => ({ ...prev, university: e.target.value }))}
+                                placeholder="University or Institute Name"
+                                className="w-full text-xs font-bold text-slate-900 bg-white border border-indigo-200 focus:border-indigo-500 rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-1 focus:ring-indigo-500 mt-1"
                               />
-                            </div>
+                            ) : (
+                              <span className="font-extrabold text-slate-800 block mt-0.5">{displayUniversity || "--"}</span>
+                            )}
                           </div>
-                        </div>
-                      )}
 
-                      {profileTab === "Experience" && (
-                        <div className="space-y-4">
-                          <h4 className="text-xs font-black uppercase text-indigo-950 tracking-wider border-b pb-2 border-slate-200">
-                            💼 Experience
-                          </h4>
-                          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                            <div>
-                              <label className="block text-[10px] font-black text-slate-500 uppercase tracking-wider mb-1">Previous Company Name</label>
+                          {/* Previous Company */}
+                          <div className="bg-slate-50/80 border border-slate-100 rounded-xl p-3">
+                            <span className="text-[10px] font-bold uppercase text-slate-400 block tracking-wider">Previous Company</span>
+                            {isEditingProfile ? (
                               <input
                                 type="text"
                                 value={employeeForm.prevCompany || ""}
-                                onChange={(e) => setEmployeeForm({ ...employeeForm, prevCompany: e.target.value })}
-                                className="w-full text-xs bg-white border border-slate-200 rounded-xl px-3 py-2 focus:outline-none focus:ring-1 focus:ring-indigo-500 font-bold"
+                                onChange={(e) => setEmployeeForm(prev => ({ ...prev, prevCompany: e.target.value }))}
+                                placeholder="Previous Employer Name"
+                                className="w-full text-xs font-bold text-slate-900 bg-white border border-indigo-200 focus:border-indigo-500 rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-1 focus:ring-indigo-500 mt-1"
                               />
-                            </div>
-                            <div>
-                              <label className="block text-[10px] font-black text-slate-500 uppercase tracking-wider mb-1">Last Held Designation</label>
+                            ) : (
+                              <span className="font-extrabold text-slate-800 block mt-0.5">{displayPrevCompany || "--"}</span>
+                            )}
+                          </div>
+
+                          {/* Last Designation */}
+                          <div className="bg-slate-50/80 border border-slate-100 rounded-xl p-3">
+                            <span className="text-[10px] font-bold uppercase text-slate-400 block tracking-wider">Last Designation</span>
+                            {isEditingProfile ? (
                               <input
                                 type="text"
                                 value={employeeForm.prevDesignation || ""}
-                                onChange={(e) => setEmployeeForm({ ...employeeForm, prevDesignation: e.target.value })}
-                                className="w-full text-xs bg-white border border-slate-200 rounded-xl px-3 py-2 focus:outline-none focus:ring-1 focus:ring-indigo-500 font-bold"
+                                onChange={(e) => setEmployeeForm(prev => ({ ...prev, prevDesignation: e.target.value }))}
+                                placeholder="Last Held Designation"
+                                className="w-full text-xs font-bold text-slate-900 bg-white border border-indigo-200 focus:border-indigo-500 rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-1 focus:ring-indigo-500 mt-1"
                               />
-                            </div>
+                            ) : (
+                              <span className="font-extrabold text-slate-800 block mt-0.5">{displayPrevDesig || "--"}</span>
+                            )}
                           </div>
                         </div>
-                      )}
+                      </div>
                     </div>
 
-                    {isNewRegistration && (
-                      <div className="bg-amber-50 border border-amber-200 text-amber-900 px-4 py-2.5 rounded-xl text-xs font-bold flex items-center justify-between shadow-2xs">
-                        <span>✨ <b>New Registration Mode</b>: Form fields are cleared for a new employee entry.</span>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setIsNewRegistration(false);
-                            if (profileDetails && Object.keys(profileDetails).length > 0) {
-                              setEmployeeForm({
-                                ...getEmptyEmployeeForm(),
-                                ...profileDetails,
-                                documents: profileDetails.documents || {},
-                                assets: profileDetails.assets || []
-                              });
-                            }
-                          }}
-                          className="px-3 py-1 bg-white border border-amber-300 rounded-lg text-amber-800 text-[11px] font-extrabold hover:bg-amber-100 transition"
-                        >
-                          🔄 Load Saved Profile
-                        </button>
+                    {/* Bottom Action Bar when in Edit Mode */}
+                    {isEditingProfile && (
+                      <div className="bg-indigo-50/90 border border-indigo-200 p-4 sm:p-5 rounded-2xl flex flex-col sm:flex-row items-center justify-between gap-4 shadow-sm animate-fadeIn">
+                        <div className="flex items-center gap-2 text-xs text-indigo-950 font-bold">
+                          <span className="text-lg">✏️</span>
+                          <span><b>Inline Edit Mode:</b> Update details directly in the cards above and click <b>Save Changes</b>.</span>
+                        </div>
+                        <div className="flex items-center gap-3 w-full sm:w-auto justify-end shrink-0">
+                          <button
+                            type="button"
+                            onClick={handleCancelEdit}
+                            className="px-5 py-2.5 bg-white hover:bg-slate-100 active:bg-slate-200 text-slate-700 text-xs font-black uppercase tracking-wider rounded-xl border border-slate-300 shadow-xs transition cursor-pointer"
+                          >
+                            ✕ Cancel
+                          </button>
+                          <button
+                            type="submit"
+                            className="px-6 py-2.5 bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 text-white text-xs font-black uppercase tracking-wider rounded-xl shadow-md shadow-indigo-600/30 transition cursor-pointer flex items-center gap-2"
+                          >
+                            <span>💾</span> Save Changes
+                          </button>
+                        </div>
                       </div>
                     )}
-
-                    <div className="flex flex-col sm:flex-row justify-between items-center gap-3 pt-6 border-t border-slate-100 mt-6">
-                      <div className="flex items-center gap-2 w-full sm:w-auto">
-                        {hasPrev && (
-                          <button
-                            type="button"
-                            onClick={() => handleTabClick(profileSectionsList[currentSectionIdx - 1])}
-                            className="px-3.5 py-2 bg-white border border-slate-200 hover:bg-slate-100 text-slate-700 text-xs font-bold rounded-xl transition flex items-center gap-1 shadow-2xs"
-                          >
-                            ← Previous Section
-                          </button>
-                        )}
-                        {hasNext && (
-                          <button
-                            type="button"
-                            onClick={() => handleTabClick(profileSectionsList[currentSectionIdx + 1])}
-                            className="px-3.5 py-2 bg-indigo-50 border border-indigo-200 hover:bg-indigo-100 text-indigo-700 text-xs font-bold rounded-xl transition flex items-center gap-1 shadow-2xs"
-                          >
-                            Next Section →
-                          </button>
-                        )}
-                      </div>
-
-                      <div className="flex items-center gap-2.5 w-full sm:w-auto justify-end">
-                        {isNewRegistration && (
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setIsNewRegistration(false);
-                              if (profileDetails && Object.keys(profileDetails).length > 0) {
-                                setEmployeeForm({
-                                  ...getEmptyEmployeeForm(),
-                                  ...profileDetails,
-                                  documents: profileDetails.documents || {},
-                                  assets: profileDetails.assets || []
-                                });
-                              }
-                            }}
-                            className="px-3.5 py-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-xs font-bold rounded-xl transition flex items-center gap-1"
-                          >
-                            🔄 Load Profile
-                          </button>
-                        )}
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setIsNewRegistration(true);
-                            setEmployeeForm(getEmptyEmployeeForm());
-                            setProfileTab("Information");
-                            setInformationSubTab("Basic Information");
-                            alert("Form reset! Sabhi fields khali ho gayi hain. Kripya '1. Information' se shuru karein.");
-                          }}
-                          className="px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-xl transition"
-                        >
-                          + Reset for New Registration
-                        </button>
-                        <button
-                          type="submit"
-                          className="px-5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-black rounded-xl shadow-md transition"
-                        >
-                          Submit & Register
-                        </button>
-                      </div>
-                    </div>
                   </form>
-                </div>
-              </div>
-            )}
+                );
+
+      })()}
 
               {/* Tab 2: Documents */}
               {(activeTab === "Documents" || activeTab === "Document Log") && (
-                <div className="space-y-4">
-                  <h4 className="text-xs font-black uppercase text-slate-900 tracking-wider border-b pb-2 border-slate-100">
-                    📂 Uploaded Profile Documents
-                  </h4>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="space-y-6">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-3 border-b border-slate-100 gap-2">
+                    <div>
+                      <h4 className="text-sm font-black uppercase text-slate-900 tracking-wider flex items-center gap-2">
+                        <span>📂</span> Official Profile Documents & Credentials
+                      </h4>
+                      <p className="text-xs text-slate-500 font-medium mt-0.5">
+                        Uploaded documents are automatically submitted to Admin and Department Head for verification.
+                      </p>
+                    </div>
+                    <span className="text-[10px] font-bold text-indigo-700 bg-indigo-50 border border-indigo-200 px-3 py-1 rounded-full shrink-0">
+                      Live Sync Active
+                    </span>
+                  </div>
+
+                  {/* Standard Document Cards Grid */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                     {[
                       "Aadhar Card",
                       "PAN Card",
@@ -2908,55 +3136,219 @@ const EmployeeDashboard = () => {
                       "Experience Letter",
                       "Resume"
                     ].map((docType) => {
-                      const val = (employeeForm.documents || {})[docType] || "";
+                      const matchedDoc = allDocumentsList.find(d => {
+                        const t = String(d.title || "").toLowerCase();
+                        const dt = String(d.document_type || d.type || "").toLowerCase();
+                        const target = docType.toLowerCase();
+                        return t.includes(target) || dt.includes(target);
+                      });
+                      const val = (employeeForm.documents || {})[docType] || matchedDoc?.file_url || matchedDoc?.storage_key || "";
+                      const status = matchedDoc?.status || (val ? "Pending Approval" : "Not Uploaded");
+
                       return (
-                        <div key={docType} className="border border-slate-100 p-4 rounded-xl bg-slate-50/40 space-y-3 flex flex-col justify-between font-bold">
+                        <div key={docType} className="border border-slate-200/80 p-4 rounded-2xl bg-white shadow-xs space-y-3 flex flex-col justify-between font-sans transition hover:border-slate-300">
                           <div>
-                            <span className="text-[9px] font-black uppercase text-slate-400 block">{docType}</span>
-                            <span className="text-xs text-slate-700 block mt-0.5 truncate max-w-[200px] font-mono">{val || "Not uploaded (Pending)"}</span>
+                            <div className="flex items-center justify-between gap-2 mb-1">
+                              <span className="text-[10px] font-black uppercase tracking-wider text-slate-500 block truncate">{docType}</span>
+                              <span className={`px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider border ${
+                                status === 'Approved' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' :
+                                status === 'Pending Approval' ? 'bg-amber-50 text-amber-700 border-amber-200 animate-pulse' :
+                                status === 'Revision Required' ? 'bg-rose-50 text-rose-700 border-rose-200' :
+                                'bg-slate-50 text-slate-400 border-slate-200'
+                              }`}>
+                                {status}
+                              </span>
+                            </div>
+                            <span className="text-xs text-slate-600 block mt-0.5 truncate max-w-full font-mono">
+                              {val ? val.split('/').pop() : "No document uploaded yet"}
+                            </span>
                           </div>
-                          <div className="flex gap-2 items-center justify-between mt-2">
-                            <input
-                              type="file"
-                              onChange={async (e) => {
-                                const file = e.target.files[0];
-                                if (!file) return;
-                                const fd = new FormData();
-                                fd.append("file", file);
-                                fd.append("employeeName", employeeName);
-                                fd.append("employeeId", employeeForm.employeeId || employeeForm.id);
-                                try {
-                                  const url = await uploadEmployeeFile(fd);
-                                  if (url) {
-                                    setEmployeeForm(prev => ({
-                                      ...prev,
-                                      documents: {
-                                        ...(prev.documents || {}),
-                                        [docType]: url
-                                      }
-                                    }));
-                                    alert(`${docType} uploaded successfully!`);
+
+                          <div className="flex flex-wrap gap-2 items-center justify-between pt-2 border-t border-slate-100">
+                            <label className="cursor-pointer px-2.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-[10px] font-bold rounded-xl transition flex items-center gap-1">
+                              <span>📤</span>
+                              <span>{val ? "Re-upload" : "Choose File"}</span>
+                              <input
+                                type="file"
+                                className="hidden"
+                                onChange={async (e) => {
+                                  const file = e.target.files[0];
+                                  if (!file) return;
+                                  const fd = new FormData();
+                                  fd.append("file", file);
+                                  fd.append("companyName", currentUserProfile?.company || employeeForm.company || "");
+                                  fd.append("department", employeeForm.department || currentUserProfile?.department || "General");
+                                  fd.append("employeeId", employeeForm.employeeCode || employeeForm.employeeId || employeeForm.id || currentUserProfile?.employeeCode || currentUserProfile?.empId || "EMP");
+                                  fd.append("employeeName", employeeName || employeeForm.employeeName || currentUserProfile?.name || "Employee");
+                                  fd.append("documentType", docType);
+                                  try {
+                                    const url = await uploadEmployeeFile(fd);
+                                    if (url) {
+                                      setEmployeeForm(prev => ({
+                                        ...prev,
+                                        documents: {
+                                          ...(prev.documents || {}),
+                                          [docType]: url
+                                        }
+                                      }));
+                                      await loadDashboardData();
+                                      alert(`✅ ${docType} uploaded successfully! Visible in Admin & Department Head dashboard.`);
+                                    }
+                                  } catch (err) {
+                                    alert("Upload failed: " + err.message);
                                   }
-                                } catch (err) {
-                                  alert("Upload failed: " + err.message);
-                                }
-                              }}
-                              className="text-[9px] text-slate-500 file:mr-2 file:py-1 file:px-2 file:rounded-md file:border-0 file:text-[9px] file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100 cursor-pointer"
-                            />
+                                }}
+                              />
+                            </label>
+
                             {val && (
                               <a
                                 href={val}
                                 target="_blank"
                                 rel="noopener noreferrer"
-                                className="px-3 py-1 bg-indigo-50 hover:bg-indigo-100 text-indigo-600 rounded-lg text-[9px] font-black tracking-wide whitespace-nowrap"
+                                className="px-3 py-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 rounded-xl text-[10px] font-black tracking-wide whitespace-nowrap transition flex items-center gap-1"
                               >
-                                Open Link
+                                <span>👁️</span> Open Document
                               </a>
                             )}
                           </div>
                         </div>
                       );
                     })}
+
+                    {/* Upload Additional Document Card */}
+                    <div className="border border-dashed border-indigo-200 p-4 rounded-2xl bg-indigo-50/40 space-y-3 flex flex-col justify-between font-sans">
+                      <div>
+                        <span className="text-[10px] font-black uppercase tracking-wider text-indigo-700 block mb-1">
+                          + Add Other Document
+                        </span>
+                        <input
+                          type="text"
+                          placeholder="e.g. Driving License, Medical..."
+                          value={customDocType}
+                          onChange={(e) => setCustomDocType(e.target.value)}
+                          className="w-full text-xs font-semibold px-2.5 py-1.5 bg-white border border-indigo-200 rounded-xl focus:outline-indigo-500 text-slate-800"
+                        />
+                      </div>
+                      <div className="flex gap-2 items-center justify-between pt-2">
+                        <label className="cursor-pointer px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white text-[10px] font-bold rounded-xl transition flex items-center gap-1 shadow-xs w-full justify-center">
+                          <span>📁</span>
+                          <span>{uploadingDoc ? "Uploading..." : "Select & Upload Document"}</span>
+                          <input
+                            type="file"
+                            disabled={uploadingDoc}
+                            className="hidden"
+                            onChange={async (e) => {
+                              const file = e.target.files[0];
+                              if (!file) return;
+                              const docLabel = customDocType.trim() || file.name.split('.')[0] || "Custom Document";
+                              const fd = new FormData();
+                              fd.append("file", file);
+                              fd.append("companyName", currentUserProfile?.company || employeeForm.company || "");
+                              fd.append("department", employeeForm.department || currentUserProfile?.department || "General");
+                              fd.append("employeeId", employeeForm.employeeCode || employeeForm.employeeId || employeeForm.id || currentUserProfile?.employeeCode || currentUserProfile?.empId || "EMP");
+                              fd.append("employeeName", employeeName || employeeForm.employeeName || currentUserProfile?.name || "Employee");
+                              fd.append("documentType", docLabel);
+                              try {
+                                setUploadingDoc(true);
+                                const url = await uploadEmployeeFile(fd);
+                                if (url) {
+                                  setEmployeeForm(prev => ({
+                                    ...prev,
+                                    documents: {
+                                      ...(prev.documents || {}),
+                                      [docLabel]: url
+                                    }
+                                  }));
+                                  setCustomDocType("");
+                                  await loadDashboardData();
+                                  alert(`✅ ${docLabel} uploaded successfully! Visible in Admin and Department Head dashboard.`);
+                                }
+                              } catch (err) {
+                                alert("Upload failed: " + err.message);
+                              } finally {
+                                setUploadingDoc(false);
+                              }
+                            }}
+                          />
+                        </label>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Document Verification & Submission History Table */}
+                  <div className="bg-white border border-slate-200/80 rounded-2xl p-4 shadow-xs space-y-3 font-sans">
+                    <div className="flex items-center justify-between border-b pb-2 border-slate-100">
+                      <h4 className="text-xs font-black uppercase text-slate-800 tracking-wider">
+                        📋 Central Document Submission & Verification Log
+                      </h4>
+                      <span className="text-[10px] font-bold text-slate-400">
+                        {allDocumentsList.length} Document(s) Recorded
+                      </span>
+                    </div>
+
+                    {allDocumentsList.length === 0 ? (
+                      <div className="text-center py-6 text-xs text-slate-400 font-medium">
+                        No documents recorded in the central repository yet. Upload documents using the cards above.
+                      </div>
+                    ) : (
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-left text-xs border-collapse">
+                          <thead>
+                            <tr className="border-b border-slate-100 text-[10px] font-black uppercase tracking-wider text-slate-400 bg-slate-50/50">
+                              <th className="py-2.5 px-3">Document Title</th>
+                              <th className="py-2.5 px-3">Type</th>
+                              <th className="py-2.5 px-3">Upload Date</th>
+                              <th className="py-2.5 px-3">Status</th>
+                              <th className="py-2.5 px-3 text-right">Action</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-slate-100 text-slate-700 font-medium">
+                            {allDocumentsList.map((doc, idx) => {
+                              const docStatus = doc.status || "Pending Approval";
+                              const docUrl = doc.file_url || doc.storage_key || "";
+                              return (
+                                <tr key={doc.id || idx} className="hover:bg-slate-50/70 transition">
+                                  <td className="py-3 px-3 font-bold text-slate-800">
+                                    {doc.title || "Document"}
+                                  </td>
+                                  <td className="py-3 px-3 text-slate-500 font-semibold">
+                                    {doc.document_type || doc.title?.split(' - ')[0] || "General"}
+                                  </td>
+                                  <td className="py-3 px-3 text-slate-500">
+                                    {doc.issue_date || (doc.created_at ? new Date(doc.created_at).toLocaleDateString("en-IN") : "--")}
+                                  </td>
+                                  <td className="py-3 px-3">
+                                    <span className={`px-2.5 py-0.5 rounded-full text-[9px] font-bold border ${
+                                      docStatus === 'Approved' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' :
+                                      docStatus === 'Pending Approval' ? 'bg-amber-50 text-amber-700 border-amber-200 animate-pulse' :
+                                      docStatus === 'Revision Required' ? 'bg-rose-50 text-rose-700 border-rose-200' :
+                                      'bg-slate-50 text-slate-600 border-slate-200'
+                                    }`}>
+                                      {docStatus}
+                                    </span>
+                                  </td>
+                                  <td className="py-3 px-3 text-right">
+                                    {docUrl ? (
+                                      <a
+                                        href={docUrl}
+                                        target="_blank"
+                                        rel="noreferrer"
+                                        className="inline-flex items-center gap-1 text-[11px] font-bold text-indigo-600 hover:text-indigo-800 bg-indigo-50 hover:bg-indigo-100 px-3 py-1 rounded-lg transition"
+                                      >
+                                        <span>👁️</span> View
+                                      </a>
+                                    ) : (
+                                      <span className="text-[11px] text-slate-400 italic">No File</span>
+                                    )}
+                                  </td>
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
                   </div>
                 </div>
               )}

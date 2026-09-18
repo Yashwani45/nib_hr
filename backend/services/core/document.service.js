@@ -71,9 +71,12 @@ class DocumentService {
   }
 
   async getDashboardStats(tenantDb) {
+    const { provisionDocumentTables } = require('./document.provisioner');
+    await provisionDocumentTables(tenantDb).catch(() => {});
+
     const stats = {};
     const executeCount = async (sql, replacements = []) => {
-      const res = await tenantDb.query(sql, { replacements, type: QueryTypes.SELECT });
+      const res = await tenantDb.query(sql, { replacements, type: QueryTypes.SELECT }).catch(() => []);
       return res && res[0] ? Object.values(res[0])[0] : 0;
     };
 
@@ -104,7 +107,9 @@ class DocumentService {
   }
 
   async getDocumentTypes(tenantDb) {
-    return await tenantDb.query('SELECT * FROM `document_types` WHERE deleted_at IS NULL ORDER BY name ASC', { type: QueryTypes.SELECT });
+    const { provisionDocumentTables } = require('./document.provisioner');
+    await provisionDocumentTables(tenantDb).catch(() => {});
+    return await tenantDb.query('SELECT * FROM `document_types` WHERE deleted_at IS NULL ORDER BY name ASC', { type: QueryTypes.SELECT }).catch(() => []);
   }
 
   async createDocumentType(tenantDb, data, user) {

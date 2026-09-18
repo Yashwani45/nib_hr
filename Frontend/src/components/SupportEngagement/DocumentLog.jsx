@@ -106,8 +106,8 @@ const DocumentLog = ({
   });
 
   // Fetch initial data
-  const loadData = async () => {
-    setLoading(true);
+  const loadData = async (silent = false) => {
+    if (!silent) setLoading(true);
     try {
       const [statsRes, docsRes, typesRes, tempsRes, empsRes, candsRes] = await Promise.all([
         apiFetch("/api/documents/stats").catch(() => ({ data: {} })),
@@ -118,8 +118,36 @@ const DocumentLog = ({
         apiFetch("/api/table/candidate_database").catch(() => ({ data: [] }))
       ]);
 
-      setStats(statsRes.data || {});
-      setDocuments(docsRes.data || []);
+      const docsList = Array.isArray(docsRes.data) ? docsRes.data : [];
+      const totalDocs = docsList.length;
+      const pendingCount = docsList.filter(d => {
+        const s = (d.status || '').toLowerCase().trim();
+        return s === 'pending approval' || s === 'pending';
+      }).length;
+      const approvedCount = docsList.filter(d => (d.status || '').toLowerCase().trim() === 'approved').length;
+      const draftCount = docsList.filter(d => (d.status || '').toLowerCase().trim() === 'draft').length;
+      const issuedCount = docsList.filter(d => (d.status || '').toLowerCase().trim() === 'issued').length;
+      const expiringSoonCount = docsList.filter(d => d.expiry_date && new Date(d.expiry_date) < new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)).length;
+
+      const backendStats = statsRes.data || {};
+      setStats({
+        total: Math.max(backendStats.total || 0, totalDocs),
+        draft: Math.max(backendStats.draft || 0, draftCount),
+        pendingApproval: Math.max(backendStats.pendingApproval || 0, pendingCount),
+        approved: Math.max(backendStats.approved || 0, approvedCount),
+        issued: Math.max(backendStats.issued || 0, issuedCount),
+        expiringSoon: Math.max(backendStats.expiringSoon || 0, expiringSoonCount),
+        ...backendStats,
+        ...(totalDocs > (backendStats.total || 0) ? {
+          total: totalDocs,
+          pendingApproval: pendingCount,
+          approved: approvedCount,
+          draft: draftCount,
+          issued: issuedCount
+        } : {})
+      });
+
+      setDocuments(docsList);
       setDocumentTypes(typesRes.data || []);
       setTemplates(tempsRes.data || []);
       setEmployees(empsRes.data || []);
@@ -127,12 +155,21 @@ const DocumentLog = ({
     } catch (err) {
       console.error("Failed to load document manager data:", err);
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   };
 
   useEffect(() => {
     loadData();
+    const interval = setInterval(() => {
+      loadData(true);
+    }, 15000);
+    const handleFocus = () => loadData(true);
+    window.addEventListener("focus", handleFocus);
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener("focus", handleFocus);
+    };
   }, [activeTab]);
 
   // Lookup maps
@@ -144,7 +181,14 @@ const DocumentLog = ({
 
   const empMap = useMemo(() => {
     const map = {};
-    employees.forEach(e => { map[e.employeeCode || e.id] = `${e.firstName || e.employeeName || ""} ${e.lastName || ""}`.trim(); });
+    employees.forEach(e => {
+      const name = `${e.firstName || e.employeeName || e.employee_name || ""} ${e.lastName || ""}`.trim() || e.name || "Employee";
+      if (e.id) map[e.id] = name;
+      if (e.employeeCode) map[e.employeeCode] = name;
+      if (e.emp_code) map[e.emp_code] = name;
+      if (e.employeeId) map[e.employeeId] = name;
+      if (e.email) map[e.email] = name;
+    });
     return map;
   }, [employees]);
 
@@ -354,6 +398,17 @@ const DocumentLog = ({
             </button>
           ))}
         </div>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => loadData(false)}
+            disabled={loading}
+            className="px-3.5 py-1.5 bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-2xs cursor-pointer active:scale-95"
+            title="Refresh documents and stats"
+          >
+            <ArrowPathIcon className={`w-3.5 h-3.5 ${loading ? "animate-spin text-rose-600" : "text-slate-500"}`} />
+            <span>Refresh</span>
+          </button>
+        </div>
       </div>
 
       {loading && (
@@ -442,16 +497,54 @@ const DocumentLog = ({
                   )}
                 </div>
 
-                {/* Audit & Logs */}
-                <div className="bg-white border border-slate-200/80 rounded-3xl p-5 shadow-sm space-y-4">
+                {/* Recent Employee Uploads Panel */}
+                <div className="bg-white border border-slate-200/80 rounded-3xl p-5 shadow-sm space-y-4 font-sans">
                   <div className="flex justify-between items-center border-b pb-2">
-                    <h3 className="text-xs font-black text-slate-900 uppercase">Recent System Signatures & Acks</h3>
+                    <div>
+                      <h3 className="text-xs font-black text-slate-900 uppercase">Recent Employee Uploads</h3>
+                      <span className="text-[10px] text-slate-400">Documents submitted for HR / Department verification</span>
+                    </div>
+                    <span className="text-[10px] bg-indigo-50 text-indigo-700 border border-indigo-200 px-2.5 py-0.5 rounded-full font-bold">
+                      {documents.length} Total
+                    </span>
                   </div>
-                  <div className="p-8 text-center text-slate-400 text-xs">
-                    <ShieldCheckIcon className="w-10 h-10 text-slate-300 mx-auto mb-2" />
-                    <p className="font-bold">E-Sign audits verified.</p>
-                    <p className="text-[10px]">Employee IP signatures and browser user agent logs recorded dynamically.</p>
-                  </div>
+                  {documents.length === 0 ? (
+                    <div className="p-8 text-center text-slate-400 text-xs">
+                      <FolderOpenIcon className="w-10 h-10 text-slate-300 mx-auto mb-2" />
+                      <p className="font-bold">No employee uploads yet.</p>
+                      <p className="text-[10px]">When employees upload Aadhar, PAN, or Resume, they will appear here instantly.</p>
+                    </div>
+                  ) : (
+                    <div className="divide-y divide-slate-100 max-h-72 overflow-y-auto pr-1">
+                      {documents.slice(0, 6).map(d => (
+                        <div key={d.id} className="py-2.5 flex justify-between items-center text-xs">
+                          <div className="space-y-0.5 truncate max-w-[240px]">
+                            <p className="font-bold text-slate-800 truncate">{d.title}</p>
+                            <span className="text-[10px] text-slate-400 block truncate">
+                              {d.employee_name || empMap[d.employee_id] || d.employee_id || "Employee"} • {d.department || "General"}
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-1.5 shrink-0">
+                            <span className={`px-2 py-0.5 rounded-full text-[9px] font-bold border ${
+                              d.status === 'Approved' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' :
+                              d.status === 'Pending Approval' ? 'bg-amber-50 text-amber-700 border-amber-200 animate-pulse' :
+                              'bg-slate-50 text-slate-600 border-slate-200'
+                            }`}>
+                              {d.status}
+                            </span>
+                            <a
+                              href={d.file_url || `/api/documents/employee/documents/${d.id}/preview`}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="px-2.5 py-1 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 rounded-lg text-[10px] font-bold transition"
+                            >
+                              View
+                            </a>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
@@ -459,9 +552,12 @@ const DocumentLog = ({
 
           {/* CENTRAL DOCUMENTS TAB */}
           {activeTab === "Central Documents" && (
-            <div className="bg-white border border-slate-200/80 rounded-3xl shadow-sm p-5 space-y-4">
+            <div className="bg-white border border-slate-200/80 rounded-3xl shadow-sm p-5 space-y-4 font-sans">
               <div className="flex justify-between items-center border-b pb-3">
-                <h3 className="text-xs font-bold text-slate-900 uppercase">Document Repository</h3>
+                <div>
+                  <h3 className="text-xs font-bold text-slate-900 uppercase">Document Repository</h3>
+                  <p className="text-[11px] text-slate-400 font-medium">All employee submitted and centrally generated documents</p>
+                </div>
                 <button
                   onClick={() => {
                     setEditingItem(null);
@@ -484,7 +580,7 @@ const DocumentLog = ({
                   <MagnifyingGlassIcon className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
                   <input
                     type="text"
-                    placeholder="Search by title, number..."
+                    placeholder="Search by title, number, employee..."
                     value={searchQuery}
                     onChange={e => setSearchQuery(e.target.value)}
                     className="pl-9 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs w-full"
@@ -506,11 +602,12 @@ const DocumentLog = ({
 
               <div className="overflow-x-auto border border-slate-100 rounded-2xl">
                 <table className="w-full text-left text-xs">
-                  <thead className="bg-slate-50 border-b border-slate-100 text-slate-500 font-bold uppercase">
+                  <thead className="bg-slate-50 border-b border-slate-100 text-slate-500 font-bold uppercase text-[10px]">
                     <tr>
                       <th className="p-4">Doc Number</th>
                       <th className="p-4">Title</th>
                       <th className="p-4">Type</th>
+                      <th className="p-4">Department</th>
                       <th className="p-4">Assignee</th>
                       <th className="p-4">Status</th>
                       <th className="p-4 text-right">Actions</th>
@@ -519,16 +616,23 @@ const DocumentLog = ({
                   <tbody className="divide-y divide-slate-100 text-slate-700 font-medium">
                     {filteredDocs.map(d => (
                       <tr key={d.id} className="hover:bg-slate-50/80 transition">
-                        <td className="p-4 font-bold text-slate-900">{d.document_number}</td>
+                        <td className="p-4 font-bold text-slate-900 font-mono text-[11px]">{d.document_number}</td>
                         <td className="p-4 font-bold">{d.title}</td>
-                        <td className="p-4 text-rose-700">{typeMap[d.document_type_id]}</td>
+                        <td className="p-4 text-rose-700 font-semibold">{typeMap[d.document_type_id] || d.document_type || d.title?.split(' - ')[0] || "General"}</td>
+                        <td className="p-4 font-semibold text-slate-700">{d.department || "General"}</td>
                         <td className="p-4">
-                          {d.employee_id ? empMap[d.employee_id] : d.candidate_id ? `${candMap[d.candidate_id]} (Candidate)` : "Unassigned"}
+                          <span className="font-bold text-slate-800 block">
+                            {d.employee_name || empMap[d.employee_id] || d.employee_id || (d.candidate_id ? `${candMap[d.candidate_id]} (Candidate)` : "Unassigned")}
+                          </span>
+                          {d.employee_id && <span className="text-[10px] text-slate-400 font-mono block">{d.employee_id}</span>}
                         </td>
                         <td className="p-4">
                           <span className={`px-2.5 py-0.5 rounded-full text-[9px] font-bold border ${
                             d.status === 'Issued' ? 'bg-indigo-50 text-indigo-700 border-indigo-200' :
-                            d.status === 'Approved' ? 'bg-green-50 text-green-700 border-green-200' : 'bg-slate-50 text-slate-600 border-slate-200'
+                            d.status === 'Approved' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' :
+                            d.status === 'Pending Approval' ? 'bg-amber-50 text-amber-700 border-amber-200 animate-pulse' :
+                            d.status === 'Revision Required' ? 'bg-rose-50 text-rose-700 border-rose-200' :
+                            'bg-slate-50 text-slate-600 border-slate-200'
                           }`}>
                             {d.status}
                           </span>
@@ -536,12 +640,24 @@ const DocumentLog = ({
                         <td className="p-4 text-right">
                           <div className="flex items-center justify-end gap-1.5">
                             <a
-                              href={`/api/documents/employee/documents/${d.id}/preview`}
+                              href={d.file_url || `/api/documents/employee/documents/${d.id}/preview`}
                               target="_blank"
                               rel="noreferrer"
-                              className="p-1.5 text-slate-400 hover:text-indigo-600 rounded-lg hover:bg-indigo-50"
+                              title="Preview Document"
+                              className="p-1.5 text-slate-400 hover:text-indigo-600 rounded-lg hover:bg-indigo-50 transition"
                             >
                               <EyeIcon className="w-4.5 h-4.5" />
+                            </a>
+
+                            <a
+                              href={d.file_url || `/api/documents/employee/documents/${d.id}/download`}
+                              download
+                              target="_blank"
+                              rel="noreferrer"
+                              title="Download Document"
+                              className="p-1.5 text-slate-400 hover:text-emerald-600 rounded-lg hover:bg-emerald-50 transition"
+                            >
+                              <ArrowDownTrayIcon className="w-4.5 h-4.5" />
                             </a>
 
                             {d.status === "Draft" && (
@@ -558,15 +674,15 @@ const DocumentLog = ({
                                   setSelectedDoc(d);
                                   setShowApprovalModal(true);
                                 }}
-                                className="px-2 py-1 bg-blue-50 text-blue-700 border border-blue-200 rounded font-bold text-[9px]"
+                                className="px-2.5 py-1 bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 rounded-lg font-bold text-[10px] transition"
                               >
-                                Review/Action
+                                Review / Action
                               </button>
                             )}
                             {d.status === "Approved" && (
                               <button
                                 onClick={() => handleIssue(d.id)}
-                                className="px-2 py-1 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded font-bold text-[9px]"
+                                className="px-2.5 py-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 rounded-lg font-bold text-[10px] transition"
                               >
                                 Issue Document
                               </button>

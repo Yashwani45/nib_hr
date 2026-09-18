@@ -89,16 +89,7 @@ Department.belongsTo(Employee, { foreignKey: 'headEmployeeId', as: 'headEmployee
 User.hasOne(Employee, { foreignKey: 'userId', as: 'employee', constraints: false });
 Employee.belongsTo(User, { foreignKey: 'userId', as: 'user', constraints: false });
 
-Company.hasMany(Employee, { foreignKey: 'companyId', as: 'employees', constraints: false });
-Employee.belongsTo(Company, { foreignKey: 'companyId', as: 'companyDetails', constraints: false });
 
-Branch.hasMany(Employee, { foreignKey: 'branchId', as: 'employees', constraints: false });
-Employee.belongsTo(Branch, { foreignKey: 'branchId', as: 'branchDetails', constraints: false });
-
-Department.hasMany(Employee, { foreignKey: 'departmentId', as: 'employees', constraints: false });
-Employee.belongsTo(Department, { foreignKey: 'departmentId', as: 'departmentDetails', constraints: false });
-
-Employee.belongsTo(Employee, { foreignKey: 'managerId', as: 'managerDetails', constraints: false });
 
 // Talent Domain
 Department.hasMany(Recruitment, { foreignKey: 'departmentId', as: 'recruitments', constraints: false });

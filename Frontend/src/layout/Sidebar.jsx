@@ -94,7 +94,6 @@ const Sidebar = ({ isOpen, setIsOpen, isPinned, setIsPinned }) => {
         children: [
           { name: "Employee Dashboard", tab: "Employee Dashboard" },
           { name: "Add Employee", tab: "Add Employee" },
-          { name: "Fill Details", tab: "Employee Profile" },
           { name: "Documents", tab: "Document Log" },
           { name: "Assets", tab: "Asset Allocation" },
           { name: "Bank Details", tab: "Bank Details" },

@@ -6,7 +6,8 @@ import {
   getTableData,
   createTableRecord,
   updateTableRecord,
-  deleteTableRecord
+  deleteTableRecord,
+  uploadEmployeeFile
 } from "../services/hrApi";
 import {
   setDbData,
@@ -1209,7 +1210,7 @@ const HrConsolidationHub = () => {
     return Math.round((score / total) * 100);
   };
 
-  const handleFileUpload = (e, docKey) => {
+  const handleFileUpload = async (e, docKey) => {
     const file = e.target.files[0];
     if (!file) return;
 
@@ -1224,37 +1225,47 @@ const HrConsolidationHub = () => {
       return;
     }
 
-    const reader = new FileReader();
-    setUploadProgress(prev => ({ ...prev, [docKey]: 10 }));
-    const progressInterval = setInterval(() => {
-      setUploadProgress(prev => {
-        const current = prev[docKey] || 10;
-        if (current >= 90) {
-          clearInterval(progressInterval);
-          return prev;
-        }
-        return { ...prev, [docKey]: current + 20 };
-      });
-    }, 100);
+    const fd = new FormData();
+    fd.append("file", file);
+    fd.append("companyName", employeeForm.company || user?.companyName || "");
+    fd.append("department", employeeForm.department || "General");
+    fd.append("employeeId", employeeForm.employeeCode || employeeForm.employeeId || employeeForm.emp_code || employeeForm.id || "EMP");
+    fd.append("employeeName", employeeForm.employeeName || `${employeeForm.firstName || ''} ${employeeForm.lastName || ''}`.trim() || "Employee");
+    fd.append("documentType", docKey);
 
-    reader.onload = () => {
-      clearInterval(progressInterval);
+    setUploadProgress(prev => ({ ...prev, [docKey]: 30 }));
+    try {
+      const url = await uploadEmployeeFile(fd);
       setUploadProgress(prev => ({ ...prev, [docKey]: 100 }));
-      
       if (docKey === "photo") {
-        setEmployeeForm(prev => ({ ...prev, photo: reader.result }));
+        setEmployeeForm(prev => ({ ...prev, photo: url || prev.photo }));
       } else {
-        setEmployeeForm(prev => {
-          const docs = prev.documents || {};
-          return {
+        setEmployeeForm(prev => ({
+          ...prev,
+          documents: {
+            ...(prev.documents || {}),
+            [docKey]: url || file.name
+          }
+        }));
+      }
+    } catch (err) {
+      console.error("Upload error:", err);
+      const reader = new FileReader();
+      reader.onload = () => {
+        if (docKey === "photo") {
+          setEmployeeForm(prev => ({ ...prev, photo: reader.result }));
+        } else {
+          setEmployeeForm(prev => ({
             ...prev,
             documents: {
-              ...docs,
+              ...(prev.documents || {}),
               [docKey]: file.name + " (" + (file.size / 1024).toFixed(1) + " KB)"
             }
-          };
-        });
-      }
+          }));
+        }
+      };
+      reader.readAsDataURL(file);
+    } finally {
       setTimeout(() => {
         setUploadProgress(prev => {
           const copy = { ...prev };
@@ -1262,9 +1273,7 @@ const HrConsolidationHub = () => {
           return copy;
         });
       }, 1000);
-    };
-
-    reader.readAsDataURL(file);
+    }
   };
 
 

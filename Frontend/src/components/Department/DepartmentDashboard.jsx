@@ -44,7 +44,9 @@ import {
   PhoneIcon,
   MagnifyingGlassIcon,
   SparklesIcon,
-  BellAlertIcon
+  BellAlertIcon,
+  EyeIcon,
+  DocumentTextIcon
 } from "@heroicons/react/24/outline";
 
 import { getDynamicWidgetsForModules } from "../../config/departmentWidgetRegistry";
@@ -131,16 +133,21 @@ const DepartmentDashboard = ({ deptDetail = {}, dbData = {} }) => {
   const [liveAttendance, setLiveAttendance] = useState(dbData?.["Daily Attendance"] || dbData?.["daily_attendance"] || []);
   const [liveLeaves, setLiveLeaves] = useState(dbData?.["Leave Requests"] || dbData?.["leave_requests"] || []);
   const [liveTickets, setLiveTickets] = useState(dbData?.["hr_tickets"] || []);
+  const [liveDocuments, setLiveDocuments] = useState([]);
+  const [docSearchText, setDocSearchText] = useState("");
+  const [docStatusFilter, setDocStatusFilter] = useState("ALL");
+  const [activeViewTab, setActiveViewTab] = useState("staff"); // "staff" or "documents"
   const [loadingLive, setLoadingLive] = useState(false);
 
   const fetchLiveDeptData = useCallback(async () => {
     try {
       setLoadingLive(true);
-      const [empRes, attRes, leaveRes, ticketRes] = await Promise.all([
+      const [empRes, attRes, leaveRes, ticketRes, docRes] = await Promise.all([
         apiFetch("/api/table/employee_profile").catch(() => ({ success: false })),
         apiFetch("/api/table/daily_attendance").catch(() => ({ success: false })),
         apiFetch("/api/table/leave_requests").catch(() => ({ success: false })),
-        apiFetch("/api/table/hr_tickets").catch(() => ({ success: false }))
+        apiFetch("/api/table/hr_tickets").catch(() => ({ success: false })),
+        apiFetch("/api/table/documents").catch(() => ({ success: false }))
       ]);
 
       if (empRes?.success && Array.isArray(empRes.data)) {
@@ -154,6 +161,9 @@ const DepartmentDashboard = ({ deptDetail = {}, dbData = {} }) => {
       }
       if (ticketRes?.success && Array.isArray(ticketRes.data)) {
         setLiveTickets(ticketRes.data);
+      }
+      if (docRes?.success && Array.isArray(docRes.data)) {
+        setLiveDocuments(docRes.data);
       }
     } catch (e) {
       console.error("Error loading department live metrics:", e);
@@ -291,6 +301,74 @@ const DepartmentDashboard = ({ deptDetail = {}, dbData = {} }) => {
       deptLeaves
     };
   }, [deptEmployees, liveAttendance, liveLeaves, dbData, todayStr]);
+
+  // Resolve all documents belonging to this department's staff
+  const deptDocuments = useMemo(() => {
+    return liveDocuments.filter(doc => {
+      const docDept = String(doc.department || doc.department_name || doc.departmentName || "").toLowerCase().trim();
+      const targetDept = String(deptName || "").toLowerCase().trim();
+      const matchesDept = isAll || (targetDept && (docDept === targetDept || docDept.includes(targetDept) || targetDept.includes(docDept)));
+
+      const matchesEmployee = deptEmployees.some(emp => {
+        const empCode = String(emp.employeeCode || emp.emp_code || emp.empCode || "").toLowerCase().trim();
+        const empId = String(emp.id || "").toLowerCase().trim();
+        const docEmpId = String(doc.employee_id || doc.employeeId || "").toLowerCase().trim();
+        const docEmpName = String(doc.employee_name || "").toLowerCase().trim();
+        const empName = String(emp.employee_name || emp.employeeName || `${emp.firstName || ''} ${emp.lastName || ''}`).toLowerCase().trim();
+        return (empCode && docEmpId === empCode) || (empId && docEmpId === empId) || (docEmpName && docEmpName === empName);
+      });
+
+      return matchesDept || matchesEmployee;
+    });
+  }, [liveDocuments, deptEmployees, deptName, isAll]);
+
+  const deptPendingDocsCount = useMemo(() => {
+    return deptDocuments.filter(d => String(d.status || "").toLowerCase() === "pending approval").length;
+  }, [deptDocuments]);
+
+  const filteredDeptDocs = useMemo(() => {
+    return deptDocuments.filter(doc => {
+      const q = docSearchText.toLowerCase().trim();
+      const matchQuery = !q || 
+        String(doc.title || "").toLowerCase().includes(q) ||
+        String(doc.employee_name || "").toLowerCase().includes(q) ||
+        String(doc.employee_id || "").toLowerCase().includes(q) ||
+        String(doc.document_number || "").toLowerCase().includes(q);
+
+      const matchStatus = docStatusFilter === "ALL" || 
+        String(doc.status || "").toLowerCase() === docStatusFilter.toLowerCase();
+
+      return matchQuery && matchStatus;
+    });
+  }, [deptDocuments, docSearchText, docStatusFilter]);
+
+  const handleApproveDoc = async (docId) => {
+    try {
+      await apiFetch(`/api/documents/${docId}/approve`, {
+        method: "POST",
+        body: JSON.stringify({ comments: `Approved by Department Head (${headName})` })
+      });
+      await fetchLiveDeptData();
+      alert("✅ Document approved successfully!");
+    } catch (err) {
+      alert("Approval failed: " + err.message);
+    }
+  };
+
+  const handleRejectDoc = async (docId) => {
+    const reason = window.prompt("Enter rejection / revision reason:");
+    if (!reason) return;
+    try {
+      await apiFetch(`/api/documents/${docId}/reject`, {
+        method: "POST",
+        body: JSON.stringify({ reason })
+      });
+      await fetchLiveDeptData();
+      alert("Document marked for revision.");
+    } catch (err) {
+      alert("Reject failed: " + err.message);
+    }
+  };
 
   const deptDistribution = useMemo(() => {
     const list = liveEmployees || [];
@@ -648,7 +726,14 @@ const DepartmentDashboard = ({ deptDetail = {}, dbData = {} }) => {
           <h3 className="text-xs font-bold text-slate-800 border-b pb-1.5 border-slate-100">Pending Approvals</h3>
           <div className="flex items-center gap-2 text-[11px]">
             <div className="flex-1 p-2 bg-emerald-50 text-emerald-800 rounded-lg text-center font-bold">Leave: {metrics.pending}</div>
-            <div className="flex-1 p-2 bg-blue-50 text-blue-800 rounded-lg text-center font-bold">Attn: 0</div>
+            <div 
+              onClick={() => { setActiveViewTab("documents"); setDocStatusFilter("Pending Approval"); }}
+              className="flex-1 p-2 bg-amber-50 hover:bg-amber-100 text-amber-800 rounded-lg text-center font-bold cursor-pointer transition flex items-center justify-center gap-1"
+              title="Click to view and approve pending employee documents"
+            >
+              <span>Docs:</span>
+              <span className={deptPendingDocsCount > 0 ? "text-amber-700 underline font-black" : ""}>{deptPendingDocsCount}</span>
+            </div>
             <div className="flex-1 p-2 bg-purple-50 text-purple-800 rounded-lg text-center font-bold">Expense: 0</div>
           </div>
         </div>
@@ -682,134 +767,341 @@ const DepartmentDashboard = ({ deptDetail = {}, dbData = {} }) => {
         </div>
       </div>
 
-      {/* 6. Live Department Staff Directory Table (Real-Time Synchronized) */}
-      <div className="bg-white border border-slate-200/80 rounded-2xl shadow-sm overflow-hidden font-sans">
-        <div className="p-4 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-slate-50/60">
-          <div className="flex items-center gap-2.5">
-            <div className="p-2 bg-blue-50 text-blue-600 rounded-xl">
-              <UserGroupIcon className="w-5 h-5" />
-            </div>
-            <div>
-              <h3 className="text-sm font-black text-slate-800 tracking-tight">
-                {deptName} Staff Directory
-              </h3>
-              <p className="text-[11px] text-slate-500 font-medium">
-                Live team members assigned to this department ({deptEmployees.length} total)
-              </p>
-            </div>
-          </div>
+      {/* 6. View Switcher Tabs: Staff Directory vs Employee Documents */}
+      <div className="flex items-center gap-2 border-b border-slate-200 pb-2">
+        <button
+          type="button"
+          onClick={() => setActiveViewTab("staff")}
+          className={`px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-2 cursor-pointer ${
+            activeViewTab === "staff"
+              ? "bg-blue-600 text-white shadow-sm"
+              : "bg-white text-slate-600 hover:bg-slate-100 border border-slate-200"
+          }`}
+        >
+          <UserGroupIcon className="w-4 h-4" />
+          <span>Staff Directory ({deptEmployees.length})</span>
+        </button>
 
-          <div className="flex items-center gap-2">
-            <div className="relative">
-              <MagnifyingGlassIcon className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
-              <input
-                type="text"
-                placeholder="Search staff by name, code, designation..."
-                value={empSearchText}
-                onChange={(e) => setEmpSearchText(e.target.value)}
-                className="pl-8 pr-3 py-1.5 bg-white border border-slate-200 rounded-xl text-xs font-medium focus:outline-blue-500 w-full sm:w-64"
-              />
-            </div>
-
-            <button
-              type="button"
-              onClick={() => navigate(`/hr-hub?category=EMPLOYEE_MGMT&tab=Add%20Employee&dept=${encodeURIComponent(deptName)}`)}
-              className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-xl shadow-xs transition flex items-center gap-1 shrink-0 cursor-pointer"
-            >
-              <PlusIcon className="w-3.5 h-3.5" />
-              <span>+ Add Staff</span>
-            </button>
-          </div>
-        </div>
-
-        {/* Staff Table List */}
-        <div className="overflow-x-auto">
-          <table className="w-full text-left text-xs border-collapse">
-            <thead>
-              <tr className="bg-slate-50/80 border-b border-slate-200/80 text-[10px] font-black uppercase tracking-wider text-slate-400">
-                <th className="py-3 px-4">Employee</th>
-                <th className="py-3 px-4">Emp Code</th>
-                <th className="py-3 px-4">Designation</th>
-                <th className="py-3 px-4">Contact</th>
-                <th className="py-3 px-4">Joining Date</th>
-                <th className="py-3 px-4 text-center">Status</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100 font-medium text-slate-700">
-              {filteredEmployees.length > 0 ? (
-                filteredEmployees.map((emp, idx) => {
-                  const empName = emp.employee_name || emp.employeeName || `${emp.firstName || ""} ${emp.lastName || ""}`.trim() || "Employee";
-                  const empCode = emp.empCode || emp.emp_code || emp.employeeCode || `EMP-${String(idx + 1).padStart(3, '0')}`;
-                  const desig = emp.designation || emp.designation_name || emp.designationName || "Staff Member";
-                  const email = emp.email || emp.officialEmail || emp.company_email || "--";
-                  const phone = emp.mobileNumber || emp.phone || emp.mobile || "--";
-                  const joinDate = emp.dateOfJoining || emp.joining_date || emp.created_at ? new Date(emp.dateOfJoining || emp.joining_date || emp.created_at).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" }) : "--";
-                  const status = emp.status || emp.employeeStatus || "Active";
-                  const initials = empName.split(" ").filter(Boolean).map(w => w[0]).join("").slice(0, 2).toUpperCase() || "EM";
-
-                  return (
-                    <tr key={emp.id || idx} className="hover:bg-slate-50/70 transition">
-                      <td className="py-3 px-4">
-                        <div className="flex items-center gap-2.5">
-                          <div className="w-8 h-8 rounded-xl bg-indigo-50 border border-indigo-100 text-indigo-700 font-black text-xs flex items-center justify-center shrink-0">
-                            {initials}
-                          </div>
-                          <div>
-                            <div className="font-bold text-slate-900">{empName}</div>
-                            <div className="text-[10px] text-slate-400">{emp.department || deptName}</div>
-                          </div>
-                        </div>
-                      </td>
-                      <td className="py-3 px-4 font-mono font-bold text-indigo-600">
-                        <span className="px-2 py-0.5 bg-indigo-50 border border-indigo-100 rounded text-[11px]">
-                          {empCode}
-                        </span>
-                      </td>
-                      <td className="py-3 px-4 font-semibold text-slate-800">{desig}</td>
-                      <td className="py-3 px-4 text-slate-500">
-                        <div>{email}</div>
-                        {phone !== "--" && <div className="text-[10px] text-slate-400">{phone}</div>}
-                      </td>
-                      <td className="py-3 px-4 text-slate-500">{joinDate}</td>
-                      <td className="py-3 px-4 text-center">
-                        <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold ${
-                          status === "Active" 
-                            ? "bg-emerald-50 text-emerald-700 border border-emerald-200" 
-                            : "bg-amber-50 text-amber-700 border border-amber-200"
-                        }`}>
-                          {status}
-                        </span>
-                      </td>
-                    </tr>
-                  );
-                })
-              ) : (
-                <tr>
-                  <td colSpan="6" className="py-12 text-center text-slate-400">
-                    <UserGroupIcon className="w-10 h-10 mx-auto text-slate-300 mb-2" />
-                    <p className="font-bold text-slate-600 text-xs">
-                      {empSearchText 
-                        ? `Koi staff nahi mila search "${empSearchText}" ke liye.` 
-                        : `Abhi ${deptName} department me koi employee add nahi hai.`}
-                    </p>
-                    <p className="text-[11px] text-slate-400 mt-1 max-w-sm mx-auto">
-                      Aap "Add Staff" button par click karke naya employee add kar sakte hain, entry hote hi live dashboard par update reflect ho jayega.
-                    </p>
-                    <button
-                      type="button"
-                      onClick={() => navigate("/hr-hub?category=EMPLOYEE_MGMT&tab=Add%20Employee")}
-                      className="mt-3 inline-flex items-center gap-1.5 px-3.5 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-xl shadow-xs transition cursor-pointer"
-                    >
-                      <PlusIcon className="w-4 h-4" />
-                      <span>+ Naya Employee Add Karein</span>
-                    </button>
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
+        <button
+          type="button"
+          onClick={() => setActiveViewTab("documents")}
+          className={`px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-2 cursor-pointer ${
+            activeViewTab === "documents"
+              ? "bg-indigo-600 text-white shadow-sm"
+              : "bg-white text-slate-600 hover:bg-slate-100 border border-slate-200"
+          }`}
+        >
+          <DocumentTextIcon className="w-4 h-4" />
+          <span>Department Documents ({deptDocuments.length})</span>
+          {deptPendingDocsCount > 0 && (
+            <span className="px-2 py-0.5 rounded-full text-[9px] font-black bg-amber-400 text-slate-900 animate-pulse">
+              {deptPendingDocsCount} Pending
+            </span>
+          )}
+        </button>
       </div>
+
+      {/* 7A. Live Department Staff Directory Table */}
+      {activeViewTab === "staff" && (
+        <div className="bg-white border border-slate-200/80 rounded-2xl shadow-sm overflow-hidden font-sans">
+          <div className="p-4 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-slate-50/60">
+            <div className="flex items-center gap-2.5">
+              <div className="p-2 bg-blue-50 text-blue-600 rounded-xl">
+                <UserGroupIcon className="w-5 h-5" />
+              </div>
+              <div>
+                <h3 className="text-sm font-black text-slate-800 tracking-tight">
+                  {deptName} Staff Directory
+                </h3>
+                <p className="text-[11px] text-slate-500 font-medium">
+                  Live team members assigned to this department ({deptEmployees.length} total)
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <div className="relative">
+                <MagnifyingGlassIcon className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                <input
+                  type="text"
+                  placeholder="Search staff by name, code, designation..."
+                  value={empSearchText}
+                  onChange={(e) => setEmpSearchText(e.target.value)}
+                  className="pl-8 pr-3 py-1.5 bg-white border border-slate-200 rounded-xl text-xs font-medium focus:outline-blue-500 w-full sm:w-64"
+                />
+              </div>
+
+              <button
+                type="button"
+                onClick={() => navigate(`/hr-hub?category=EMPLOYEE_MGMT&tab=Add%20Employee&dept=${encodeURIComponent(deptName)}`)}
+                className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-xl shadow-xs transition flex items-center gap-1 shrink-0 cursor-pointer"
+              >
+                <PlusIcon className="w-3.5 h-3.5" />
+                <span>+ Add Staff</span>
+              </button>
+            </div>
+          </div>
+
+          {/* Staff Table List */}
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-xs border-collapse">
+              <thead>
+                <tr className="bg-slate-50/80 border-b border-slate-200/80 text-[10px] font-black uppercase tracking-wider text-slate-400">
+                  <th className="py-3 px-4">Employee</th>
+                  <th className="py-3 px-4">Emp Code</th>
+                  <th className="py-3 px-4">Designation</th>
+                  <th className="py-3 px-4">Contact</th>
+                  <th className="py-3 px-4">Joining Date</th>
+                  <th className="py-3 px-4 text-center">Status</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100 font-medium text-slate-700">
+                {filteredEmployees.length > 0 ? (
+                  filteredEmployees.map((emp, idx) => {
+                    const empName = emp.employee_name || emp.employeeName || `${emp.firstName || ""} ${emp.lastName || ""}`.trim() || "Employee";
+                    const empCode = emp.empCode || emp.emp_code || emp.employeeCode || `EMP-${String(idx + 1).padStart(3, '0')}`;
+                    const desig = emp.designation || emp.designation_name || emp.designationName || "Staff Member";
+                    const email = emp.email || emp.officialEmail || emp.company_email || "--";
+                    const phone = emp.mobileNumber || emp.phone || emp.mobile || "--";
+                    const joinDate = emp.dateOfJoining || emp.joining_date || emp.created_at ? new Date(emp.dateOfJoining || emp.joining_date || emp.created_at).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" }) : "--";
+                    const status = emp.status || emp.employeeStatus || "Active";
+                    const initials = empName.split(" ").filter(Boolean).map(w => w[0]).join("").slice(0, 2).toUpperCase() || "EM";
+
+                    return (
+                      <tr key={emp.id || idx} className="hover:bg-slate-50/70 transition">
+                        <td className="py-3 px-4">
+                          <div className="flex items-center gap-2.5">
+                            <div className="w-8 h-8 rounded-xl bg-indigo-50 border border-indigo-100 text-indigo-700 font-black text-xs flex items-center justify-center shrink-0">
+                              {initials}
+                            </div>
+                            <div>
+                              <div className="font-bold text-slate-900">{empName}</div>
+                              <div className="text-[10px] text-slate-400">{emp.department || deptName}</div>
+                            </div>
+                          </div>
+                        </td>
+                        <td className="py-3 px-4 font-mono font-bold text-indigo-600">
+                          <span className="px-2 py-0.5 bg-indigo-50 border border-indigo-100 rounded text-[11px]">
+                            {empCode}
+                          </span>
+                        </td>
+                        <td className="py-3 px-4 font-semibold text-slate-800">{desig}</td>
+                        <td className="py-3 px-4 text-slate-500">
+                          <div>{email}</div>
+                          {phone !== "--" && <div className="text-[10px] text-slate-400">{phone}</div>}
+                        </td>
+                        <td className="py-3 px-4 text-slate-500">{joinDate}</td>
+                        <td className="py-3 px-4 text-center">
+                          <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                            status === "Active" 
+                              ? "bg-emerald-50 text-emerald-700 border border-emerald-200" 
+                              : "bg-amber-50 text-amber-700 border border-amber-200"
+                          }`}>
+                            {status}
+                          </span>
+                        </td>
+                      </tr>
+                    );
+                  })
+                ) : (
+                  <tr>
+                    <td colSpan="6" className="py-12 text-center text-slate-400">
+                      <UserGroupIcon className="w-10 h-10 mx-auto text-slate-300 mb-2" />
+                      <p className="font-bold text-slate-600 text-xs">
+                        {empSearchText 
+                          ? `Koi staff nahi mila search "${empSearchText}" ke liye.` 
+                          : `Abhi ${deptName} department me koi employee add nahi hai.`}
+                      </p>
+                      <p className="text-[11px] text-slate-400 mt-1 max-w-sm mx-auto">
+                        Aap "Add Staff" button par click karke naya employee add kar sakte hain, entry hote hi live dashboard par update reflect ho jayega.
+                      </p>
+                      <button
+                        type="button"
+                        onClick={() => navigate("/hr-hub?category=EMPLOYEE_MGMT&tab=Add%20Employee")}
+                        className="mt-3 inline-flex items-center gap-1.5 px-3.5 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-xl shadow-xs transition cursor-pointer"
+                      >
+                        <PlusIcon className="w-4 h-4" />
+                        <span>+ Naya Employee Add Karein</span>
+                      </button>
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* 7B. Department Employee Uploaded Documents Hub */}
+      {activeViewTab === "documents" && (
+        <div className="bg-white border border-slate-200/80 rounded-2xl shadow-sm overflow-hidden font-sans">
+          <div className="p-4 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-slate-50/60">
+            <div className="flex items-center gap-2.5">
+              <div className="p-2 bg-indigo-50 text-indigo-600 rounded-xl">
+                <DocumentTextIcon className="w-5 h-5" />
+              </div>
+              <div>
+                <h3 className="text-sm font-black text-slate-800 tracking-tight">
+                  {deptName} Employee Uploaded Documents
+                </h3>
+                <p className="text-[11px] text-slate-500 font-medium">
+                  Review, verify, and approve documents submitted by departmental team members ({deptDocuments.length} total)
+                </p>
+              </div>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2">
+              <select
+                value={docStatusFilter}
+                onChange={(e) => setDocStatusFilter(e.target.value)}
+                className="px-2.5 py-1.5 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-700"
+              >
+                <option value="ALL">All Statuses ({deptDocuments.length})</option>
+                <option value="Pending Approval">Pending Approval ({deptPendingDocsCount})</option>
+                <option value="Approved">Approved</option>
+                <option value="Revision Required">Revision Required</option>
+              </select>
+
+              <div className="relative">
+                <MagnifyingGlassIcon className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                <input
+                  type="text"
+                  placeholder="Search by title, employee, code..."
+                  value={docSearchText}
+                  onChange={(e) => setDocSearchText(e.target.value)}
+                  className="pl-8 pr-3 py-1.5 bg-white border border-slate-200 rounded-xl text-xs font-medium focus:outline-indigo-500 w-full sm:w-60"
+                />
+              </div>
+            </div>
+          </div>
+
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-xs border-collapse">
+              <thead>
+                <tr className="bg-slate-50/80 border-b border-slate-200/80 text-[10px] font-black uppercase tracking-wider text-slate-400">
+                  <th className="py-3 px-4">Employee</th>
+                  <th className="py-3 px-4">Document Title</th>
+                  <th className="py-3 px-4">Type</th>
+                  <th className="py-3 px-4">Upload Date</th>
+                  <th className="py-3 px-4 text-center">Status</th>
+                  <th className="py-3 px-4 text-right">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100 font-medium text-slate-700">
+                {filteredDeptDocs.length > 0 ? (
+                  filteredDeptDocs.map((doc, idx) => {
+                    const empName = doc.employee_name || "Employee";
+                    const empCode = doc.employee_id || "--";
+                    const docTitle = doc.title || "Document";
+                    const docType = doc.document_type || docTitle.split(' - ')[0] || "Credential";
+                    const uploadDate = doc.issue_date || (doc.created_at ? new Date(doc.created_at).toLocaleDateString("en-IN") : "--");
+                    const status = doc.status || "Pending Approval";
+                    const docUrl = doc.file_url || doc.storage_key || "";
+                    const initials = empName.split(" ").filter(Boolean).map(w => w[0]).join("").slice(0, 2).toUpperCase() || "EM";
+
+                    return (
+                      <tr key={doc.id || idx} className="hover:bg-slate-50/70 transition">
+                        <td className="py-3 px-4">
+                          <div className="flex items-center gap-2.5">
+                            <div className="w-8 h-8 rounded-xl bg-indigo-50 border border-indigo-100 text-indigo-700 font-black text-xs flex items-center justify-center shrink-0">
+                              {initials}
+                            </div>
+                            <div>
+                              <div className="font-bold text-slate-900">{empName}</div>
+                              <div className="text-[10px] text-slate-400 font-mono">{empCode}</div>
+                            </div>
+                          </div>
+                        </td>
+                        <td className="py-3 px-4 font-bold text-slate-800">
+                          {docTitle}
+                        </td>
+                        <td className="py-3 px-4 font-semibold text-slate-600">
+                          <span className="px-2 py-0.5 bg-slate-100 rounded-md text-[10px]">
+                            {docType}
+                          </span>
+                        </td>
+                        <td className="py-3 px-4 text-slate-500">
+                          {uploadDate}
+                        </td>
+                        <td className="py-3 px-4 text-center">
+                          <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-bold border ${
+                            status === "Approved"
+                              ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
+                              : status === "Pending Approval"
+                              ? "bg-amber-50 text-amber-700 border border-amber-200 animate-pulse"
+                              : "bg-rose-50 text-rose-700 border border-rose-200"
+                          }`}>
+                            {status}
+                          </span>
+                        </td>
+                        <td className="py-3 px-4 text-right">
+                          <div className="flex items-center justify-end gap-1.5">
+                            {docUrl && (
+                              <a
+                                href={docUrl}
+                                target="_blank"
+                                rel="noreferrer"
+                                title="View Document"
+                                className="p-1.5 text-slate-400 hover:text-indigo-600 rounded-lg hover:bg-indigo-50 transition"
+                              >
+                                <EyeIcon className="w-4 h-4" />
+                              </a>
+                            )}
+                            {docUrl && (
+                              <a
+                                href={docUrl}
+                                download
+                                target="_blank"
+                                rel="noreferrer"
+                                title="Download Document"
+                                className="p-1.5 text-slate-400 hover:text-emerald-600 rounded-lg hover:bg-emerald-50 transition"
+                              >
+                                <ArrowDownTrayIcon className="w-4 h-4" />
+                              </a>
+                            )}
+                            {status === "Pending Approval" && (
+                              <>
+                                <button
+                                  type="button"
+                                  onClick={() => handleApproveDoc(doc.id)}
+                                  className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg font-bold text-[10px] transition cursor-pointer shadow-xs"
+                                >
+                                  Approve
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleRejectDoc(doc.id)}
+                                  className="px-2.5 py-1 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 rounded-lg font-bold text-[10px] transition cursor-pointer"
+                                >
+                                  Reject
+                                </button>
+                              </>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })
+                ) : (
+                  <tr>
+                    <td colSpan="6" className="py-12 text-center text-slate-400">
+                      <DocumentTextIcon className="w-10 h-10 mx-auto text-slate-300 mb-2" />
+                      <p className="font-bold text-slate-600 text-xs">
+                        {docSearchText 
+                          ? `Koi document nahi mila search "${docSearchText}" ke liye.` 
+                          : `Abhi ${deptName} department me koi document upload nahi hua.`}
+                      </p>
+                      <p className="text-[11px] text-slate-400 mt-1 max-w-sm mx-auto">
+                        Jaise hi employee apna Aadhar Card, PAN Card, Resume ya koi document upload karega, woh yahan live display hoga aur Department Head use verify karke Approve kar sakte hain.
+                      </p>
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

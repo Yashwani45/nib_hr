@@ -7,145 +7,77 @@ const { QueryTypes } = require('sequelize');
 const provisionEmployeeTables = async (tenantDb) => {
   try {
     const targetColumnsList = [
+      // Hero Card & Basic Identity
       "employeeName VARCHAR(255) NULL",
       "email VARCHAR(255) NULL",
-      "password VARCHAR(255) NULL",
-      "department VARCHAR(255) NULL",
-      "userId VARCHAR(255) NULL",
       "company VARCHAR(255) NULL",
-      "branchId VARCHAR(255) NULL",
-      "departmentId VARCHAR(255) NULL",
-
-      
-      "managerId VARCHAR(255) NULL",
+      "department VARCHAR(255) NULL",
+      "designation VARCHAR(255) NULL",
       "photo TEXT NULL",
       "employeeId VARCHAR(255) NULL",
       "employeeCode VARCHAR(255) NULL",
-      "profileStatus VARCHAR(255) NULL",
-      "profileCompletion INT NULL",
+      "employeeStatus VARCHAR(255) NULL DEFAULT 'Active'",
+      "profile_data LONGTEXT NULL",
+      "userId VARCHAR(255) NULL",
+
+      // Card 1: Basic Information
       "firstName VARCHAR(255) NULL",
       "middleName VARCHAR(255) NULL",
       "lastName VARCHAR(255) NULL",
+      "gender VARCHAR(50) NULL",
       "dateOfBirth DATE NULL",
       "maritalStatus VARCHAR(255) NULL",
       "bloodGroup VARCHAR(255) NULL",
       "nationality VARCHAR(255) NULL",
-      "branch VARCHAR(255) NULL",
+
+      // Card 2: Official Information
+      "officialEmail VARCHAR(255) NULL",
+      "dateOfJoining DATE NULL",
       "reportingManager VARCHAR(255) NULL",
       "employeeType VARCHAR(255) NULL",
-      "employeeStatus VARCHAR(255) NULL",
-      "dateOfJoining DATE NULL",
-      "probationEndDate DATE NULL",
-      "confirmationDate DATE NULL",
-      "workLocation VARCHAR(255) NULL",
-      "shift TEXT NULL",
+      "shift VARCHAR(255) NULL",
       "weeklyOff VARCHAR(255) NULL",
+
+      // Card 3: Contact Information
       "mobileNumber VARCHAR(255) NULL",
       "alternateMobile VARCHAR(255) NULL",
       "personalEmail VARCHAR(255) NULL",
-      "officialEmail VARCHAR(255) NULL",
       "currentAddress TEXT NULL",
       "permanentAddress TEXT NULL",
-      "city VARCHAR(255) NULL",
-      "state VARCHAR(255) NULL",
-      "country VARCHAR(255) NULL",
-      "pinCode VARCHAR(255) NULL",
-      "aadhaarNumber VARCHAR(255) NULL",
-      "panNumber VARCHAR(255) NULL",
-      "passportNumber VARCHAR(255) NULL",
-      "drivingLicense VARCHAR(255) NULL",
-      "voterId VARCHAR(255) NULL",
-      "uanNumber VARCHAR(255) NULL",
-      "esicNumber VARCHAR(255) NULL",
-      "bankName VARCHAR(255) NULL",
-      "accountHolderName VARCHAR(255) NULL",
-      "accountNumber VARCHAR(255) NULL",
-      "ifscCode VARCHAR(255) NULL",
-      "branchName VARCHAR(255) NULL",
-      "salaryStructure VARCHAR(255) NULL",
-      "basicSalary DECIMAL(12,2) NULL",
-      "grossSalary DECIMAL(12,2) NULL",
-      "ctc DECIMAL(12,2) NULL",
-      "pfApplicable VARCHAR(50) NULL",
-      "esiApplicable VARCHAR(50) NULL",
-      "tdsApplicable VARCHAR(50) NULL",
-      "emergencyContactName VARCHAR(255) NULL",
-      "emergencyRelation VARCHAR(255) NULL",
-      "emergencyMobile VARCHAR(255) NULL",
-      "emergencyAddress TEXT NULL",
-      "education TEXT NULL",
-      "experience TEXT NULL",
-      "skills TEXT NULL",
-      "shiftPolicy VARCHAR(255) NULL",
-      "workingHours VARCHAR(255) NULL",
-      "attendancePolicy VARCHAR(255) NULL",
-      "biometricId VARCHAR(255) NULL",
-      "deviceId VARCHAR(255) NULL",
-      "overtimeEligible VARCHAR(50) NULL",
-      "leavePolicy VARCHAR(255) NULL",
-      "casualLeave INT NULL",
-      "sickLeave INT NULL",
-      "earnedLeave INT NULL",
-      "maternityLeave INT NULL",
-      "paternityLeave INT NULL",
-      "assets LONGTEXT NULL",
-      "username VARCHAR(255) NULL",
-      "confirmPassword VARCHAR(255) NULL",
-      "role VARCHAR(255) NULL",
-      "permissionGroup VARCHAR(255) NULL",
-      "twoFactorAuth VARCHAR(50) NULL",
-      "documents TEXT NULL",
-      "kpis LONGTEXT NULL",
-      "rating VARCHAR(255) NULL",
-      "appraisalDate DATE NULL",
-      "promotionHistory TEXT NULL",
-      "awards LONGTEXT NULL",
-      "resignationDate DATE NULL",
-      "lastWorkingDate DATE NULL",
-      "exitReason TEXT NULL",
-      "exitInterview TEXT NULL",
-      "clearanceStatus VARCHAR(255) NULL",
-      "finalSettlement VARCHAR(255) NULL",
-      "createdBy VARCHAR(255) NULL",
-      "createdDate DATE NULL",
-      "updatedBy VARCHAR(255) NULL",
-      "updatedDate DATE NULL",
-      "lastLogin VARCHAR(255) NULL",
-      "lastPasswordChange VARCHAR(255) NULL",
-      "recordStatus VARCHAR(255) NULL",
-      "activityTimeline TEXT NULL",
-      "profile_data LONGTEXT NULL",
-      "gender VARCHAR(50) NULL",
-      "designation TEXT NULL",
-      "attendanceMode TEXT NULL",
-      "casualLeaveBalance INT NULL DEFAULT 12",
-      "sickLeaveBalance INT NULL DEFAULT 8",
-      "earnedLeaveBalance INT NULL DEFAULT 15",
-      "highestDegree TEXT NULL",
-      "specialization TEXT NULL",
-      "university TEXT NULL",
-      "passingYear TEXT NULL",
-      "educationGpa TEXT NULL",
-      "prevCompany TEXT NULL",
-      "prevDesignation TEXT NULL",
-      "totalExpYears TEXT NULL",
-      "prevSalary TEXT NULL",
-      "technicalSkills TEXT NULL",
-      "certifications TEXT NULL",
-      "kpiValue TEXT NULL",
-      "lastWorkingDay DATE NULL"
+
+      // Card 4: Education & Experience
+      "highestDegree VARCHAR(255) NULL",
+      "specialization VARCHAR(255) NULL",
+      "university VARCHAR(255) NULL",
+      "prevCompany VARCHAR(255) NULL",
+      "prevDesignation VARCHAR(255) NULL"
     ];
+
+    const UI_COLUMNS_SET = new Set([
+      'id', 'employee_name', 'employeename', 'employeecode', 'emp_code',
+      'employeeid', 'photo', 'firstname', 'middlename', 'lastname',
+      'gender', 'dateofbirth', 'maritalstatus', 'bloodgroup', 'nationality',
+      'company', 'department', 'designation', 'dateofjoining',
+      'reportingmanager', 'employeetype', 'employeestatus', 'shift',
+      'weeklyoff', 'officialemail', 'personalemail', 'email',
+      'mobilenumber', 'alternatemobile', 'currentaddress', 'permanentaddress',
+      'highestdegree', 'specialization', 'university', 'prevcompany',
+      'prevdesignation', 'profile_data', 'user_id', 'userid',
+      'created_at', 'updated_at'
+    ]);
+
     for (const targetTbl of ['employees', 'employee_profile']) {
-      let existingCols = [];
+      let colResults = [];
       try {
-        const colResults = await tenantDb.query(
+        colResults = await tenantDb.query(
           `SHOW COLUMNS FROM \`${targetTbl}\``,
           { type: QueryTypes.SELECT }
         );
-        existingCols = colResults.map(c => c.Field.toLowerCase());
       } catch (e) {
         continue;
       }
+
+      const existingCols = colResults.map(c => c.Field.toLowerCase());
 
       await tenantDb.query(`ALTER TABLE \`${targetTbl}\` MODIFY COLUMN \`created_at\` DATETIME NULL DEFAULT CURRENT_TIMESTAMP`).catch(() => {});
       await tenantDb.query(`ALTER TABLE \`${targetTbl}\` MODIFY COLUMN \`updated_at\` DATETIME NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP`).catch(() => {});
@@ -154,6 +86,13 @@ const provisionEmployeeTables = async (tenantDb) => {
         const colName = colDef.split(' ')[0];
         if (!existingCols.includes(colName.toLowerCase())) {
           await tenantDb.query(`ALTER TABLE \`${targetTbl}\` ADD COLUMN \`${colName}\` ${colDef.substring(colName.length)}`).catch(() => {});
+        }
+      }
+
+      // Drop any extra columns that are not in the UI
+      for (const col of colResults) {
+        if (!UI_COLUMNS_SET.has(col.Field.toLowerCase())) {
+          await tenantDb.query(`ALTER TABLE \`${targetTbl}\` DROP COLUMN \`${col.Field}\``).catch(() => {});
         }
       }
     }
@@ -1618,6 +1557,60 @@ const getTableData = asyncHandler(async (req, res) => {
   if (documentTables.includes(tableName)) {
     const { provisionDocumentTables } = require('../../services/core/document.provisioner');
     await provisionDocumentTables(req.tenantDb);
+
+    if (tableName === 'documents') {
+      try {
+        const empRows = await req.tenantDb.query(
+          "SELECT id, employee_name, employeeName, employeeCode, emp_code, employeeId, email, department, profile_data FROM employees WHERE profile_data IS NOT NULL",
+          { type: QueryTypes.SELECT }
+        ).catch(() => []);
+
+        for (const emp of empRows || []) {
+          let pData = null;
+          try {
+            pData = typeof emp.profile_data === 'string' ? JSON.parse(emp.profile_data) : emp.profile_data;
+          } catch (e) {}
+
+          if (pData && pData.documents && typeof pData.documents === 'object') {
+            const empId = emp.employeeCode || emp.emp_code || emp.employeeId || emp.id;
+            const empName = emp.employee_name || emp.employeeName || emp.email;
+            const dept = emp.department || 'General';
+
+            for (const [docName, docUrl] of Object.entries(pData.documents)) {
+              if (docUrl && typeof docUrl === 'string' && (docUrl.startsWith('/public') || docUrl.startsWith('http') || docUrl.startsWith('/uploads'))) {
+                const [exists] = await req.tenantDb.query(
+                  "SELECT id FROM documents WHERE (employee_id = ? OR employee_id = ?) AND (title = ? OR file_url = ?) LIMIT 1",
+                  {
+                    replacements: [empId, emp.id, `${docName} - ${empName}`, docUrl],
+                    type: QueryTypes.SELECT
+                  }
+                ).catch(() => [null]);
+
+                if (!exists) {
+                  const crypto = require('crypto');
+                  const docId = crypto.randomUUID();
+                  const docNumber = `DOC-${Date.now().toString().slice(-6)}-${Math.floor(100 + Math.random() * 900)}`;
+                  const fileName = docUrl.split('/').pop() || `${docName}.pdf`;
+                  await req.tenantDb.query(`
+                    INSERT INTO documents (
+                      id, document_number, department, employee_id, employee_name,
+                      title, description, file_name, original_file_name, storage_key, file_url,
+                      storage_provider, status, created_by, issue_date
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'local', 'Pending Approval', ?, CURDATE())
+                  `, {
+                    replacements: [
+                      docId, docNumber, dept, empId, empName,
+                      `${docName} - ${empName}`, `${docName} uploaded by ${empName}`,
+                      fileName, fileName, docUrl, docUrl, empName
+                    ]
+                  }).catch(() => {});
+                }
+              }
+            }
+          }
+        }
+      } catch (healDocErr) {}
+    }
   }
 
   const exitTables = ['exit_requests', 'notice_periods', 'exit_clearances', 'asset_returns', 'no_dues', 'fnf_settlements', 'exit_interviews', 'experience_letters', 'exit_workflow_history'];
@@ -1674,6 +1667,32 @@ const getTableData = asyncHandler(async (req, res) => {
       } else {
         rows = [];
       }
+    }
+  }
+
+  if (tableName === 'documents') {
+    const userRoleStr = String(typeof req.user.role === 'object' ? req.user.role?.name : req.user.role || '').toLowerCase().trim();
+    if (userRoleStr === 'employee') {
+      const [empRecord] = await req.tenantDb.query(
+        "SELECT id, employeeCode, employee_code, employeeId FROM employees WHERE LOWER(email) = ? LIMIT 1",
+        { replacements: [req.user.email.toLowerCase().trim()], type: require('sequelize').QueryTypes.SELECT }
+      ).catch(() => [null]);
+      
+      const empCodes = [
+        empRecord?.employeeCode,
+        empRecord?.employee_code,
+        empRecord?.employeeId,
+        empRecord?.id,
+        req.user.employee?.employeeCode,
+        req.user.employee?.id,
+        req.user.email,
+        req.user.username
+      ].filter(Boolean).map(c => String(c).toLowerCase().trim());
+
+      rows = rows.filter(r => {
+        const docEmp = String(r.employee_id || r.employeeId || r.created_by || '').toLowerCase().trim();
+        return empCodes.includes(docEmp);
+      });
     }
   }
 
@@ -1800,7 +1819,7 @@ const sanitizeDataForTable = async (tenantDb, tableName, inputData) => {
   }
 
   if (tableName === 'employees' || tableName === 'employee_profile') {
-    for (const requiredCol of ['employee_name', 'email', 'password', 'department']) {
+    for (const requiredCol of ['employee_name', 'email', 'department']) {
       if (validColumns.length > 0 && !validColumns.includes(requiredCol)) {
         await tenantDb.query(`ALTER TABLE \`${tableName}\` ADD COLUMN \`${requiredCol}\` VARCHAR(255) NULL`).catch(() => {});
         validColumns.push(requiredCol);
@@ -2751,38 +2770,6 @@ const createTableRecord = asyncHandler(async (req, res) => {
     }
   }
 
-  if (tableName === 'employees' || tableName === 'employee_profile') {
-    try {
-      const tenantId = req.headers['x-company-code'] || req.user?.companyCode || 'NIB01';
-      const { masterSequelize } = require('../../config/database');
-      const [tenantRows] = await masterSequelize.query(
-        `SELECT company_name FROM tenants WHERE id = ? LIMIT 1`,
-        { replacements: [tenantId] }
-      );
-      const companyName = tenantRows && tenantRows.length > 0 ? tenantRows[0].company_name : tenantId;
-      
-      const fs = require('fs');
-      const path = require('path');
-      const { sanitizeCompanyFolder } = require('../../utils/companyFolderScaffolder');
-      const cleanCompanyFolder = sanitizeCompanyFolder(companyName);
-      
-      const empIdentifier = formattedData.employee_name || formattedData.first_name || formattedData.id || 'Employee';
-      const cleanEmployeeName = String(empIdentifier).replace(/[^a-zA-Z0-9]/g, '');
-      
-      const companyBaseDir = path.join(__dirname, '..', '..', '..', 'Frontend', 'src', 'Company');
-      const employeeDir = path.join(companyBaseDir, cleanCompanyFolder, 'Employee', cleanEmployeeName);
-      
-      if (!fs.existsSync(employeeDir)) {
-        fs.mkdirSync(employeeDir, { recursive: true });
-      }
-      
-      const profileJsonPath = path.join(employeeDir, 'profile.json');
-      fs.writeFileSync(profileJsonPath, JSON.stringify(formattedData, null, 2));
-    } catch (err) {
-      console.warn('[table.controller] Failed to scaffold employee folder/JSON:', err.message);
-    }
-  }
-
   if (tableName === 'company') {
     if (!formattedData.id) {
       try {
@@ -3213,45 +3200,6 @@ const updateTableRecord = asyncHandler(async (req, res) => {
       throw formatDuplicateEntryError(updateErr, tableName);
     }
     throw updateErr;
-  }
-
-  if (tableName === 'employees' || tableName === 'employee_profile') {
-    try {
-      const tenantId = req.headers['x-company-code'] || req.user?.companyCode || 'NIB01';
-      const { masterSequelize } = require('../../config/database');
-      const [tenantRows] = await masterSequelize.query(
-        `SELECT company_name FROM tenants WHERE id = ? LIMIT 1`,
-        { replacements: [tenantId] }
-      );
-      const companyName = tenantRows && tenantRows.length > 0 ? tenantRows[0].company_name : tenantId;
-      
-      const fs = require('fs');
-      const path = require('path');
-      const { sanitizeCompanyFolder } = require('../../utils/companyFolderScaffolder');
-      const cleanCompanyFolder = sanitizeCompanyFolder(companyName);
-      
-      const [updatedEmp] = await req.tenantDb.query(
-        `SELECT * FROM \`${tableName}\` WHERE id = ? LIMIT 1`,
-        { replacements: [id] }
-      );
-      
-      if (updatedEmp) {
-        const empIdentifier = updatedEmp.employee_name || updatedEmp.first_name || updatedEmp.id || 'Employee';
-        const cleanEmployeeName = String(empIdentifier).replace(/[^a-zA-Z0-9]/g, '');
-        
-        const companyBaseDir = path.join(__dirname, '..', '..', '..', 'Frontend', 'src', 'Company');
-        const employeeDir = path.join(companyBaseDir, cleanCompanyFolder, 'Employee', cleanEmployeeName);
-        
-        if (!fs.existsSync(employeeDir)) {
-          fs.mkdirSync(employeeDir, { recursive: true });
-        }
-        
-        const profileJsonPath = path.join(employeeDir, 'profile.json');
-        fs.writeFileSync(profileJsonPath, JSON.stringify(updatedEmp, null, 2));
-      }
-    } catch (err) {
-      console.warn('[table.controller] Failed to update employee folder/JSON:', err.message);
-    }
   }
 
   if (tableName === 'company') {

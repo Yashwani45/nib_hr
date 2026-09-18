@@ -15,12 +15,22 @@ export default defineConfig({
         changeOrigin: true,
         secure: false,
       },
+      "/public": {
+        target: "http://localhost:5000",
+        changeOrigin: true,
+        secure: false,
+      },
     },
   },
   preview: {
     port: 5173,
     proxy: {
       "/api": {
+        target: "http://localhost:5000",
+        changeOrigin: true,
+        secure: false,
+      },
+      "/public": {
         target: "http://localhost:5000",
         changeOrigin: true,
         secure: false,

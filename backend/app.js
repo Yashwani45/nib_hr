@@ -2,6 +2,8 @@
 const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet');
+const path = require('path');
+const fs = require('fs');
 const apiRateLimiter = require('./middleware/rateLimiter.middleware');
 const tenantMiddleware = require('./middleware/tenant.middleware');
 const errorHandler = require('./middleware/error.middleware');
@@ -10,11 +12,22 @@ const apiRoutes = require('./routes');
 
 const app = express();
 
-// Secure Express headers via Helmet
-app.use(helmet());
+// Ensure public upload directory exists
+const publicDir = path.join(__dirname, 'public');
+if (!fs.existsSync(publicDir)) {
+  fs.mkdirSync(publicDir, { recursive: true });
+}
+
+// Secure Express headers via Helmet (allow cross-origin assets for uploads)
+app.use(helmet({
+  crossOriginResourcePolicy: { policy: 'cross-origin' }
+}));
 
 // Cross-Origin Requests enablement
 app.use(cors());
+
+// Serve public uploads statically
+app.use('/public', express.static(publicDir));
 
 // Limit API hits to protect against abuse/DDoS
 app.use('/api', apiRateLimiter);
