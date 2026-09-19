@@ -50,6 +50,7 @@ import {
 } from "@heroicons/react/24/outline";
 
 import { getDynamicWidgetsForModules } from "../../config/departmentWidgetRegistry";
+import EmployeeDocumentsMasterView from "../SupportEngagement/EmployeeDocumentsMasterView";
 
 // Helper map to render heroicon components dynamically by string name
 const ICON_MAP = {
@@ -932,174 +933,16 @@ const DepartmentDashboard = ({ deptDetail = {}, dbData = {} }) => {
         </div>
       )}
 
-      {/* 7B. Department Employee Uploaded Documents Hub */}
+      {/* 7B. Department Employee Uploaded Documents Hub (Master-Detail UI) */}
       {activeViewTab === "documents" && (
-        <div className="bg-white border border-slate-200/80 rounded-2xl shadow-sm overflow-hidden font-sans">
-          <div className="p-4 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-slate-50/60">
-            <div className="flex items-center gap-2.5">
-              <div className="p-2 bg-indigo-50 text-indigo-600 rounded-xl">
-                <DocumentTextIcon className="w-5 h-5" />
-              </div>
-              <div>
-                <h3 className="text-sm font-black text-slate-800 tracking-tight">
-                  {deptName} Employee Uploaded Documents
-                </h3>
-                <p className="text-[11px] text-slate-500 font-medium">
-                  Review, verify, and approve documents submitted by departmental team members ({deptDocuments.length} total)
-                </p>
-              </div>
-            </div>
-
-            <div className="flex flex-wrap items-center gap-2">
-              <select
-                value={docStatusFilter}
-                onChange={(e) => setDocStatusFilter(e.target.value)}
-                className="px-2.5 py-1.5 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-700"
-              >
-                <option value="ALL">All Statuses ({deptDocuments.length})</option>
-                <option value="Pending Approval">Pending Approval ({deptPendingDocsCount})</option>
-                <option value="Approved">Approved</option>
-                <option value="Revision Required">Revision Required</option>
-              </select>
-
-              <div className="relative">
-                <MagnifyingGlassIcon className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
-                <input
-                  type="text"
-                  placeholder="Search by title, employee, code..."
-                  value={docSearchText}
-                  onChange={(e) => setDocSearchText(e.target.value)}
-                  className="pl-8 pr-3 py-1.5 bg-white border border-slate-200 rounded-xl text-xs font-medium focus:outline-indigo-500 w-full sm:w-60"
-                />
-              </div>
-            </div>
-          </div>
-
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs border-collapse">
-              <thead>
-                <tr className="bg-slate-50/80 border-b border-slate-200/80 text-[10px] font-black uppercase tracking-wider text-slate-400">
-                  <th className="py-3 px-4">Employee</th>
-                  <th className="py-3 px-4">Document Title</th>
-                  <th className="py-3 px-4">Type</th>
-                  <th className="py-3 px-4">Upload Date</th>
-                  <th className="py-3 px-4 text-center">Status</th>
-                  <th className="py-3 px-4 text-right">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100 font-medium text-slate-700">
-                {filteredDeptDocs.length > 0 ? (
-                  filteredDeptDocs.map((doc, idx) => {
-                    const empName = doc.employee_name || "Employee";
-                    const empCode = doc.employee_id || "--";
-                    const docTitle = doc.title || "Document";
-                    const docType = doc.document_type || docTitle.split(' - ')[0] || "Credential";
-                    const uploadDate = doc.issue_date || (doc.created_at ? new Date(doc.created_at).toLocaleDateString("en-IN") : "--");
-                    const status = doc.status || "Pending Approval";
-                    const docUrl = doc.file_url || doc.storage_key || "";
-                    const initials = empName.split(" ").filter(Boolean).map(w => w[0]).join("").slice(0, 2).toUpperCase() || "EM";
-
-                    return (
-                      <tr key={doc.id || idx} className="hover:bg-slate-50/70 transition">
-                        <td className="py-3 px-4">
-                          <div className="flex items-center gap-2.5">
-                            <div className="w-8 h-8 rounded-xl bg-indigo-50 border border-indigo-100 text-indigo-700 font-black text-xs flex items-center justify-center shrink-0">
-                              {initials}
-                            </div>
-                            <div>
-                              <div className="font-bold text-slate-900">{empName}</div>
-                              <div className="text-[10px] text-slate-400 font-mono">{empCode}</div>
-                            </div>
-                          </div>
-                        </td>
-                        <td className="py-3 px-4 font-bold text-slate-800">
-                          {docTitle}
-                        </td>
-                        <td className="py-3 px-4 font-semibold text-slate-600">
-                          <span className="px-2 py-0.5 bg-slate-100 rounded-md text-[10px]">
-                            {docType}
-                          </span>
-                        </td>
-                        <td className="py-3 px-4 text-slate-500">
-                          {uploadDate}
-                        </td>
-                        <td className="py-3 px-4 text-center">
-                          <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-bold border ${
-                            status === "Approved"
-                              ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
-                              : status === "Pending Approval"
-                              ? "bg-amber-50 text-amber-700 border border-amber-200 animate-pulse"
-                              : "bg-rose-50 text-rose-700 border border-rose-200"
-                          }`}>
-                            {status}
-                          </span>
-                        </td>
-                        <td className="py-3 px-4 text-right">
-                          <div className="flex items-center justify-end gap-1.5">
-                            {docUrl && (
-                              <a
-                                href={docUrl}
-                                target="_blank"
-                                rel="noreferrer"
-                                title="View Document"
-                                className="p-1.5 text-slate-400 hover:text-indigo-600 rounded-lg hover:bg-indigo-50 transition"
-                              >
-                                <EyeIcon className="w-4 h-4" />
-                              </a>
-                            )}
-                            {docUrl && (
-                              <a
-                                href={docUrl}
-                                download
-                                target="_blank"
-                                rel="noreferrer"
-                                title="Download Document"
-                                className="p-1.5 text-slate-400 hover:text-emerald-600 rounded-lg hover:bg-emerald-50 transition"
-                              >
-                                <ArrowDownTrayIcon className="w-4 h-4" />
-                              </a>
-                            )}
-                            {status === "Pending Approval" && (
-                              <>
-                                <button
-                                  type="button"
-                                  onClick={() => handleApproveDoc(doc.id)}
-                                  className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg font-bold text-[10px] transition cursor-pointer shadow-xs"
-                                >
-                                  Approve
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() => handleRejectDoc(doc.id)}
-                                  className="px-2.5 py-1 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 rounded-lg font-bold text-[10px] transition cursor-pointer"
-                                >
-                                  Reject
-                                </button>
-                              </>
-                            )}
-                          </div>
-                        </td>
-                      </tr>
-                    );
-                  })
-                ) : (
-                  <tr>
-                    <td colSpan="6" className="py-12 text-center text-slate-400">
-                      <DocumentTextIcon className="w-10 h-10 mx-auto text-slate-300 mb-2" />
-                      <p className="font-bold text-slate-600 text-xs">
-                        {docSearchText 
-                          ? `Koi document nahi mila search "${docSearchText}" ke liye.` 
-                          : `Abhi ${deptName} department me koi document upload nahi hua.`}
-                      </p>
-                      <p className="text-[11px] text-slate-400 mt-1 max-w-sm mx-auto">
-                        Jaise hi employee apna Aadhar Card, PAN Card, Resume ya koi document upload karega, woh yahan live display hoga aur Department Head use verify karke Approve kar sakte hain.
-                      </p>
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-          </div>
+        <div className="space-y-4">
+          <EmployeeDocumentsMasterView
+            deptFilter={isAll ? "ALL" : deptName}
+            deptName={deptName}
+            readOnlyDepartment={!isAll}
+            user={user}
+            onRefresh={fetchLiveDeptData}
+          />
         </div>
       )}
     </div>

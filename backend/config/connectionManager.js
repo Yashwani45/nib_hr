@@ -19,7 +19,13 @@ const getTenantConnection = async (tenantId) => {
     return masterSequelize;
   }
 
-  const cacheKey = ['NIB', 'NIB01'].includes(cleanId.toUpperCase()) ? 'YashTech' : cleanId;
+  let cacheKey = cleanId;
+  const upper = cleanId.toUpperCase();
+  if (['NIB', 'NIB01', 'NIBINSURANCE', 'NIB_INSURANCE'].includes(upper)) {
+    cacheKey = 'nib_insurance';
+  } else if (['YASHTECH', 'YASH_TECH', 'YASH'].includes(upper)) {
+    cacheKey = 'yashtech';
+  }
 
   // Return cached connection if active
   if (connectionPools[cacheKey]) {

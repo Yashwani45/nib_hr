@@ -14795,3 +14795,44 @@
 [31m    at async executeCount (C:\Users\admin\nib_hr\backend\services\core\document.service.js:76:19)[39m
 [31m    at async DocumentService.getDashboardStats (C:\Users\admin\nib_hr\backend\services\core\document.service.js:88:35)[39m
 [31m    at async C:\Users\admin\nib_hr\backend\controllers\core\document.controller.js:10:17[39m
+2026-09-19 10:32:34:3234 [31merror[39m: [31mGET /api/table/department - Error: Unauthorized access request. Token missing.[39m
+[31mStack: Error: Unauthorized access request. Token missing.[39m
+[31m    at C:\Users\admin\nib_hr\backend\middleware\auth.middleware.js:11:11[39m
+[31m    at C:\Users\admin\nib_hr\backend\utils\asyncHandler.js:4:21[39m
+[31m    at Layer.handle [as handle_request] (C:\Users\admin\nib_hr\backend\node_modules\express\lib\router\layer.js:95:5)[39m
+[31m    at trim_prefix (C:\Users\admin\nib_hr\backend\node_modules\express\lib\router\index.js:328:13)[39m
+[31m    at C:\Users\admin\nib_hr\backend\node_modules\express\lib\router\index.js:286:9[39m
+[31m    at router.process_params (C:\Users\admin\nib_hr\backend\node_modules\express\lib\router\index.js:346:12)[39m
+[31m    at next (C:\Users\admin\nib_hr\backend\node_modules\express\lib\router\index.js:280:10)[39m
+[31m    at router.handle (C:\Users\admin\nib_hr\backend\node_modules\express\lib\router\index.js:175:3)[39m
+[31m    at router (C:\Users\admin\nib_hr\backend\node_modules\express\lib\router\index.js:47:12)[39m
+[31m    at Layer.handle [as handle_request] (C:\Users\admin\nib_hr\backend\node_modules\express\lib\router\layer.js:95:5)[39m
+2026-09-19 11:53:21:5321 [31merror[39m: [31mGET /api/documents/stats - Error: Unauthorized access request. Token missing.[39m
+[31mStack: Error: Unauthorized access request. Token missing.[39m
+[31m    at C:\Users\admin\nib_hr\backend\middleware\auth.middleware.js:11:11[39m
+[31m    at C:\Users\admin\nib_hr\backend\utils\asyncHandler.js:4:21[39m
+[31m    at Layer.handle [as handle_request] (C:\Users\admin\nib_hr\backend\node_modules\express\lib\router\layer.js:95:5)[39m
+[31m    at trim_prefix (C:\Users\admin\nib_hr\backend\node_modules\express\lib\router\index.js:328:13)[39m
+[31m    at C:\Users\admin\nib_hr\backend\node_modules\express\lib\router\index.js:286:9[39m
+[31m    at router.process_params (C:\Users\admin\nib_hr\backend\node_modules\express\lib\router\index.js:346:12)[39m
+[31m    at next (C:\Users\admin\nib_hr\backend\node_modules\express\lib\router\index.js:280:10)[39m
+[31m    at router.handle (C:\Users\admin\nib_hr\backend\node_modules\express\lib\router\index.js:175:3)[39m
+[31m    at router (C:\Users\admin\nib_hr\backend\node_modules\express\lib\router\index.js:47:12)[39m
+[31m    at Layer.handle [as handle_request] (C:\Users\admin\nib_hr\backend\node_modules\express\lib\router\layer.js:95:5)[39m
+2026-09-19 12:10:54:1054 [31merror[39m: [31mGET /api/finance/payslips?employeeId=a835e784-1ee3-484b-b290-6d9edce71594 - Error: Access denied: Role context unassigned.[39m
+[31mStack: Error: Access denied: Role context unassigned.[39m
+[31m    at C:\Users\admin\nib_hr\backend\middleware\rbac.middleware.js:24:21[39m
+[31m    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)[39m
+2026-09-19 12:10:54:1054 [31merror[39m: [31mGET /api/finance/payslips?employeeId=a835e784-1ee3-484b-b290-6d9edce71594 - Error: Access denied: Role context unassigned.[39m
+[31mStack: Error: Access denied: Role context unassigned.[39m
+[31m    at C:\Users\admin\nib_hr\backend\middleware\rbac.middleware.js:24:21[39m
+[31m    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)[39m
+2026-09-19 12:40:07:407 [31merror[39m: [31mPOST /api/auth/login - Error: Invalid email or password.[39m
+[31mStack: Error: Invalid email or password.[39m
+[31m    at AuthService.login (C:\Users\admin\nib_hr\backend\services\auth.service.js:241:15)[39m
+[31m    at async C:\Users\admin\nib_hr\backend\controllers\auth.controller.js:17:18[39m
+2026-09-19 12:45:47:4547 [31merror[39m: [31mPOST /api/auth/login - Error: Invalid email or password.[39m
+[31mStack: Error: Invalid email or password.[39m
+[31m    at AuthService.login (C:\Users\admin\nib_hr\backend\services\auth.service.js:390:11)[39m
+[31m    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)[39m
+[31m    at async C:\Users\admin\nib_hr\backend\controllers\auth.controller.js:17:18[39m

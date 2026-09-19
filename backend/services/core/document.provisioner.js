@@ -107,6 +107,43 @@ async function provisionDocumentTables(tenantDb) {
       if (!docColNames.includes('file_url')) {
         await tenantDb.query("ALTER TABLE `documents` ADD COLUMN `file_url` TEXT NULL").catch(() => {});
       }
+      if (!docColNames.includes('description')) {
+        await tenantDb.query("ALTER TABLE `documents` ADD COLUMN `description` TEXT NULL").catch(() => {});
+      }
+      if (!docColNames.includes('storage_key')) {
+        await tenantDb.query("ALTER TABLE `documents` ADD COLUMN `storage_key` VARCHAR(500) NULL").catch(() => {});
+      }
+      if (!docColNames.includes('storage_provider')) {
+        await tenantDb.query("ALTER TABLE `documents` ADD COLUMN `storage_provider` VARCHAR(50) DEFAULT 'local'").catch(() => {});
+      }
+      if (!docColNames.includes('mime_type')) {
+        await tenantDb.query("ALTER TABLE `documents` ADD COLUMN `mime_type` VARCHAR(100) NULL").catch(() => {});
+      }
+      if (!docColNames.includes('verification_id')) {
+        await tenantDb.query("ALTER TABLE `documents` ADD COLUMN `verification_id` VARCHAR(50) NULL").catch(() => {});
+      }
+      if (!docColNames.includes('issue_date')) {
+        await tenantDb.query("ALTER TABLE `documents` ADD COLUMN `issue_date` VARCHAR(20) NULL").catch(() => {});
+      }
+      if (!docColNames.includes('effective_date')) {
+        await tenantDb.query("ALTER TABLE `documents` ADD COLUMN `effective_date` VARCHAR(20) NULL").catch(() => {});
+      }
+      if (!docColNames.includes('expiry_date')) {
+        await tenantDb.query("ALTER TABLE `documents` ADD COLUMN `expiry_date` VARCHAR(20) NULL").catch(() => {});
+      }
+      if (!docColNames.includes('current_version_id')) {
+        await tenantDb.query("ALTER TABLE `documents` ADD COLUMN `current_version_id` CHAR(36) NULL").catch(() => {});
+      }
+      if (!docColNames.includes('file_name')) {
+        await tenantDb.query("ALTER TABLE `documents` ADD COLUMN `file_name` VARCHAR(255) NULL").catch(() => {});
+      }
+      if (!docColNames.includes('original_file_name')) {
+        await tenantDb.query("ALTER TABLE `documents` ADD COLUMN `original_file_name` VARCHAR(255) NULL").catch(() => {});
+      }
+      if (!docColNames.includes('remarks')) {
+        await tenantDb.query("ALTER TABLE `documents` ADD COLUMN `remarks` TEXT NULL").catch(() => {});
+      }
+      await tenantDb.query("ALTER TABLE `documents` MODIFY COLUMN `document_type_id` CHAR(36) NULL").catch(() => {});
     } catch (dhErr) {}
 
     // 4. Create document_versions
@@ -258,9 +295,11 @@ async function provisionDocumentTables(tenantDb) {
         await tenantDb.query(`
           INSERT INTO \`document_types\` (id, code, name, description, category, requires_approval, requires_acknowledgement, requires_acceptance, requires_signature, status, created_by)
           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'Active', 'System Seed')
-        `, [
-          crypto.randomUUID(), t.code, t.name, `${t.name} official employee document type.`, t.category, t.requires_approval, t.requires_acknowledgement, t.requires_acceptance, t.requires_signature
-        ]).catch(() => {});
+        `, {
+          replacements: [
+            crypto.randomUUID(), t.code, t.name, `${t.name} official employee document type.`, t.category, t.requires_approval, t.requires_acknowledgement, t.requires_acceptance, t.requires_signature
+          ]
+        }).catch(e => console.error('[DocType Seed Error]:', e.message));
       }
     }
 
@@ -280,9 +319,11 @@ async function provisionDocumentTables(tenantDb) {
         await tenantDb.query(`
           INSERT INTO \`document_templates\` (id, template_code, template_name, document_type_id, company_id, template_content, version, status, created_by)
           VALUES (?, ?, ?, ?, 'All', ?, '1.0', 'Active', 'System Seed')
-        `, [
-          crypto.randomUUID(), `${type.code}_DEFAULT`, `Default ${type.name} Template`, type.id, content
-        ]);
+        `, {
+          replacements: [
+            crypto.randomUUID(), `${type.code}_DEFAULT`, `Default ${type.name} Template`, type.id, content
+          ]
+        }).catch(e => console.error('[Template Seed Error]:', e.message));
       }
       console.log('[Document Provisioner] Templates seeding completed.');
     }

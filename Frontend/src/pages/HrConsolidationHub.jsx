@@ -2320,7 +2320,7 @@ const HrConsolidationHub = () => {
       {/* Main Workspace */}
       <div className="w-full bg-white rounded-2xl border border-gray-200/80 shadow-md p-6 font-sans">
         {/* Module Header */}
-        {!isEmployeeWorkspaceTab && !isDesignationTab && !isCustomSetupTab && selectedTab !== "Reports" && selectedModule !== "8. Performance Management" && (
+        {!isEmployeeWorkspaceTab && !isDesignationTab && !isCustomSetupTab && selectedTab !== "Reports" && selectedTab !== "Document Log" && selectedTab !== "Documents" && selectedTab !== "Letter Workspace" && selectedModule !== "8. Performance Management" && (
             <div className="flex flex-col md:flex-row md:items-center justify-between border-b pb-5 mb-6 gap-4">
               <div>
                 <h1 className="text-2xl font-extrabold text-gray-900 tracking-tight">
