@@ -66,22 +66,19 @@ const Login = () => {
 
       // Store in AuthProvider and Redux
       const emailLower = (result.data.email || email).toLowerCase();
-      const resolvedDeptName = result.data.departmentName || 
-        (emailLower.includes("hr.") ? "Human Resources" : 
-        (emailLower.includes("operation") ? "Operations" : 
-        (emailLower.includes("market") ? "Sales & Marketing" : 
-        (emailLower.includes("audit") ? "Quality & Clinical Audit" : "Department"))));
+      const resolvedName = result.data.employeeName || result.data.name || (result.data.email ? result.data.email.split('@')[0] : 'User');
+      const resolvedDeptName = result.data.departmentName || "General Staff";
 
       login(result.data.accessToken, {
-        name: result.data.name || (result.data.role === 'DepartmentHR' ? resolvedDeptName : (result.data.role === 'Admin' ? 'Rahul Sharma' : (result.data.email ? result.data.email.split('@')[0] : 'User'))),
-        employeeName: result.data.employeeName || result.data.name || (result.data.role === 'DepartmentHR' ? resolvedDeptName : (result.data.role === 'Admin' ? 'Rahul Sharma' : (result.data.email ? result.data.email.split('@')[0] : 'User'))),
+        name: resolvedName,
+        employeeName: resolvedName,
         email: result.data.email,
         role: result.data.role,
         companyCode: result.data.companyCode || activeCode,
         companyName: result.data.companyName,
         departmentId: result.data.departmentId,
         departmentCode: result.data.departmentCode,
-        departmentName: result.data.departmentName || (result.data.role === 'DepartmentHR' ? resolvedDeptName : null),
+        departmentName: resolvedDeptName,
         assignedModules: result.data.assignedModules || [],
       });
 
@@ -103,38 +100,11 @@ const Login = () => {
         const resolvedRole = mockRoles[emailLower];
         login("mock-token-12345", {
           email: emailLower,
+          name: emailLower.split("@")[0],
+          employeeName: emailLower.split("@")[0],
           role: resolvedRole,
           companyCode: emailLower.includes("yashtech") ? "983b8e34-1df2-4f9b-af07-693be0b23681" : "NIB01",
           companyName: emailLower.includes("yashtech") ? "YashTech" : "NIB Master Operations",
-        });
-        navigate("/");
-        return;
-      }
-
-      if (emailLower.includes("hr.") || emailLower.includes("yashwani")) {
-        login("mock-token-dept-hr", {
-          email: emailLower,
-          role: "DepartmentHR",
-          companyCode: "NIB01",
-          departmentId: "dept_eng_01",
-          departmentCode: "DEP-ENG",
-          departmentName: "Software Engineering",
-          assignedModules: ["Dashboard", "Employee Management", "Attendance", "Leave Management", "Performance", "Reports", "Document Management", "Documents"],
-        });
-        navigate("/");
-        return;
-      }
-
-      if (emailLower.includes("yashtech")) {
-        login("mock-token-admin", {
-          email: emailLower,
-          role: "Admin",
-          companyCode: "983b8e34-1df2-4f9b-af07-693be0b23681",
-          companyName: "YashTech",
-          departmentId: "dept_admin_01",
-          departmentCode: "ADMIN",
-          departmentName: "Administration",
-          assignedModules: ["Dashboard", "Organization Setup", "Employee Management", "Attendance", "Leave Management", "Payroll", "Performance", "Reports", "Departments", "Settings"],
         });
         navigate("/");
         return;

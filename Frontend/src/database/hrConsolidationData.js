@@ -175,7 +175,7 @@ export const hrSchemas = {
       { name: "status", label: "Hiring Status", type: "select", options: ["Active", "Offered", "Rejected", "Archived"] }
     ],
     "Asset Allocation": [
-      { name: "allocationId", label: "Allocation ID", type: "text", required: true },
+      { name: "allocationId", label: "Allocation ID", type: "text" },
       { name: "employee", label: "Employee Name", type: "select", required: true },
       { name: "empId", label: "Employee ID", type: "text" },
       { name: "department", label: "Department", type: "select", options: ["IT", "Software Engineering", "Operations", "Finance", "Human Resources", "Sales & Marketing"] },

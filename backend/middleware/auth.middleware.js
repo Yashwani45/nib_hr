@@ -31,7 +31,7 @@ const verifyJWT = asyncHandler(async (req, res, next) => {
     try {
       const users = await activeDb.query(
         `SELECT u.*, r.name as role_name, r.id as role_id, 
-                e.id as emp_id, e.firstName, e.lastName, e.department, e.department_id 
+                e.id as emp_id, e.firstName, e.lastName, e.department 
          FROM users u 
          LEFT JOIN roles r ON u.role_id = r.id 
          LEFT JOIN employees e ON (u.id = e.user_id OR LOWER(u.email) = LOWER(e.email)) 
@@ -45,6 +45,7 @@ const verifyJWT = asyncHandler(async (req, res, next) => {
           throw new ApiError(403, 'Your account is deactivated.');
         }
 
+        const resolvedRole = user.role_name || (typeof user.role === 'string' ? user.role : 'Employee');
         req.user = {
           id: user.id,
           email: user.email,
@@ -52,16 +53,15 @@ const verifyJWT = asyncHandler(async (req, res, next) => {
           departmentName: user.department || '',
           departmentId: user.department_id || '',
           role: {
-            id: user.role_id,
-            name: user.role_name || 'Admin',
-            roleName: user.role_name || 'Admin'
+            id: user.role_id || user.id,
+            name: resolvedRole,
+            roleName: resolvedRole
           },
           employee: (user.emp_id || user.department) ? {
             id: user.emp_id || user.id,
             first_name: user.firstName || user.first_name || '',
             last_name: user.lastName || user.last_name || '',
-            department: user.department || '',
-            department_id: user.department_id || ''
+            department: user.department || ''
           } : null
         };
         return next();
@@ -69,7 +69,38 @@ const verifyJWT = asyncHandler(async (req, res, next) => {
     } catch (uErr) {
       const logger = require('../config/logger');
       logger.info('verifyJWT uErr: ' + uErr.message);
-      // Ignore and proceed to tenant/department checks
+    }
+
+    // 1b. Direct search in employees table (for employee self-service login)
+    try {
+      const empRows = await activeDb.query(
+        `SELECT * FROM employees WHERE id = ? OR LOWER(email) = ? OR LOWER(officialEmail) = ? LIMIT 1`,
+        { replacements: [decoded.id || '', decoded.email || '', decoded.email || ''], type: QueryTypes.SELECT }
+      );
+      if (empRows && empRows.length > 0) {
+        const emp = empRows[0];
+        req.user = {
+          id: emp.id,
+          email: emp.email || emp.officialEmail || decoded.email,
+          department: emp.department || '',
+          departmentName: emp.department || '',
+          role: {
+            id: emp.id,
+            name: 'Employee',
+            roleName: 'Employee'
+          },
+          employee: {
+            id: emp.id,
+            employeeCode: emp.employeeCode || emp.emp_code || '',
+            first_name: emp.firstName || emp.first_name || '',
+            last_name: emp.lastName || emp.last_name || '',
+            department: emp.department || ''
+          }
+        };
+        return next();
+      }
+    } catch (empErr) {
+      // Ignore
     }
 
     // 2. Try finding in Master tenants table (Company Admin)

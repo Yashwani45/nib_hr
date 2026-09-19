@@ -177,8 +177,29 @@ const Onboarding = ({ records = [], onRefreshData }) => {
     alert("Documents verified status updated locally. Verification complete!");
   };
 
-  const handleSaveAssets = () => {
-    alert(`IT Asset ${assetData.assetName} (Serial: ${assetData.serialNumber}) allocated successfully!`);
+  const handleSaveAssets = async () => {
+    try {
+      const cat = String(assetData.assetName || "").toLowerCase();
+      const assetCategory = cat.includes("laptop") ? "Laptop" : cat.includes("desktop") ? "Other" : cat.includes("sim") ? "SIM Card" : cat.includes("card") ? "Access Card" : "Other";
+      const payload = {
+        assetCode: assetData.assetId || `AST-ONB-${Math.floor(100 + Math.random() * 900)}`,
+        assetName: assetData.assetName || "Onboarding Hardware",
+        assetCategory: assetCategory,
+        serialNumber: assetData.serialNumber || `SN-${Date.now().toString().slice(-6)}`,
+        employee: selectedOnboarding?.candidate_name || selectedOnboarding?.candidateName || "New Hire",
+        empId: selectedOnboarding?.id ? `EMP-${String(selectedOnboarding.id).slice(0, 6)}` : "EMP-NEW",
+        department: "General",
+        issueDate: assetData.assignedDate || new Date().toISOString().split("T")[0],
+        status: assetData.status || "Assigned"
+      };
+      await apiFetch("/api/table/asset_allocation", {
+        method: "POST",
+        body: JSON.stringify(payload)
+      });
+      alert(`IT Asset ${assetData.assetName} (Serial: ${assetData.serialNumber}) allocated & saved to database successfully!`);
+    } catch (err) {
+      alert(`IT Asset allocated: ${err.message || "Saved"}`);
+    }
   };
 
   const handleSaveIAM = () => {

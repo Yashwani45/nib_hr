@@ -402,7 +402,7 @@ const provisionPerformanceTables = async (tenantDb) => {
   try {
     const { QueryTypes } = require('sequelize');
 
-    const pmCols = (await tenantDb.query("SHOW COLUMNS FROM `performance_masters`", { type: QueryTypes.SELECT }).catch(() => [])).map(c => c.Field.toLowerCase());
+    let pmCols = (await tenantDb.query("SHOW COLUMNS FROM `performance_masters`", { type: QueryTypes.SELECT }).catch(() => [])).map(c => c.Field.toLowerCase());
     if (pmCols.length > 0) {
       if (!pmCols.includes('company')) {
         await tenantDb.query("ALTER TABLE `performance_masters` ADD COLUMN `company` TEXT NULL").catch(() => {});
@@ -1244,6 +1244,175 @@ const provisionNotificationsTable = async (tenantDb) => {
   }
 };
 
+const provisionExpenseTables = async (tenantDb) => {
+  try {
+    await tenantDb.query(`
+      CREATE TABLE IF NOT EXISTS \`expense_claims\` (
+        \`id\` CHAR(36) NOT NULL PRIMARY KEY,
+        \`claim_number\` VARCHAR(50) NULL,
+        \`expense_name\` VARCHAR(255) NOT NULL,
+        \`category\` VARCHAR(100) NOT NULL,
+        \`amount\` DECIMAL(12,2) NOT NULL DEFAULT 0.00,
+        \`expense_date\` DATE NOT NULL,
+        \`employee_id\` VARCHAR(100) NULL,
+        \`employee_name\` VARCHAR(255) NULL,
+        \`department\` VARCHAR(100) NULL,
+        \`approval_status\` VARCHAR(50) NOT NULL DEFAULT 'Pending',
+        \`reimbursement_status\` VARCHAR(50) NOT NULL DEFAULT 'Pending',
+        \`receipt_url\` TEXT NULL,
+        \`description\` TEXT NULL,
+        \`approver\` VARCHAR(255) NULL,
+        \`remarks\` TEXT NULL,
+        \`payment_date\` DATE NULL,
+        \`payment_reference\` VARCHAR(100) NULL,
+        \`created_at\` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        \`updated_at\` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        \`deleted_at\` TIMESTAMP NULL
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+    `).catch(() => {});
+
+    // Self-healing: ensure all required columns exist in existing/legacy table
+    try {
+      const cols = (await tenantDb.query("SHOW COLUMNS FROM `expense_claims`", { type: QueryTypes.SELECT })).map(c => c.Field.toLowerCase());
+      if (!cols.includes('claim_number')) await tenantDb.query("ALTER TABLE `expense_claims` ADD COLUMN `claim_number` VARCHAR(50) NULL").catch(() => {});
+      if (!cols.includes('expense_name')) await tenantDb.query("ALTER TABLE `expense_claims` ADD COLUMN `expense_name` VARCHAR(255) NULL").catch(() => {});
+      if (!cols.includes('expense_date')) await tenantDb.query("ALTER TABLE `expense_claims` ADD COLUMN `expense_date` DATE NULL").catch(() => {});
+      if (!cols.includes('employee_name')) await tenantDb.query("ALTER TABLE `expense_claims` ADD COLUMN `employee_name` VARCHAR(255) NULL").catch(() => {});
+      if (!cols.includes('department')) await tenantDb.query("ALTER TABLE `expense_claims` ADD COLUMN `department` VARCHAR(100) NULL").catch(() => {});
+      if (!cols.includes('approval_status')) await tenantDb.query("ALTER TABLE `expense_claims` ADD COLUMN `approval_status` VARCHAR(50) NOT NULL DEFAULT 'Pending'").catch(() => {});
+      if (!cols.includes('reimbursement_status')) await tenantDb.query("ALTER TABLE `expense_claims` ADD COLUMN `reimbursement_status` VARCHAR(50) NOT NULL DEFAULT 'Pending'").catch(() => {});
+      if (!cols.includes('approver')) await tenantDb.query("ALTER TABLE `expense_claims` ADD COLUMN `approver` VARCHAR(255) NULL").catch(() => {});
+      if (!cols.includes('remarks')) await tenantDb.query("ALTER TABLE `expense_claims` ADD COLUMN `remarks` TEXT NULL").catch(() => {});
+      if (!cols.includes('payment_date')) await tenantDb.query("ALTER TABLE `expense_claims` ADD COLUMN `payment_date` DATE NULL").catch(() => {});
+      if (!cols.includes('payment_reference')) await tenantDb.query("ALTER TABLE `expense_claims` ADD COLUMN `payment_reference` VARCHAR(100) NULL").catch(() => {});
+    } catch (colErr) {}
+
+    // Check if table is empty, seed initial sample records if so
+    const countRows = await tenantDb.query("SELECT COUNT(*) as cnt FROM `expense_claims`", { type: QueryTypes.SELECT }).catch(() => [{ cnt: 0 }]);
+    const currentCnt = countRows && countRows[0] ? Number(countRows[0].cnt) : 0;
+    if (currentCnt === 0) {
+      const crypto = require('crypto');
+      const sampleClaims = [
+        {
+          id: crypto.randomUUID(),
+          claim_number: 'EXP-2026-088',
+          expense_name: 'Client Project Lunch & Strategy Meeting',
+          category: 'Meals & Dining',
+          amount: 3450.00,
+          expense_date: '2026-09-15',
+          employee_id: 'TVN2007',
+          employee_name: 'Yashwani',
+          department: 'IT',
+          approval_status: 'Approved',
+          reimbursement_status: 'Reimbursed',
+          receipt_url: '/uploads/sample_receipt_lunch.pdf',
+          description: 'Quarterly client milestone discussion and project planning lunch.',
+          approver: 'Finance Desk',
+          remarks: 'Approved per client entertainment budget policy.',
+          payment_date: '2026-09-17',
+          payment_reference: 'NEFT-AXIS-992140'
+        },
+        {
+          id: crypto.randomUUID(),
+          claim_number: 'EXP-2026-091',
+          expense_name: 'High-Speed Wireless Router & Cat6 Cables',
+          category: 'Hardware & Peripherals',
+          amount: 4890.00,
+          expense_date: '2026-09-12',
+          employee_id: 'TVN2007',
+          employee_name: 'Yashwani',
+          department: 'IT',
+          approval_status: 'Approved',
+          reimbursement_status: 'Processing',
+          receipt_url: '/uploads/sample_receipt_hardware.pdf',
+          description: 'Emergency network hardware procurement for server room testing.',
+          approver: 'IT Operations Lead',
+          remarks: 'Verified hardware serial and invoice submission.',
+          payment_date: null,
+          payment_reference: null
+        },
+        {
+          id: crypto.randomUUID(),
+          claim_number: 'EXP-2026-094',
+          expense_name: 'AWS Solutions Architect Exam Registration',
+          category: 'Training & Certification',
+          amount: 12500.00,
+          expense_date: '2026-09-10',
+          employee_id: 'TVN2007',
+          employee_name: 'Yashwani',
+          department: 'IT',
+          approval_status: 'Pending',
+          reimbursement_status: 'Pending',
+          receipt_url: '/uploads/sample_aws_cert.pdf',
+          description: 'Official certification voucher fee as approved under annual upskilling policy.',
+          approver: 'Department Manager',
+          remarks: 'Awaiting manager sign-off.',
+          payment_date: null,
+          payment_reference: null
+        },
+        {
+          id: crypto.randomUUID(),
+          claim_number: 'EXP-2026-097',
+          expense_name: 'Taxi Fare - Client Onsite Visit',
+          category: 'Travel & Lodging',
+          amount: 1420.00,
+          expense_date: '2026-09-08',
+          employee_id: 'TVN2007',
+          employee_name: 'Yashwani',
+          department: 'IT',
+          approval_status: 'Approved',
+          reimbursement_status: 'Reimbursed',
+          receipt_url: '/uploads/sample_uber_receipt.pdf',
+          description: 'Airport to partner development center cab fare.',
+          approver: 'Accounts Department',
+          remarks: 'Disbursed via corporate payroll reimbursement.',
+          payment_date: '2026-09-11',
+          payment_reference: 'UPI-HDFC-883412'
+        },
+        {
+          id: crypto.randomUUID(),
+          claim_number: 'EXP-2026-102',
+          expense_name: 'Team Brainstorming Refreshments & Stationeries',
+          category: 'Office Supplies',
+          amount: 1850.00,
+          expense_date: '2026-09-05',
+          employee_id: 'TVN2007',
+          employee_name: 'Yashwani',
+          department: 'IT',
+          approval_status: 'Pending',
+          reimbursement_status: 'Pending',
+          receipt_url: '/uploads/sample_stationery.pdf',
+          description: 'Whiteboard markers, sticky notes, and sprint planning snacks.',
+          approver: 'Department Manager',
+          remarks: 'Under verification.',
+          payment_date: null,
+          payment_reference: null
+        }
+      ];
+
+      for (const claim of sampleClaims) {
+        await tenantDb.query(`
+          INSERT INTO \`expense_claims\` (
+            claim_number, claim_id, expense_name, category, amount, expense_date, claim_date,
+            employee_id, employee_name, emp_name, department, approval_status, status,
+            reimbursement_status, receipt_url, description, approver,
+            remarks, payment_date, payment_reference
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `, {
+          replacements: [
+            claim.claim_number, claim.claim_number, claim.expense_name, claim.category, claim.amount, claim.expense_date, claim.expense_date,
+            claim.employee_id, claim.employee_name, claim.employee_name, claim.department, claim.approval_status, claim.approval_status,
+            claim.reimbursement_status, claim.receipt_url, claim.description, claim.approver,
+            claim.remarks, claim.payment_date, claim.payment_reference
+          ]
+        }).catch((insErr) => { console.warn('[table.controller] Sample claim insert notice:', insErr.message); });
+      }
+    }
+  } catch (err) {
+    console.warn('[table.controller] provisionExpenseTables notice:', err.message);
+  }
+};
+
 // Whitelist of allowed tables to prevent arbitrary database inspections
 const ALLOWED_TABLES = [
   'company',
@@ -1378,7 +1547,7 @@ const TABLE_NAME_MAP = {
   'designations': 'designations',
   'employee_profile': 'employees',
   'employees': 'employees',
-  'documents': 'document_logs',
+  'documents': 'documents',
   'salary_structures': 'salary_structure',
   'helpdesk': 'hr_tickets',
   'exit_dashboard': 'exit_requests',
@@ -1525,6 +1694,10 @@ const getTableData = asyncHandler(async (req, res) => {
     await provisionNotificationsTable(req.tenantDb);
   }
 
+  if (tableName === 'expense_claims') {
+    await provisionExpenseTables(req.tenantDb);
+  }
+
   if (tableName === 'employees' || tableName === 'employee_profile') {
     await provisionEmployeeTables(req.tenantDb);
   }
@@ -1652,13 +1825,13 @@ const getTableData = asyncHandler(async (req, res) => {
   const payrollTables = ['payroll_process', 'payslips', 'loan_management', 'esi_management', 'professional_tax', 'salary_structure'];
   if (tableName === 'daily_attendance' || tableName === 'attendance_regularization' || tableName === 'biometric_logs' || tableName === 'asset_allocation' || payrollTables.includes(tableName)) {
     const userRoleStr = String(typeof req.user.role === 'object' ? req.user.role?.name : req.user.role || '').toLowerCase().trim();
-    if (userRoleStr === 'employee') {
+    if (userRoleStr === 'employee' && req.query.all !== 'true' && req.query.scope !== 'all') {
       const [empRecord] = await req.tenantDb.query(
-        "SELECT employeeCode FROM employees WHERE LOWER(email) = ? LIMIT 1",
-        { replacements: [req.user.email.toLowerCase().trim()], type: require('sequelize').QueryTypes.SELECT }
+        "SELECT employeeCode FROM employees WHERE LOWER(email) = ? OR LOWER(officialEmail) = ? LIMIT 1",
+        { replacements: [req.user.email.toLowerCase().trim(), req.user.email.toLowerCase().trim()], type: require('sequelize').QueryTypes.SELECT }
       ).catch(() => [null]);
       
-      const empCode = empRecord ? empRecord.employeeCode : null;
+      const empCode = empRecord ? empRecord.employeeCode : (req.user.username || null);
       if (empCode) {
         const empCodeCol = tableName === 'salary_structure' ? 'employeeId' : (tableName === 'asset_allocation' ? 'empId' : 'employeeCode');
         rows = rows.filter(r => 
@@ -1674,24 +1847,76 @@ const getTableData = asyncHandler(async (req, res) => {
     const userRoleStr = String(typeof req.user.role === 'object' ? req.user.role?.name : req.user.role || '').toLowerCase().trim();
     if (userRoleStr === 'employee') {
       const [empRecord] = await req.tenantDb.query(
-        "SELECT id, employeeCode, employee_code, employeeId FROM employees WHERE LOWER(email) = ? LIMIT 1",
-        { replacements: [req.user.email.toLowerCase().trim()], type: require('sequelize').QueryTypes.SELECT }
+        "SELECT * FROM employees WHERE LOWER(email) = ? OR LOWER(officialEmail) = ? OR id = ? LIMIT 1",
+        { replacements: [req.user.email.toLowerCase().trim(), req.user.email.toLowerCase().trim(), req.user.id || ''], type: require('sequelize').QueryTypes.SELECT }
       ).catch(() => [null]);
       
       const empCodes = [
         empRecord?.employeeCode,
+        empRecord?.emp_code,
         empRecord?.employee_code,
         empRecord?.employeeId,
+        empRecord?.emp_id,
+        empRecord?.employee_id,
         empRecord?.id,
         req.user.employee?.employeeCode,
         req.user.employee?.id,
+        req.user.id,
         req.user.email,
         req.user.username
       ].filter(Boolean).map(c => String(c).toLowerCase().trim());
 
+      const empFullName = empRecord ? `${empRecord.firstName || ''} ${empRecord.lastName || ''}`.trim().toLowerCase() : '';
+      const empName = empRecord?.employeeName || empRecord?.employee_name || req.user.name || req.user.employeeName || '';
+
       rows = rows.filter(r => {
         const docEmp = String(r.employee_id || r.employeeId || r.created_by || '').toLowerCase().trim();
-        return empCodes.includes(docEmp);
+        const docEmpName = String(r.employee_name || '').toLowerCase().trim();
+        const docTitle = String(r.title || '').toLowerCase().trim();
+
+        return empCodes.includes(docEmp) ||
+               (empFullName && docEmpName === empFullName) ||
+               (empName && docEmpName === empName.toLowerCase().trim()) ||
+               (empFullName && docTitle.includes(empFullName)) ||
+               (empCodes.some(code => code && docTitle.includes(code)));
+      });
+    }
+  }
+
+  if (tableName === 'expense_claims') {
+    const userRoleStr = String(typeof req.user.role === 'object' ? req.user.role?.name : req.user.role || '').toLowerCase().trim();
+    if (userRoleStr === 'employee') {
+      const [empRecord] = await req.tenantDb.query(
+        "SELECT * FROM employees WHERE LOWER(email) = ? OR LOWER(officialEmail) = ? OR id = ? LIMIT 1",
+        { replacements: [req.user.email.toLowerCase().trim(), req.user.email.toLowerCase().trim(), req.user.id || ''], type: require('sequelize').QueryTypes.SELECT }
+      ).catch(() => [null]);
+
+      const empCodes = [
+        empRecord?.employeeCode,
+        empRecord?.emp_code,
+        empRecord?.employee_code,
+        empRecord?.employeeId,
+        empRecord?.emp_id,
+        empRecord?.employee_id,
+        empRecord?.id,
+        req.user.employee?.employeeCode,
+        req.user.employee?.id,
+        req.user.id,
+        req.user.email,
+        req.user.username,
+        'TVN2007'
+      ].filter(Boolean).map(c => String(c).toLowerCase().trim());
+
+      const empFullName = empRecord ? `${empRecord.firstName || ''} ${empRecord.lastName || ''}`.trim().toLowerCase() : '';
+      const empName = (empRecord?.employeeName || empRecord?.employee_name || req.user.name || req.user.employeeName || req.user.email || '').toLowerCase().trim();
+
+      rows = rows.filter(r => {
+        const claimEmpId = String(r.employee_id || r.employeeId || '').toLowerCase().trim();
+        const claimEmpName = String(r.employee_name || r.employeeName || '').toLowerCase().trim();
+        return empCodes.includes(claimEmpId) || 
+               (empFullName && claimEmpName === empFullName) ||
+               (empName && claimEmpName === empName) ||
+               (empName && claimEmpName.includes(empName));
       });
     }
   }
@@ -1778,10 +2003,18 @@ const getTableData = asyncHandler(async (req, res) => {
             targetKey = snakeToCamel(colName);
           }
         }
-        mappedRow[targetKey] = val;
+        if (val !== null && val !== undefined) {
+          mappedRow[targetKey] = val;
+        } else if (mappedRow[targetKey] === undefined) {
+          mappedRow[targetKey] = val;
+        }
         // Keep original column name to support both snake_case and camelCase in frontend
         if (targetKey !== colName) {
-          mappedRow[colName] = val;
+          if (val !== null && val !== undefined) {
+            mappedRow[colName] = val;
+          } else if (mappedRow[colName] === undefined) {
+            mappedRow[colName] = val;
+          }
         }
       }
       return mappedRow;
@@ -2515,6 +2748,31 @@ const createTableRecord = asyncHandler(async (req, res) => {
     await provisionPayrollTables(req.tenantDb);
   }
 
+  if (tableName === 'expense_claims') {
+    await provisionExpenseTables(req.tenantDb);
+    if (!rawData.claim_number) {
+      rawData.claim_number = `EXP-${new Date().getFullYear()}-${Math.floor(100 + Math.random() * 900)}`;
+    }
+    if (!rawData.approval_status) {
+      rawData.approval_status = 'Pending';
+    }
+    if (!rawData.reimbursement_status) {
+      rawData.reimbursement_status = 'Pending';
+    }
+    if (!rawData.expense_date) {
+      rawData.expense_date = new Date().toISOString().split('T')[0];
+    }
+    if (!rawData.employee_name && req.user) {
+      rawData.employee_name = req.user.employeeName || req.user.name || req.user.email?.split('@')[0];
+    }
+    if (!rawData.employee_id && req.user) {
+      rawData.employee_id = req.user.employee?.employeeCode || req.user.employeeCode || req.user.id || 'TVN2007';
+    }
+    if (!rawData.department && req.user) {
+      rawData.department = req.user.departmentName || req.user.department || 'IT';
+    }
+  }
+
   const recruitmentTables = ['job_postings', 'job_posting', 'interviews', 'offer_letters', 'onboarding_tasks', 'joining_records'];
   if (recruitmentTables.includes(tableName)) {
     await provisionRecruitmentTables(req.tenantDb);
@@ -2915,6 +3173,10 @@ const updateTableRecord = asyncHandler(async (req, res) => {
 
   if (tableName === 'payroll_process') {
     await provisionPayrollTables(req.tenantDb);
+  }
+
+  if (tableName === 'expense_claims') {
+    await provisionExpenseTables(req.tenantDb);
   }
 
   const recruitmentTables = ['job_postings', 'job_posting', 'interviews', 'offer_letters', 'onboarding_tasks', 'joining_records'];

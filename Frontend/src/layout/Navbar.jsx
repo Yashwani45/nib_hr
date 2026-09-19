@@ -304,8 +304,9 @@ const Navbar = ({ isOpen, setIsOpen }) => {
   }, [messages, msgSearch]);
 
   const userRole = useMemo(() => {
-    const rawRole = typeof user?.role === "object" ? user?.role?.name : (user?.role || "Admin");
+    const rawRole = typeof user?.role === "object" ? user?.role?.name : (user?.role || "Employee");
     if (rawRole === "DepartmentHR") return "Department HR";
+    if (rawRole === "Employee") return "Employee";
     if (rawRole === "Admin") return "Admin";
     if (rawRole === "SuperAdmin") return "Super Admin";
     return rawRole;
@@ -315,26 +316,30 @@ const Navbar = ({ isOpen, setIsOpen }) => {
     const rawRole = typeof user?.role === "object" ? user?.role?.name : (user?.role || "");
     const email = String(user?.email || "").toLowerCase();
 
-    // Department HR user resolution (Only when rawRole is DepartmentHR)
+    // 1. Prioritize user's actual personal name
+    if (user?.employeeName && user.employeeName !== "Employee" && user.employeeName !== "Department HR") {
+      return user.employeeName;
+    }
+    if (user?.firstName) {
+      return `${user.firstName} ${user.lastName || ''}`.trim();
+    }
+    if (user?.name && user.name !== "Employee" && user.name !== "Department HR" && user.name !== user?.departmentName) {
+      return user.name;
+    }
+
+    // 2. Department HR fallback
     if (rawRole === "DepartmentHR") {
       if (user?.departmentName && user.departmentName !== "Employee") {
-        return user.departmentName;
+        return `${user.departmentName} HR`;
       }
-      if (email.includes("hr.") || email.includes("human")) return "Human Resources";
-      if (email.includes("operation")) return "Operations";
-      if (email.includes("market") || email.includes("sale")) return "Sales & Marketing";
-      if (email.includes("audit") || email.includes("quality")) return "Quality & Clinical Audit";
-      if (user?.name && user.name !== "Employee") return user.name;
       return "Department HR";
     }
 
+    // 3. Admin fallback
     if (rawRole === "Admin" || rawRole === "SuperAdmin" || email.includes("admin")) {
-      return (user?.name && user.name !== "Employee") ? user.name : "Rahul Sharma";
+      return "Rahul Sharma";
     }
 
-    if (user?.firstName) return `${user.firstName} ${user.lastName || ''}`.trim();
-    if (user?.employeeName && user.employeeName !== "Employee") return user.employeeName;
-    if (user?.name && user.name !== "Employee") return user.name;
     if (user?.email) return user.email.split("@")[0];
     return "Staff Member";
   }, [user]);

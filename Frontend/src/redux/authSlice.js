@@ -1,15 +1,41 @@
 import { createSlice } from "@reduxjs/toolkit";
 
+const getInitialToken = () => {
+  try {
+    const token = localStorage.getItem("token");
+    if (!token || token === "mock-token-dept-hr" || token === "mock-token-fallback") {
+      localStorage.removeItem("token");
+      localStorage.removeItem("user");
+      return null;
+    }
+    return token;
+  } catch {
+    return null;
+  }
+};
+
 const getInitialUser = () => {
   try {
-    return JSON.parse(localStorage.getItem("user"));
+    const token = localStorage.getItem("token");
+    if (!token || token === "mock-token-dept-hr" || token === "mock-token-fallback") {
+      localStorage.removeItem("token");
+      localStorage.removeItem("user");
+      return null;
+    }
+    const saved = JSON.parse(localStorage.getItem("user"));
+    if (saved && saved.role === "DepartmentHR" && (saved.departmentName === "Software Engineering" || token?.startsWith("mock-"))) {
+      localStorage.removeItem("token");
+      localStorage.removeItem("user");
+      return null;
+    }
+    return saved;
   } catch {
     return null;
   }
 };
 
 const initialState = {
-  token: localStorage.getItem("token") || null,
+  token: getInitialToken(),
   user: getInitialUser(),
   loading: false,
 };

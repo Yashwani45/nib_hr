@@ -22,13 +22,8 @@ const ProtectedRoute = ({ allowedRoles, children }) => {
 
   const userRole = typeof user?.role === "object" ? user?.role?.name : user?.role;
   const roleName = userRole?.toLowerCase() || "";
-  const userDept = String(user?.departmentName || user?.department || "").toLowerCase();
-  const isHrDept = userDept.includes("hr") || userDept.includes("human");
 
   const effectiveRoles = [roleName];
-  if (isHrDept) {
-    effectiveRoles.push("departmenthr");
-  }
 
   const isAllowed = allowedRoles.some(role => effectiveRoles.includes(role.toLowerCase()));
 

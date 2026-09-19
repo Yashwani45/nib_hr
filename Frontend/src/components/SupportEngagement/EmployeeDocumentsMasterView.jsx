@@ -257,9 +257,22 @@ const EmployeeDocumentsMasterView = ({
     return "Verified";
   };
 
+  const isEmployeeRole = user?.role === "Employee";
+
   // Enrich all live employees with their real docs and status
   const enrichedEmployees = useMemo(() => {
-    return employees.map(emp => {
+    let sourceList = employees;
+    if (isEmployeeRole) {
+      const myEmail = String(user?.email || "").toLowerCase().trim();
+      const myName = String(user?.name || user?.employeeName || "").toLowerCase().trim();
+      sourceList = employees.filter(emp => {
+        const empEmail = String(emp.email || "").toLowerCase().trim();
+        const empName = String(emp.name || "").toLowerCase().trim();
+        return (myEmail && empEmail === myEmail) || (myName && empName === myName);
+      });
+    }
+
+    return sourceList.map(emp => {
       const docs = getEmployeeDocuments(emp);
       const overallStatus = getEmployeeOverallStatus(docs);
       return {
@@ -269,7 +282,7 @@ const EmployeeDocumentsMasterView = ({
         docStatus: overallStatus
       };
     });
-  }, [employees, getEmployeeDocuments]);
+  }, [employees, getEmployeeDocuments, isEmployeeRole, user]);
 
   // Filtered employees list based on search and dropdown filters
   const filteredEmployees = useMemo(() => {
@@ -297,12 +310,16 @@ const EmployeeDocumentsMasterView = ({
 
   // 100% REAL LIVE Statistics for KPI Cards directly from database
   const stats = useMemo(() => {
-    const totalEmployees = employees.length;
+    const totalEmployees = isEmployeeRole ? filteredEmployees.length : employees.length;
     let verifiedCount = 0;
     let pendingCount = 0;
     let expiredCount = 0;
 
-    rawDbDocs.forEach(doc => {
+    const targetDocs = isEmployeeRole 
+      ? (filteredEmployees[0]?.docs || []) 
+      : rawDbDocs;
+
+    targetDocs.forEach(doc => {
       const s = String(doc.status || "").toLowerCase().trim();
       if (s === "approved" || s === "verified") {
         verifiedCount++;
@@ -319,7 +336,7 @@ const EmployeeDocumentsMasterView = ({
       pending: pendingCount,
       expired: expiredCount
     };
-  }, [employees, rawDbDocs]);
+  }, [employees, rawDbDocs, isEmployeeRole, filteredEmployees]);
 
   // Active Selected Employee Details
   const activeEmployee = useMemo(() => {

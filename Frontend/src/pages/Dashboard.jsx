@@ -28,10 +28,12 @@ const Dashboard = () => {
     return <Navigate to={`/hr-hub?category=DEPARTMENT&tab=${targetTab}`} replace />;
   }
 
-  // Fallback to employee dashboard
-  if (user?.profileStatus === "Incomplete" || user?.profileStatus === "Profile Incomplete") {
-    return <Navigate to="/employee/dashboard?category=EMP_PROFILE&tab=Personal%20Information" replace />;
+  // Employee routes to employee dashboard
+  if (roleName === "employee") {
+    return <Navigate to="/employee/dashboard" replace />;
   }
+
+  // Fallback to employee dashboard
   return <Navigate to="/employee/dashboard" replace />;
 };
 

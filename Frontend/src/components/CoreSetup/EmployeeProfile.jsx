@@ -36,7 +36,7 @@ import {
   KeyIcon,
   EllipsisVerticalIcon
 } from "@heroicons/react/24/outline";
-import { deleteTableRecord, createTableRecord, updateTableRecord, getTableData } from "../../services/hrApi";
+import { deleteTableRecord, createTableRecord, updateTableRecord, getTableData, apiFetch } from "../../services/hrApi";
 import { useAuth } from "../../auth/AuthProvider";
 
 // 17 Tab definitions matching exactly
@@ -413,10 +413,11 @@ const EmployeeProfile = ({ records = [], dbData = {}, openCreateTrigger, onOpenE
     return empRecords.map(e => {
       let profileDataObj = {};
       try {
-        if (e.profileData && typeof e.profileData === "string") {
-          profileDataObj = JSON.parse(e.profileData);
-        } else if (e.profileData && typeof e.profileData === "object") {
-          profileDataObj = e.profileData;
+        const rawProf = e.profile_data || e.profileData;
+        if (rawProf && typeof rawProf === "string") {
+          profileDataObj = JSON.parse(rawProf);
+        } else if (rawProf && typeof rawProf === "object") {
+          profileDataObj = rawProf;
         }
       } catch (err) {
         console.error("Error parsing profileData JSON:", err);
@@ -625,11 +626,24 @@ const EmployeeProfile = ({ records = [], dbData = {}, openCreateTrigger, onOpenE
   }, [openCreateTrigger]);
 
   const handleOpenEditForm = (emp) => {
-    const names = (emp.employeeName || emp.employee_name || "").split(" ");
+    let profileDataObj = {};
+    try {
+      const raw = emp.profile_data || emp.profileData;
+      if (raw && typeof raw === "string") {
+        profileDataObj = JSON.parse(raw);
+      } else if (raw && typeof raw === "object") {
+        profileDataObj = raw;
+      }
+    } catch (e) {}
+
+    const empAssets = profileDataObj.assets || emp.assets || [];
+    const names = (emp.employeeName || emp.employee_name || profileDataObj.employee_name || "").split(" ");
     setFormFields({
       ...emp,
-      firstName: emp.firstName || names[0] || "",
-      lastName: emp.lastName || names.slice(1).join(" ") || ""
+      ...profileDataObj,
+      assets: Array.isArray(empAssets) ? empAssets : [],
+      firstName: emp.firstName || profileDataObj.firstName || names[0] || "",
+      lastName: emp.lastName || profileDataObj.lastName || names.slice(1).join(" ") || ""
     });
     setIsEditing(true);
     setEditingId(emp.id);
@@ -713,10 +727,12 @@ const EmployeeProfile = ({ records = [], dbData = {}, openCreateTrigger, onOpenE
     } else if (!/\S+@\S+\.\S+/.test(formFields.officialEmail)) {
       errors.officialEmail = "Invalid email format.";
     }
-    if (!formFields.departmentId && !formFields.department_id) {
+    const hasDept = formFields.departmentId || formFields.department_id || (formFields.department && String(formFields.department).trim() !== "");
+    if (!hasDept) {
       errors.department = "Department is required.";
     }
-    if (!formFields.designationId && !formFields.designation_id) {
+    const hasDesig = formFields.designationId || formFields.designation_id || (formFields.designation && String(formFields.designation).trim() !== "");
+    if (!hasDesig) {
       errors.designation = "Designation is required.";
     }
     setValidationErrors(errors);
@@ -731,10 +747,24 @@ const EmployeeProfile = ({ records = [], dbData = {}, openCreateTrigger, onOpenE
     }
 
     const constructedName = `${formFields.firstName} ${formFields.lastName}`.trim();
+
+    // Auto-capture pending asset entry if user filled in fields in Tab 12 but didn't click "+ Assign Asset" button
+    let currentAssets = Array.isArray(formFields.assets) ? [...formFields.assets] : [];
+    if (tempAsset.assetName && tempAsset.assetName.trim()) {
+      const newPendingAsset = {
+        ...tempAsset,
+        assetCode: tempAsset.assetCode || `AST-${String(tempAsset.assetType || 'EQP').substring(0, 3).toUpperCase()}-${Math.floor(100 + Math.random() * 900)}`,
+        assignedDate: tempAsset.assignedDate || new Date().toISOString().split("T")[0],
+        status: "Assigned"
+      };
+      currentAssets.push(newPendingAsset);
+      setTempAsset({ assetType: "", assetCode: "", assetName: "", serialNumber: "", assignedDate: "", returnDate: "", status: "Assigned" });
+    }
     
     // Package all 17 tabs of formFields into the profile_data JSON string
     const profileDataStr = JSON.stringify({
       ...formFields,
+      assets: currentAssets,
       // Record audits
       updatedBy: user?.email || "System Admin",
       updatedDate: new Date().toISOString().split("T")[0]
@@ -762,13 +792,41 @@ const EmployeeProfile = ({ records = [], dbData = {}, openCreateTrigger, onOpenE
     };
 
     try {
+      let savedEmployee = null;
       if (isEditing && editingId) {
-        await updateTableRecord("employees", editingId, payload);
+        savedEmployee = await updateTableRecord("employees", editingId, payload);
         showToast("Employee profile updated successfully!", "success");
       } else {
-        await createTableRecord("employees", payload);
+        savedEmployee = await createTableRecord("employees", payload);
         showToast("Employee profile created successfully!", "success");
       }
+
+      // Synchronize assigned assets directly into MySQL asset_allocation table
+      if (currentAssets.length > 0) {
+        const empCode = formFields.employeeCode || formFields.empCode || formFields.empId || (savedEmployee?.employeeCode || savedEmployee?.emp_code || savedEmployee?.id || "EMP-" + Math.floor(1000 + Math.random() * 9000));
+        for (const ast of currentAssets) {
+          try {
+            const assetPayload = {
+              assetCode: ast.assetCode || `AST-${String(ast.assetType || "EQP").substring(0, 3).toUpperCase()}-${Math.floor(100 + Math.random() * 900)}`,
+              assetName: ast.assetName,
+              assetCategory: ast.assetType || "Laptop",
+              serialNumber: ast.serialNumber || "",
+              employee: constructedName,
+              empId: empCode,
+              department: formFields.department || "IT",
+              issueDate: ast.assignedDate || new Date().toISOString().split("T")[0],
+              status: "Assigned"
+            };
+            await apiFetch("/api/table/asset_allocation", {
+              method: "POST",
+              body: JSON.stringify(assetPayload)
+            }).catch(() => {});
+          } catch (syncErr) {
+            console.warn("Asset sync notice:", syncErr);
+          }
+        }
+      }
+
       setShowModal(false);
       if (onRefreshData) onRefreshData();
     } catch (err) {
@@ -2981,14 +3039,40 @@ const EmployeeProfile = ({ records = [], dbData = {}, openCreateTrigger, onOpenE
                                 showToast("Asset Name and Serial are required.", "error");
                                 return;
                               }
+                              const newAssetItem = {
+                                ...tempAsset,
+                                assetCode: tempAsset.assetCode || `AST-${String(tempAsset.assetType || "EQP").substring(0, 3).toUpperCase()}-${Math.floor(100 + Math.random() * 900)}`,
+                                assignedDate: tempAsset.assignedDate || new Date().toISOString().split("T")[0],
+                                status: "Assigned"
+                              };
                               setFormFields({
                                 ...formFields,
-                                assets: [...(formFields.assets || []), tempAsset]
+                                assets: [...(formFields.assets || []), newAssetItem]
+                              });
+                              // Immediately sync to asset_allocation table in MySQL
+                              const empName = `${formFields.firstName || ""} ${formFields.lastName || ""}`.trim() || formFields.employeeName || "Employee";
+                              const empCode = formFields.employeeCode || formFields.empCode || formFields.empId || "EMP-" + Math.floor(1000 + Math.random() * 9000);
+                              apiFetch("/api/table/asset_allocation", {
+                                method: "POST",
+                                body: JSON.stringify({
+                                  assetCode: newAssetItem.assetCode,
+                                  assetName: newAssetItem.assetName,
+                                  assetCategory: newAssetItem.assetType || "Laptop",
+                                  serialNumber: newAssetItem.serialNumber,
+                                  employee: empName,
+                                  empId: empCode,
+                                  department: formFields.department || "IT",
+                                  issueDate: newAssetItem.assignedDate,
+                                  status: "Assigned"
+                                })
+                              }).then(() => {
+                                showToast("Asset successfully assigned & saved to database!", "success");
+                              }).catch(() => {
+                                showToast("Asset assignment added! (Will finalize on profile save)", "info");
                               });
                               setTempAsset({ assetType: "", assetCode: "", assetName: "", serialNumber: "", assignedDate: "", returnDate: "", status: "Assigned" });
-                              showToast("Asset assignment added locally!", "success");
                             }}
-                            className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-xl transition w-full shadow-md shadow-indigo-600/10"
+                            className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-xl transition w-full shadow-md shadow-indigo-600/10 cursor-pointer"
                           >
                             + Assign Asset
                           </button>

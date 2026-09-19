@@ -18,7 +18,8 @@ import {
   ArrowRightOnRectangleIcon,
   Cog6ToothIcon,
   PresentationChartBarIcon,
-  DocumentTextIcon
+  DocumentTextIcon,
+  ReceiptPercentIcon
 } from "@heroicons/react/24/outline";
 import technoLogo from "../assets/shortlogo1.png";
 
@@ -188,38 +189,6 @@ const Sidebar = ({ isOpen, setIsOpen, isPinned, setIsPinned }) => {
       return menuItems;
     }
 
-    const userDept = String(user?.departmentName || user?.department || "").toLowerCase();
-    const isHrDept = userDept.includes("hr") || userDept.includes("human");
-
-    if (userRole === "DepartmentHR" || isHrDept || (user?.assignedModules && Array.isArray(user.assignedModules) && user.assignedModules.length > 0)) {
-      const allowed = (user?.assignedModules && Array.isArray(user.assignedModules) && user.assignedModules.length > 0)
-        ? user.assignedModules.map((m) => String(m).toLowerCase().trim())
-        : ["dashboard", "organization setup", "employee management", "recruitment", "attendance", "leave management", "payroll", "performance", "training", "asset", "helpdesk", "reports"];
-
-      return menuItems
-        .filter((item) => {
-          const itemName = item.name.toLowerCase().trim();
-          if (itemName === "dashboard overview" && allowed.some((m) => m.includes("dashboard"))) {
-            return true;
-          }
-          return allowed.some((m) => itemName.includes(m) || m.includes(itemName));
-        })
-        .map((item) => {
-          // If Organization Setup, restrict corporate setup items (Company Profile, Branch) for Department HR
-          if (item.name === "Organization Setup" && item.children) {
-            return {
-              ...item,
-              children: item.children.filter((child) => {
-                const childName = (child.name || "").toLowerCase();
-                return !["company profile", "branch"].includes(childName);
-              })
-            };
-          }
-          return item;
-        })
-        .filter((item) => !item.children || item.children.length > 0);
-    }
-
     // Role: Employee -> Pure Employee Self-Service (ESS). Absolutely no Department, Org Setup, or HR Admin rights!
     if (userRole === "Employee") {
       return [
@@ -251,8 +220,45 @@ const Sidebar = ({ isOpen, setIsOpen, isPinned, setIsPinned }) => {
           children: [
             { name: "My Payslips", tab: "Salary Details", path: "/employee/dashboard?category=EMPLOYEE_MGMT&tab=Salary%20Details" }
           ]
+        },
+        {
+          name: "Expense Claims",
+          categoryKey: "EMP_EXPENSES",
+          icon: ReceiptPercentIcon,
+          children: [
+            { name: "Expense Reimbursement", tab: "Expense Reimbursement", path: "/employee/dashboard?category=EMP_EXPENSES&tab=Expense%20Reimbursement" }
+          ]
         }
       ];
+    }
+
+    if (userRole === "DepartmentHR" || (user?.assignedModules && Array.isArray(user.assignedModules) && user.assignedModules.length > 0)) {
+      const allowed = (user?.assignedModules && Array.isArray(user.assignedModules) && user.assignedModules.length > 0)
+        ? user.assignedModules.map((m) => String(m).toLowerCase().trim())
+        : ["dashboard", "organization setup", "employee management", "recruitment", "attendance", "leave management", "payroll", "performance", "training", "asset", "helpdesk", "reports"];
+
+      return menuItems
+        .filter((item) => {
+          const itemName = item.name.toLowerCase().trim();
+          if (itemName === "dashboard overview" && allowed.some((m) => m.includes("dashboard"))) {
+            return true;
+          }
+          return allowed.some((m) => itemName.includes(m) || m.includes(itemName));
+        })
+        .map((item) => {
+          // If Organization Setup, restrict corporate setup items (Company Profile, Branch) for Department HR
+          if (item.name === "Organization Setup" && item.children) {
+            return {
+              ...item,
+              children: item.children.filter((child) => {
+                const childName = (child.name || "").toLowerCase();
+                return !["company profile", "branch"].includes(childName);
+              })
+            };
+          }
+          return item;
+        })
+        .filter((item) => !item.children || item.children.length > 0);
     }
 
     return menuItems;
