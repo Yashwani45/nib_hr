@@ -158,6 +158,18 @@ const getDocumentPreview = asyncHandler(async (req, res) => {
 
   if (!doc) throw new ApiError(404, 'Document not found.');
 
+  const userRole = String(req.user?.role?.roleName || req.user?.role?.name || req.user?.role || '').toLowerCase();
+  const empCode = req.user.employee?.employeeCode || req.user.employee?.id || req.user.username;
+  const isPrivileged = userRole.includes('admin') || userRole.includes('super') || userRole.includes('hr') || userRole.includes('manager') || userRole.includes('head') || userRole.includes('dept');
+
+  if (!isPrivileged && doc.employee_id !== empCode && doc.candidate_id !== empCode) {
+    const [assign] = await req.tenantDb.query(
+      'SELECT id FROM `document_assignments` WHERE document_id = ? AND (employee_id = ? OR candidate_id = ?) LIMIT 1',
+      { replacements: [id, empCode, empCode], type: QueryTypes.SELECT }
+    );
+    if (!assign) throw new ApiError(403, 'Access denied: You do not have permission to preview this document.');
+  }
+
   let filePath = path.join(__dirname, '../../uploads', doc.storage_key);
   if (!fs.existsSync(filePath)) {
     const cleanKey = String(doc.storage_key || doc.file_url || '').replace(/^\/?public\//, '');
@@ -174,7 +186,6 @@ const getDocumentPreview = asyncHandler(async (req, res) => {
     throw new ApiError(404, 'Physical file not found.');
   }
 
-  const empCode = req.user.employee?.employeeCode || req.user.employee?.id || req.user.username;
   if (doc.employee_id === empCode || doc.candidate_id === empCode) {
     await documentService.recordEmployeeAction(req.tenantDb, id, empCode, 'view');
   }

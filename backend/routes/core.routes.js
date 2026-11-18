@@ -47,6 +47,17 @@ const {
   deleteDesignation
 } = require('../controllers/core/designation.controller');
 
+const {
+  toggleBranchStatus,
+  updateBranchPolicy,
+  transferEmployee,
+  getTransferHistory,
+  getBranchAnalytics,
+  getBranchHolidays,
+  addBranchHoliday,
+  deleteBranchHoliday
+} = require('../controllers/core/branch.controller');
+
 // All core routes require authentication
 router.use(verifyJWT);
 
@@ -56,7 +67,7 @@ router.get('/employees/:id', auditLogger('Core'), getEmployeeById);
 
 // Creation, Updating and Deletion restricted to Admin/Manager roles
 router.post('/employees', auditLogger('Core'), authorizeRole(['Admin', 'Manager']), employeeValidator, createEmployee);
-router.put('/employees/:id', auditLogger('Core'), authorizeRole(['Admin', 'Manager']), employeeValidator, updateEmployee);
+router.put('/employees/:id', auditLogger('Core'), authorizeRole(['Admin', 'Manager', 'Employee']), employeeValidator, updateEmployee);
 router.delete('/employees/:id', auditLogger('Core'), authorizeRole(['Admin']), deleteEmployee);
 
 // Department Master Routes
@@ -74,6 +85,16 @@ router.post('/designations', auditLogger('Designation'), authorizeRole(['Admin',
 router.put('/designations/:id', auditLogger('Designation'), authorizeRole(['Admin', 'SuperAdmin', 'Manager']), updateDesignation);
 router.patch('/designations/:id/status', auditLogger('Designation'), authorizeRole(['Admin', 'SuperAdmin', 'Manager']), toggleDesignationStatus);
 router.delete('/designations/:id', auditLogger('Designation'), authorizeRole(['Admin', 'SuperAdmin']), deleteDesignation);
+
+// Branch Management, Policies, Transfers & Analytics Routes
+router.patch('/branches/:id/status', auditLogger('Branch'), authorizeRole(['Admin', 'SuperAdmin', 'Manager']), toggleBranchStatus);
+router.put('/branches/:id/policy', auditLogger('Branch'), authorizeRole(['Admin', 'SuperAdmin', 'Manager']), updateBranchPolicy);
+router.post('/branches/transfer-employee', auditLogger('Branch'), authorizeRole(['Admin', 'SuperAdmin', 'Manager']), transferEmployee);
+router.get('/branches/transfer-history', auditLogger('Branch'), getTransferHistory);
+router.get('/branches/analytics', auditLogger('Branch'), getBranchAnalytics);
+router.get('/branches/holidays', auditLogger('Branch'), getBranchHolidays);
+router.post('/branches/holidays', auditLogger('Branch'), authorizeRole(['Admin', 'SuperAdmin', 'Manager']), addBranchHoliday);
+router.delete('/branches/holidays/:id', auditLogger('Branch'), authorizeRole(['Admin', 'SuperAdmin', 'Manager']), deleteBranchHoliday);
 
 // Audit logs retrieval (filtered internally by role)
 router.get('/audit-logs', auditLogger('Core'), getAuditLogs);

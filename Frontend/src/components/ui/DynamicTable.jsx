@@ -17,7 +17,7 @@ const DynamicTable = ({
   onSelectRow,
   onSelectAll,
   actions = [],
-  emptyMessage = 'No data available',
+  emptyMessage = 'No records available',
   className = '',
 }) => {
   const [sortColumn, setSortColumn] = useState(null);
@@ -36,18 +36,18 @@ const DynamicTable = ({
 
   const getSortIcon = (column) => {
     if (sortColumn !== column.key) {
-      return <ChevronUpIcon className="h-4 w-4 text-gray-400" />;
+      return <ChevronUpIcon className="h-3.5 w-3.5 text-slate-400 opacity-60" />;
     }
     return sortDirection === 'asc' 
-      ? <ChevronUpIcon className="h-4 w-4 text-blue-600" />
-      : <ChevronDownIcon className="h-4 w-4 text-blue-600" />;
+      ? <ChevronUpIcon className="h-3.5 w-3.5 text-blue-600 font-bold" />
+      : <ChevronDownIcon className="h-3.5 w-3.5 text-blue-600 font-bold" />;
   };
 
   const renderCellValue = (row, column) => {
     if (column.render) {
       return column.render(row[column.key], row);
     }
-    if (column.key.includes('.')) {
+    if (column.key && column.key.includes('.')) {
       const keys = column.key.split('.');
       let value = row;
       for (const key of keys) {
@@ -59,18 +59,18 @@ const DynamicTable = ({
   };
 
   return (
-    <div className={`bg-white rounded-lg shadow overflow-hidden ${className}`}>
+    <div className={`bg-white border border-slate-200/80 rounded-2xl shadow-xs overflow-hidden ${className}`}>
       <div className="overflow-x-auto">
-        <table className="min-w-max w-full table-auto divide-y divide-gray-200">
-          <thead className="bg-gray-50">
+        <table className="min-w-full divide-y divide-slate-100 text-left border-collapse">
+          <thead className="bg-slate-50/70 border-b border-slate-200/80">
             <tr>
               {selectable && (
-                <th className="w-10 px-4 py-3">
+                <th className="w-10 px-4 py-3.5 text-center">
                   <input
                     type="checkbox"
                     checked={selectedRows.length === data.length && data.length > 0}
                     onChange={onSelectAll}
-                    className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                    className="rounded border-slate-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
                   />
                 </th>
               )}
@@ -78,35 +78,36 @@ const DynamicTable = ({
                 <th
                   key={column.key}
                   onClick={() => handleSort(column)}
-                  className={`px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider ${column.sortable !== false ? 'cursor-pointer hover:bg-gray-100' : ''}`}
+                  className={`px-4 py-3.5 text-[11px] font-semibold text-slate-500 uppercase tracking-wider ${column.sortable !== false ? 'cursor-pointer hover:text-slate-900 transition-colors select-none' : ''}`}
                   style={{ width: column.width }}
                 >
-                  <div className="flex items-center gap-1">
-                    {column.label}
+                  <div className="flex items-center gap-1.5">
+                    <span>{column.label}</span>
                     {column.sortable !== false && getSortIcon(column)}
                   </div>
                 </th>
               ))}
               {actions.length > 0 && (
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th className="px-4 py-3.5 text-right text-[11px] font-semibold text-slate-500 uppercase tracking-wider">
                   Actions
                 </th>
               )}
             </tr>
           </thead>
-          <tbody className="bg-white divide-y divide-gray-200">
+          <tbody className="divide-y divide-slate-100 text-xs text-slate-700 bg-white">
             {loading ? (
               <tr>
-                <td colSpan={columns.length + (selectable ? 1 : 0) + (actions.length > 0 ? 1 : 0)} className="px-4 py-8 text-center">
-                  <div className="flex justify-center items-center">
-                    <ArrowPathIcon className="h-6 w-6 text-blue-600 animate-spin" />
+                <td colSpan={columns.length + (selectable ? 1 : 0) + (actions.length > 0 ? 1 : 0)} className="px-4 py-12 text-center text-slate-400">
+                  <div className="flex justify-center items-center gap-2">
+                    <ArrowPathIcon className="h-5 w-5 text-blue-600 animate-spin" />
+                    <span className="font-medium text-xs">Loading records...</span>
                   </div>
                 </td>
               </tr>
             ) : data.length === 0 ? (
               <tr>
-                <td colSpan={columns.length + (selectable ? 1 : 0) + (actions.length > 0 ? 1 : 0)} className="px-4 py-8 text-center text-gray-500">
-                  {emptyMessage}
+                <td colSpan={columns.length + (selectable ? 1 : 0) + (actions.length > 0 ? 1 : 0)} className="px-4 py-12 text-center text-slate-400">
+                  <p className="font-medium text-xs text-slate-500">{emptyMessage}</p>
                 </td>
               </tr>
             ) : (
@@ -114,35 +115,31 @@ const DynamicTable = ({
                 <tr
                   key={row.id || index}
                   onClick={() => onRowClick && onRowClick(row)}
-                  className={`${onRowClick ? 'cursor-pointer hover:bg-gray-50' : ''} transition-colors`}
+                  className={`${onRowClick ? 'cursor-pointer hover:bg-slate-50/80' : 'hover:bg-slate-50/50'} transition-colors`}
                 >
                   {selectable && (
-                    <td className="px-4 py-3">
+                    <td className="px-4 py-3.5 text-center" onClick={(e) => e.stopPropagation()}>
                       <input
                         type="checkbox"
                         checked={selectedRows.includes(row.id)}
                         onChange={() => onSelectRow && onSelectRow(row.id)}
-                        onClick={(e) => e.stopPropagation()}
-                        className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                        className="rounded border-slate-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
                       />
                     </td>
                   )}
                   {columns.map((column) => (
-                    <td key={column.key} className="px-4 py-3 text-sm text-gray-900">
+                    <td key={column.key} className="px-4 py-3.5 text-slate-800">
                       {renderCellValue(row, column)}
                     </td>
                   ))}
                   {actions.length > 0 && (
-                    <td className="px-4 py-3 text-sm">
-                      <div className="flex gap-2">
+                    <td className="px-4 py-3.5 text-right whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
+                      <div className="flex items-center justify-end gap-1.5">
                         {actions.map((action, idx) => (
                           <button
                             key={idx}
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              action.onClick(row);
-                            }}
-                            className={`p-1 rounded hover:bg-gray-100 transition-colors ${action.className || ''}`}
+                            onClick={() => action.onClick(row)}
+                            className={`p-1.5 rounded-lg text-slate-500 hover:text-slate-800 hover:bg-slate-100 transition-colors cursor-pointer ${action.className || ''}`}
                             title={action.label}
                           >
                             {action.icon}
@@ -159,22 +156,22 @@ const DynamicTable = ({
       </div>
       
       {pagination && totalPages > 1 && (
-        <div className="px-4 py-3 border-t border-gray-200 flex items-center justify-between">
-          <div className="text-sm text-gray-700">
-            Page {currentPage} of {totalPages}
+        <div className="px-4 py-3 bg-slate-50/60 border-t border-slate-200/80 flex items-center justify-between text-xs text-slate-500 font-medium">
+          <div>
+            Showing page <strong className="text-slate-900 font-bold">{currentPage}</strong> of <strong className="text-slate-900 font-bold">{totalPages}</strong>
           </div>
-          <div className="flex gap-2">
+          <div className="flex items-center gap-1.5">
             <button
               onClick={() => onPageChange && onPageChange(currentPage - 1)}
               disabled={currentPage === 1}
-              className="px-3 py-1 border rounded-md disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50"
+              className="px-3 py-1 bg-white border border-slate-200/90 rounded-lg text-slate-700 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed shadow-2xs font-semibold transition"
             >
               Previous
             </button>
             <button
               onClick={() => onPageChange && onPageChange(currentPage + 1)}
               disabled={currentPage === totalPages}
-              className="px-3 py-1 border rounded-md disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50"
+              className="px-3 py-1 bg-white border border-slate-200/90 rounded-lg text-slate-700 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed shadow-2xs font-semibold transition"
             >
               Next
             </button>

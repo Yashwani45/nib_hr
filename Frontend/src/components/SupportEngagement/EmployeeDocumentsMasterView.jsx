@@ -144,25 +144,18 @@ const EmployeeDocumentsMasterView = ({
   useEffect(() => {
     loadData();
 
-    // 1. Periodic background polling every 5 seconds for live updates
+    // Periodic background sync every 60 seconds
     const interval = setInterval(() => {
       loadData(true);
-    }, 5000);
+    }, 60000);
 
-    // 2. Real-time refresh whenever user focuses window / returns to tab
-    const handleFocus = () => loadData(true);
-    window.addEventListener("focus", handleFocus);
-
-    // 3. Custom event listener when documents are uploaded in the system
+    // Custom event listener when documents are uploaded in the system
     const handleDocEvent = () => loadData(true);
     window.addEventListener("document_uploaded", handleDocEvent);
-    window.addEventListener("storage", handleDocEvent);
 
     return () => {
       clearInterval(interval);
-      window.removeEventListener("focus", handleFocus);
       window.removeEventListener("document_uploaded", handleDocEvent);
-      window.removeEventListener("storage", handleDocEvent);
     };
   }, [loadData]);
 

@@ -12,7 +12,7 @@ import {
 
 const LeaveBalanceReports = ({ dbData = {} }) => {
   // Extract records from database
-  const employees = useMemo(() => dbData["employees"] || dbData["employee_profile"] || [], [dbData]);
+  const employees = useMemo(() => dbData["employees"] || dbData["employee_profile"] || dbData["Employee Profile"] || dbData["Employee"] || [], [dbData]);
   const leaveRequests = useMemo(() => dbData["leave_requests"] || dbData["Leave Requests"] || [], [dbData]);
 
   // Filters State

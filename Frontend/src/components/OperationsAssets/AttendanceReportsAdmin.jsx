@@ -2,7 +2,7 @@ import React, { useState, useMemo } from "react";
 
 const AttendanceReportsAdmin = ({ dbData = [] }) => {
   const attendanceLogs = dbData["Daily Attendance"] || dbData["daily_attendance"] || [];
-  const employees = dbData["employees"] || dbData["employee_profile"] || [];
+  const employees = dbData["employees"] || dbData["employee_profile"] || dbData["Employee Profile"] || dbData["Employee"] || [];
 
   const [reportType, setReportType] = useState("Daily Roster");
   const [reportDate, setReportDate] = useState(new Date().toISOString().split('T')[0]);

@@ -26,6 +26,10 @@ app.use(helmet({
 // Cross-Origin Requests enablement
 app.use(cors());
 
+// Body Parsers with increased limit for rich employee profile payloads and base64 attachments
+app.use(express.json({ limit: '50mb' }));
+app.use(express.urlencoded({ extended: true, limit: '50mb' }));
+
 // Serve public uploads statically
 app.use('/public', express.static(publicDir));
 
@@ -35,13 +39,11 @@ app.use('/api', apiRateLimiter);
 // Bind tenant routing middleware context
 app.use('/api', tenantMiddleware);
 
-// Body Parsers with increased limit for rich employee profile payloads and base64 attachments
-app.use(express.json({ limit: '50mb' }));
-app.use(express.urlencoded({ extended: true, limit: '50mb' }));
-
-// Log every incoming HTTP request details via winston
+// Log critical HTTP requests (skip high-frequency table polling to protect buffer & memory)
 app.use((req, res, next) => {
-  logger.info(`HTTP Request: ${req.method} ${req.originalUrl} | IP: ${req.ip}`);
+  if (!req.originalUrl.startsWith('/api/table/')) {
+    logger.info(`HTTP Request: ${req.method} ${req.originalUrl} | IP: ${req.ip}`);
+  }
   next();
 });
 

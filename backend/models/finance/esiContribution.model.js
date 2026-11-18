@@ -49,6 +49,20 @@ const EsiContribution = sequelize.define('EsiContribution', {
     type: DataTypes.INTEGER,
     allowNull: false,
   },
+  status: {
+    type: DataTypes.ENUM('Draft', 'Filed', 'Paid'),
+    defaultValue: 'Draft',
+  },
+  challanNumber: {
+    type: DataTypes.STRING(100),
+    allowNull: true,
+    field: 'challan_number',
+  },
+  paymentDate: {
+    type: DataTypes.DATEONLY,
+    allowNull: true,
+    field: 'payment_date',
+  },
 }, {
   tableName: 'esi_contributions',
   timestamps: true,

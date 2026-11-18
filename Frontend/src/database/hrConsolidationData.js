@@ -6,7 +6,7 @@ export const hrSchemas = {
       { name: "companyCode", label: "Company Code", type: "text", required: true },
       { name: "companyName", label: "Company Name", type: "text", required: true },
       { name: "shortName", label: "Short Name", type: "text" },
-      { name: "type", label: "Company Type", type: "select", options: ["Pvt Ltd", "LLP", "Public", "Proprietorship"] },
+      { name: "type", label: "Company Type", type: "select", options: ["Pvt Ltd", "LLP", "Public", "Proprietorship", "Partnership", "LLC", "One Person Company (OPC)"] },
       { name: "regNumber", label: "Registration No", type: "text" },
       { name: "cinNumber", label: "CIN Number", type: "text" },
       { name: "panNumber", label: "PAN Number", type: "text" },
@@ -240,27 +240,11 @@ export const hrSchemas = {
     ]
   },
   "4. Attendance & Shift": {
-    "Daily Attendance": [
+    "QR Attendance": [
       { name: "empId", label: "Employee ID", type: "text", required: true },
       { name: "name", label: "Employee Name", type: "text", required: true },
-      { name: "date", label: "Date", type: "date", required: true },
-      { name: "checkIn", label: "Check-In Time", type: "text" },
-      { name: "checkOut", label: "Check-Out Time", type: "text" },
-      { name: "workingHours", label: "Working Hours", type: "number" },
-      { name: "status", label: "Attendance Status", type: "select", options: ["Present", "Absent", "Half Day", "Leave", "Holiday", "Late", "Early Exit", "Overtime"] },
-      { name: "lateComing", label: "Late Coming (Min)", type: "number" },
-      { name: "earlyLeaving", label: "Early Leaving (Min)", type: "number" },
-      { name: "overtime", label: "Overtime (Hrs)", type: "number" },
-      { name: "company", label: "Company", type: "text" },
-      { name: "branch", label: "Branch", type: "text" },
       { name: "department", label: "Department", type: "text" },
-      { name: "shift", label: "Shift", type: "text" },
-      { name: "ip_address", label: "IP Address", type: "text" },
-      { name: "device_info", label: "Device Info", type: "text" },
-      { name: "gps_location", label: "GPS Location", type: "text" },
-      { name: "selfie_url", label: "Selfie Image URL", type: "text" },
-      { name: "break_hours", label: "Break Duration (Hrs)", type: "number" },
-      { name: "remarks", label: "Remarks", type: "text" }
+      { name: "status", label: "Status", type: "text" }
     ],
     "Monthly Attendance": [
       { name: "empId", label: "Employee Code", type: "text", required: true },
@@ -274,18 +258,13 @@ export const hrSchemas = {
       { name: "overtime", label: "Overtime Hours", type: "number" },
       { name: "remarks", label: "Remarks", type: "textarea" }
     ],
-    "Attendance Regularization": [
+    "Biometric Attendance": [
       { name: "empId", label: "Employee ID", type: "text", required: true },
-      { name: "employee", label: "Employee Name", type: "text", required: true },
-      { name: "date", label: "Date", type: "date", required: true },
-      { name: "punchType", label: "Punch Type", type: "select", options: ["Check-In", "Check-Out", "Both"] },
-      { name: "requestedCheckIn", label: "Requested Check-In Time", type: "text" },
-      { name: "requestedCheckOut", label: "Requested Check-Out Time", type: "text" },
-      { name: "reason", label: "Reason", type: "text", required: true },
-      { name: "status", label: "Status", type: "select", options: ["Pending", "Approved", "Rejected"] },
-      { name: "remarks", label: "Remarks", type: "text" },
-      { name: "approvedBy", label: "Approved By", type: "text" },
-      { name: "attachment", label: "Attachment URL", type: "text" }
+      { name: "employee", label: "Employee Name", type: "text" },
+      { name: "punchType", label: "Punch Type", type: "select", options: ["IN", "OUT"] },
+      { name: "punchTime", label: "Punch Time", type: "text" },
+      { name: "deviceName", label: "Device Name", type: "text" },
+      { name: "machineId", label: "Machine ID", type: "text" }
     ],
     "Biometric Logs": [
       { name: "deviceName", label: "Device Name", type: "text" },
@@ -299,18 +278,74 @@ export const hrSchemas = {
     "Shift Master": [
       { name: "shiftCode", label: "Shift Code", type: "text", required: true },
       { name: "shiftName", label: "Shift Name", type: "text", required: true },
-      { name: "startTime", label: "Start Time", type: "text" },
-      { name: "endTime", label: "End Time", type: "text" },
+      { name: "startTime", label: "Start Time", type: "text", required: true },
+      { name: "endTime", label: "End Time", type: "text", required: true },
       { name: "graceTime", label: "Grace Time (Min)", type: "number" },
+      { name: "breakDuration", label: "Break Duration (Min)", type: "number" },
+      { name: "department", label: "Department", type: "select" },
+      { name: "employee", label: "Assign To Employee", type: "select" },
+      { name: "isOvernight", label: "Overnight Shift", type: "select", options: ["No", "Yes"] },
+      { name: "effectiveFrom", label: "Effective From", type: "date" },
+      { name: "effectiveTo", label: "Effective To", type: "date" },
+      { name: "status", label: "Status", type: "select", options: ["Active", "Inactive"] }
+    ],
+    "Overtime": [
+      { name: "overtimeName", label: "Overtime Policy Name", type: "text", required: true },
+      { name: "policyCode", label: "Policy Code", type: "text", required: true },
+      { name: "calculationType", label: "Calculation Method", type: "select", options: ["Salary-Based Multiplier", "Fixed Hourly Rate"] },
+      { name: "rateMultiplier", label: "Rate Multiplier (e.g. 1.5, 2.0)", type: "number" },
+      { name: "fixedRate", label: "Fixed Rate (₹ / hr)", type: "number" },
+      { name: "minHours", label: "Minimum Duration (Hours)", type: "number" },
+      { name: "maxDailyHours", label: "Max Hours / Day", type: "number" },
+      { name: "maxMonthlyHours", label: "Max Hours / Month", type: "number" },
+      { name: "applicableDept", label: "Applicable Department", type: "select" },
+      { name: "employee", label: "Applicable Employee", type: "select" },
+      { name: "allowWeeklyOff", label: "Allow on Weekly Off", type: "select", options: ["Yes", "No"] },
+      { name: "allowHolidays", label: "Allow on Holidays", type: "select", options: ["Yes", "No"] },
+      { name: "gracePeriod", label: "Grace Period After Shift (Mins)", type: "number" },
+      { name: "requiresManagerApproval", label: "Manager Approval Required", type: "select", options: ["Yes", "No"] },
+      { name: "requiresHrApproval", label: "HR Approval Required", type: "select", options: ["Yes", "No"] },
+      { name: "payrollIntegrated", label: "Payroll Integrated", type: "select", options: ["Yes", "No"] },
       { name: "status", label: "Status", type: "select", options: ["Active", "Inactive"] }
     ],
     "Overtime Master": [
-      { name: "overtimeName", label: "Overtime Rule Name", type: "text", required: true },
-      { name: "rateMultiplier", label: "Rate Multiplier", type: "number" },
-      { name: "minHours", label: "Minimum Hours", type: "number" },
-      { name: "maxHours", label: "Maximum Hours", type: "number" },
-      { name: "applicableDept", label: "Applicable Department", type: "text" },
+      { name: "overtimeName", label: "Overtime Policy Name", type: "text", required: true },
+      { name: "policyCode", label: "Policy Code", type: "text", required: true },
+      { name: "calculationType", label: "Calculation Method", type: "select", options: ["Salary-Based Multiplier", "Fixed Hourly Rate"] },
+      { name: "rateMultiplier", label: "Rate Multiplier (e.g. 1.5, 2.0)", type: "number" },
+      { name: "fixedRate", label: "Fixed Rate (₹ / hr)", type: "number" },
+      { name: "minHours", label: "Minimum Duration (Hours)", type: "number" },
+      { name: "maxDailyHours", label: "Max Hours / Day", type: "number" },
+      { name: "maxMonthlyHours", label: "Max Hours / Month", type: "number" },
+      { name: "applicableDept", label: "Applicable Department", type: "select" },
+      { name: "employee", label: "Applicable Employee", type: "select" },
+      { name: "allowWeeklyOff", label: "Allow on Weekly Off", type: "select", options: ["Yes", "No"] },
+      { name: "allowHolidays", label: "Allow on Holidays", type: "select", options: ["Yes", "No"] },
+      { name: "gracePeriod", label: "Grace Period After Shift (Mins)", type: "number" },
+      { name: "requiresManagerApproval", label: "Manager Approval Required", type: "select", options: ["Yes", "No"] },
+      { name: "requiresHrApproval", label: "HR Approval Required", type: "select", options: ["Yes", "No"] },
+      { name: "payrollIntegrated", label: "Payroll Integrated", type: "select", options: ["Yes", "No"] },
       { name: "status", label: "Status", type: "select", options: ["Active", "Inactive"] }
+    ],
+    "Face Attendance": [
+      { name: "empId", label: "Employee ID", type: "text", required: true },
+      { name: "name", label: "Employee Name", type: "text", required: true },
+      { name: "date", label: "Date", type: "date", required: true },
+      { name: "status", label: "Status", type: "text" },
+      { name: "confidence", label: "Face Match Confidence", type: "number" }
+    ],
+    "Face Enrollment": [
+      { name: "empId", label: "Employee ID", type: "text", required: true },
+      { name: "name", label: "Employee Name", type: "text", required: true },
+      { name: "enrolledAt", label: "Enrollment Date", type: "date" },
+      { name: "status", label: "Status", type: "text" }
+    ],
+    "Company QR Attendance": [
+      { name: "companyCode", label: "Company Code", type: "text", required: true },
+      { name: "companyName", label: "Company Name", type: "text", required: true },
+      { name: "status", label: "QR Status", type: "text" },
+      { name: "rotationSeconds", label: "Rotation Seconds", type: "number" },
+      { name: "lastRevokedAt", label: "Last Revoked At", type: "text" }
     ]
   },
   "5. Leave Management": {
@@ -380,7 +415,7 @@ export const hrSchemas = {
       { name: "payrollMonth", label: "Payroll Month", type: "select", options: ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"], required: true },
       { name: "payrollYear", label: "Payroll Year", type: "select", options: ["2024", "2025", "2026", "2027"], required: true },
       { name: "company", label: "Company", type: "select", options: ["NIB Technologies Pvt Ltd", "National Insurance Broker", "Corporate HQ"] },
-      { name: "branch", label: "Branch", type: "select", options: ["Headquarters", "Delhi NCR", "Mumbai Regional", "Bangalore Tech Hub"] },
+      { name: "branch", label: "Branch", type: "select", options: [] },
       { name: "department", label: "Department", type: "select", options: ["IT", "Software Engineering", "Operations", "Finance", "Human Resources", "Sales & Marketing"] },
       { name: "employee", label: "Employee", type: "select", required: true },
       { name: "employeeCode", label: "Employee Code", type: "text" },
@@ -501,7 +536,7 @@ export const hrSchemas = {
       { name: "reportCategory", label: "Report Category", type: "select", options: ["Payroll", "Attendance", "Leave", "Finance", "Employee"] },
       { name: "reportType", label: "Report Type", type: "select", options: ["Summary", "Detailed"] },
       { name: "company", label: "Company", type: "select", options: ["NIB Technologies Pvt Ltd", "National Insurance Broker", "Corporate HQ"] },
-      { name: "branch", label: "Branch", type: "select", options: ["Headquarters", "Delhi NCR", "Mumbai Regional", "Bangalore Tech Hub"] },
+      { name: "branch", label: "Branch", type: "select", options: [] },
       { name: "department", label: "Department", type: "select", options: ["IT", "Software Engineering", "Operations", "Finance", "Human Resources", "Sales & Marketing"] },
       { name: "employee", label: "Employee", type: "select" },
       { name: "dateFrom", label: "Date From", type: "date" },
@@ -883,6 +918,31 @@ export const hrSchemas = {
     ]
   },
   "20. Security & Admin": {
+    "Company Settings": [
+      { name: "companyCode", label: "Company Code", type: "text", required: true },
+      { name: "companyName", label: "Company Name", type: "text", required: true },
+      { name: "shortName", label: "Short Name", type: "text" },
+      { name: "type", label: "Company Type", type: "select", options: ["Pvt Ltd", "LLP", "Public", "Proprietorship", "Partnership", "LLC", "One Person Company (OPC)"] },
+      { name: "regNumber", label: "Registration No", type: "text" },
+      { name: "cinNumber", label: "CIN Number", type: "text" },
+      { name: "panNumber", label: "PAN Number", type: "text" },
+      { name: "tanNumber", label: "TAN Number", type: "text" },
+      { name: "gstNumber", label: "GST Number", type: "text" },
+      { name: "pfNumber", label: "PF Number", type: "text" },
+      { name: "esiNumber", label: "ESI Number", type: "text" },
+      { name: "email", label: "Email Address", type: "email", required: true },
+      { name: "phone", label: "Contact Number", type: "text" },
+      { name: "website", label: "Website", type: "text" },
+      { name: "address1", label: "Address Line 1", type: "text" },
+      { name: "country", label: "Country", type: "text" },
+      { name: "state", label: "State", type: "text" },
+      { name: "city", label: "City", type: "text" },
+      { name: "pincode", label: "Pincode", type: "text" },
+      { name: "currency", label: "Currency", type: "text" },
+      { name: "financialYear", label: "Financial Year", type: "text" },
+      { name: "timezone", label: "Time Zone", type: "text" },
+      { name: "status", label: "Status", type: "select", options: ["Active", "Inactive"] }
+    ],
     "RBAC Roles": [
       { name: "roleName", label: "Role Name", type: "text", required: true },
       { name: "description", label: "Description", type: "text" },
@@ -1034,6 +1094,14 @@ export const initialHrData = {
   ],
   "Shift Master": [
     { id: 1, shiftCode: "SHFT-GEN", shiftName: "General Shift", startTime: "09:00 AM", endTime: "06:00 PM", graceTime: 15, status: "Active" }
+  ],
+  "Overtime": [
+    { id: 1, overtimeName: "Standard Weekday OT (1.5x)", policyCode: "OT-STD-WD", rateMultiplier: 1.5, minHours: 1.0, maxHours: 4.0, maxDailyHours: 4.0, maxMonthlyHours: 40.0, applicableDept: "All Departments", calculationType: "Salary-Based Multiplier", requiresManagerApproval: "Yes", requiresHrApproval: "Yes", payrollIntegrated: "Yes", status: "Active" },
+    { id: 2, overtimeName: "Weekend / Weekly Off OT (2.0x)", policyCode: "OT-WKND-2X", rateMultiplier: 2.0, minHours: 2.0, maxHours: 8.0, maxDailyHours: 8.0, maxMonthlyHours: 40.0, applicableDept: "All Departments", calculationType: "Salary-Based Multiplier", requiresManagerApproval: "Yes", requiresHrApproval: "Yes", payrollIntegrated: "Yes", status: "Active" }
+  ],
+  "Overtime Master": [
+    { id: 1, overtimeName: "Standard Weekday OT (1.5x)", policyCode: "OT-STD-WD", rateMultiplier: 1.5, minHours: 1.0, maxHours: 4.0, maxDailyHours: 4.0, maxMonthlyHours: 40.0, applicableDept: "All Departments", calculationType: "Salary-Based Multiplier", requiresManagerApproval: "Yes", requiresHrApproval: "Yes", payrollIntegrated: "Yes", status: "Active" },
+    { id: 2, overtimeName: "Weekend / Weekly Off OT (2.0x)", policyCode: "OT-WKND-2X", rateMultiplier: 2.0, minHours: 2.0, maxHours: 8.0, maxDailyHours: 8.0, maxMonthlyHours: 40.0, applicableDept: "All Departments", calculationType: "Salary-Based Multiplier", requiresManagerApproval: "Yes", requiresHrApproval: "Yes", payrollIntegrated: "Yes", status: "Active" }
   ],
   "Leave Types": [
     { id: 1, leaveCode: "LV-CL", leaveName: "Casual Leave", category: "Paid", maxDays: 12, carryForward: "No", status: "Active" }

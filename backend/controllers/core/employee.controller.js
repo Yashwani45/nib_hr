@@ -9,12 +9,12 @@ const createEmployee = asyncHandler(async (req, res) => {
 });
 
 const getEmployeeById = asyncHandler(async (req, res) => {
-  const employee = await employeeService.getEmployeeById(req.params.id);
+  const employee = await employeeService.getEmployeeById(req.params.id, req.user);
   res.status(200).json(new ApiResponse(200, employee, 'Employee record retrieved successfully.'));
 });
 
 const updateEmployee = asyncHandler(async (req, res) => {
-  const employee = await employeeService.updateEmployee(req.params.id, req.body, req.user?.id);
+  const employee = await employeeService.updateEmployee(req.params.id, req.body, req.user);
   res.status(200).json(new ApiResponse(200, employee, 'Employee record updated successfully.'));
 });
 
@@ -25,7 +25,9 @@ const deleteEmployee = asyncHandler(async (req, res) => {
 
 const getAllEmployees = asyncHandler(async (req, res) => {
   const { page, limit, search, sortBy, sortOrder } = req.query;
-  const employees = await employeeService.getAllEmployees({ page, limit, search, sortBy, sortOrder });
+  const branchId = req.branchId || req.query.branchId;
+  const branchName = req.branchName || req.query.branchName;
+  const employees = await employeeService.getAllEmployees({ page, limit, search, sortBy, sortOrder, branchId, branchName });
   res.status(200).json(new ApiResponse(200, employees, 'Employee list retrieved successfully.'));
 });
 

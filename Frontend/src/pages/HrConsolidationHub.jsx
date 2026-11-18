@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo, useRef } from "react";
 import { useSearchParams, useNavigate } from "react-router-dom";
 import { useSelector, useDispatch } from "react-redux";
 import { hrSchemas } from "../database/hrConsolidationData";
@@ -36,6 +36,7 @@ import {
 import AdminDashboard from "./AdminDashboard";
 import EmployeeDashboard from "./EmployeeDashboard";
 
+import OrganizationDashboard from "../components/CoreSetup/OrganizationDashboard";
 import Company from "../components/CoreSetup/Company";
 import Branch from "../components/CoreSetup/Branch";
 import Department from "../components/CoreSetup/Department";
@@ -95,8 +96,16 @@ import LeaveBalanceReports from "../components/OperationsAssets/LeaveBalanceRepo
 import Inventory from "../components/OperationsAssets/Inventory";
 import HolidayMaster from "../components/OperationsAssets/HolidayMaster";
 import OvertimeMaster from "../components/OperationsAssets/OvertimeMaster";
+import FaceEnrollment from "../components/FaceRecognition/FaceEnrollment";
+import FaceAttendanceModal from "../components/FaceRecognition/FaceAttendanceModal";
+import OrgAttendanceConfig from "../components/Settings/OrgAttendanceConfig";
+import BiometricAttendanceTerminal from "../components/Biometric/BiometricAttendanceTerminal";
+import CompanyQrAdminConsole from "../components/Attendance/CompanyQrAdminConsole";
+import QrAttendanceAdminSection from "../components/Attendance/QrAttendanceAdminSection";
+import AdminEmployeeQrScannerPage from "./AdminEmployeeQrScannerPage";
 
 // Category: FinanceCompliance
+import PayrollDashboard from "../components/FinanceCompliance/PayrollDashboard";
 import SalaryStructure from "../components/FinanceCompliance/SalaryStructure";
 import PayrollProcess from "../components/FinanceCompliance/PayrollProcess";
 import PayslipManagement from "../components/FinanceCompliance/PayslipManagement";
@@ -156,7 +165,8 @@ import {
   InboxStackIcon,
   TicketIcon,
   BellIcon,
-  PaperClipIcon
+  PaperClipIcon,
+  PlusIcon
 } from "@heroicons/react/24/outline";
 
 // Premium Payroll Process dashboard list view
@@ -280,25 +290,100 @@ const CATEGORIES = {
     icon: BuildingOffice2Icon,
     modules: ["1. Organization Setup", "2. Employee Management", "10. ESS & MSS", "20. Security & Admin"]
   },
+  ORG_SETUP: {
+    label: "Organization Setup",
+    icon: BuildingOffice2Icon,
+    modules: ["1. Organization Setup"]
+  },
+  EMPLOYEE_MGMT: {
+    label: "Employee Management",
+    icon: BuildingOffice2Icon,
+    modules: ["2. Employee Management"]
+  },
   TALENT: {
     label: "Talent & LMS",
     icon: AcademicCapIcon,
     modules: ["3. Recruitment & Onboarding", "8. Performance Management", "9. Learning & Development"]
+  },
+  RECRUITMENT: {
+    label: "Recruitment",
+    icon: AcademicCapIcon,
+    modules: ["3. Recruitment & Onboarding"]
+  },
+  PERFORMANCE: {
+    label: "Performance Management",
+    icon: AcademicCapIcon,
+    modules: ["8. Performance Management"]
   },
   OPERATIONS: {
     label: "Operations & Assets",
     icon: ClockIcon,
     modules: ["4. Attendance & Shift", "5. Leave Management", "11. Asset Management"]
   },
+  ATTENDANCE: {
+    label: "Attendance",
+    icon: ClockIcon,
+    modules: ["4. Attendance & Shift"]
+  },
+  LEAVE_MGMT: {
+    label: "Leave Management",
+    icon: CalendarDaysIcon,
+    modules: ["5. Leave Management"]
+  },
   FINANCE: {
     label: "Finance & Compliance",
     icon: ReceiptPercentIcon,
     modules: ["6. Payroll & Compensation", "7. Statutory & Tax", "12. Travel & Expense", "14. Employee Exit", "15. Workflow & Approval"]
   },
+  PAYROLL: {
+    label: "Payroll",
+    icon: ReceiptPercentIcon,
+    modules: ["6. Payroll & Compensation", "7. Statutory & Tax"]
+  },
+  EMP_EXPENSES: {
+    label: "Expense Claims",
+    icon: ReceiptPercentIcon,
+    modules: ["12. Travel & Expense"]
+  },
+  EXIT: {
+    label: "Exit Management",
+    icon: ReceiptPercentIcon,
+    modules: ["14. Employee Exit"]
+  },
+  EXIT_MGMT: {
+    label: "Exit Management",
+    icon: ReceiptPercentIcon,
+    modules: ["14. Employee Exit"]
+  },
+  WORKFLOW: {
+    label: "Workflow & Approval",
+    icon: ReceiptPercentIcon,
+    modules: ["15. Workflow & Approval"]
+  },
   SUPPORT: {
     label: "Support & Engagement",
     icon: ChatBubbleLeftRightIcon,
     modules: ["13. Document Management", "16. Employee Engagement", "17. Helpdesk & HR Ticketing", "19. Notifications", "18. Reports & Analytics", "21. Settings & Configuration"]
+  },
+  HELPDESK: {
+    label: "Helpdesk",
+    icon: ChatBubbleLeftRightIcon,
+    modules: ["17. Helpdesk & HR Ticketing"]
+  },
+  NOTIFICATIONS: {
+    label: "Notifications",
+    icon: ChatBubbleLeftRightIcon,
+    modules: ["19. Notifications"]
+  },
+  REPORTS: {
+    label: "Reports",
+    icon: PresentationChartBarIcon,
+    modules: ["18. Reports & Analytics"]
+  },
+  SETTINGS: {
+    label: "Settings",
+    icon: Cog6ToothIcon,
+    modules: ["21. Settings & Configuration", "20. Security & Admin"]
   },
   DEPARTMENT: {
     label: "Department",
@@ -309,7 +394,10 @@ const CATEGORIES = {
 
 // Maps frontend tab names to MySQL database table names
 const tabToSqlTableMap = {
+  "Organization Analytics": "company",
+  "Organization Dashboard": "company",
   "Company": "company",
+  "Company Settings": "company",
   "Branch": "branch",
   "Department": "department",
   "Designation": "designation",
@@ -350,13 +438,18 @@ const tabToSqlTableMap = {
   "Reports Dashboard": "reports_management",
   "Settings Dashboard": "audit_logs",
   "Attendance Regularization": "attendance_regularization",
+  "Biometric Attendance": "biometric_logs",
   "Biometric": "biometric_logs",
   "Biometric Logs": "biometric_logs",
+  "Company QR Attendance": "daily_attendance",
   "Shift Master": "shift_master",
   "Leave Types": "leave_types",
   "Leave Requests": "leave_requests",
   "Leave Dashboard": "leave_requests",
   "Leave Balance": "employees",
+  "Payroll Dashboard": "payroll_runs",
+  "Payslips": "payslips",
+  "Loan & Advance": "loan_management",
   "Salary Structure": "salary_structure",
   "Incentives & Claims": "incentives_claims",
   "PF Registry": "pf_registry",
@@ -437,6 +530,11 @@ const tabToSqlTableMap = {
 };
 
 const componentRegistry = {
+  "Payroll Dashboard": PayrollDashboard,
+  "payroll_dashboard": PayrollDashboard,
+  "Payslips": PayslipManagement,
+  "Loan & Advance": LoanManagement,
+  "loan_and_advance": LoanManagement,
   "Payroll Process": PayrollProcess,
   "payroll_process": PayrollProcess,
   "Payslip": PayslipManagement,
@@ -447,9 +545,15 @@ const componentRegistry = {
   "esi_management": ESIManagement,
   "Professional Tax (PT)": ProfessionalTax,
   "professional_tax": ProfessionalTax,
+  "Professional Tax": ProfessionalTax,
+  "Payroll Reports": PayrollReports,
+  "payroll_reports": PayrollReports,
+  "salary_structure": SalaryStructure,
   "Bank Details": BankDetailsDashboard,
   "Department Dashboard": DepartmentDashboard,
   "Department Workspace": DepartmentDashboard,
+  "Organization Analytics": OrganizationDashboard,
+  "Organization Dashboard": OrganizationDashboard,
   "Company": Company,
   "Branch": Branch,
   "Department": Department,
@@ -515,11 +619,23 @@ const componentRegistry = {
   "Learning Reports": LearningDashboard,
   "Daily Attendance": DailyAttendance,
   "Monthly Attendance": MonthlyAttendance,
+  "Face Attendance": FaceAttendanceModal,
+  "Face Enrollment": FaceEnrollment,
+  "Org Attendance Config": OrgAttendanceConfig,
+  "Attendance Configuration": OrgAttendanceConfig,
   "Employee Dashboard": EmployeeDashboard,
   "Attendance Dashboard": AttendanceDashboard,
   "Attendance Regularization": AttendanceRegularizationAdmin,
-  "Biometric": DailyAttendance,
-  "Biometric Logs": DailyAttendance,
+  "Biometric Attendance": BiometricAttendanceTerminal,
+  "Biometric": BiometricAttendanceTerminal,
+  "Biometric Logs": BiometricAttendanceTerminal,
+  "Company QR Attendance": CompanyQrAdminConsole,
+  "QR Attendance": CompanyQrAdminConsole,
+  "qr_attendance": CompanyQrAdminConsole,
+  "Recruitment": RecruitmentDashboard,
+  "recruitment": RecruitmentDashboard,
+  "Performance": PerformanceDashboard,
+  "performance": PerformanceDashboard,
   "Reports": AttendanceReportsAdmin,
   "reports_management": AttendanceReportsAdmin,
   "Shift Master": ShiftMaster,
@@ -528,7 +644,9 @@ const componentRegistry = {
   "Leave Request": LeaveRequests,
   "Leave Requests": LeaveRequests,
   "Leave Dashboard": LeaveDashboard,
-  "Leave Balance": LeaveBalanceReports,
+  "Leave Management": LeaveDashboard,
+  "leave_management": LeaveDashboard,
+  "Leave Balance": LeaveRequests,
   "Holiday Calendar": HolidayMaster,
   "Holiday Master": HolidayMaster,
   "Overtime": OvertimeMaster,
@@ -545,7 +663,7 @@ const componentRegistry = {
   "Expense Claims": ExpenseClaims,
   "Exit Logs": ExitLogs,
   "Workflow Dashboard": WorkflowDashboard,
-  "Approvals Pending": ApprovalsPending,
+  "Approvals Pending": LeaveRequests,
   "Document Log": DocumentLog,
   "Announcements & Surveys": AnnouncementsSurveys,
   "Helpdesk Dashboard": HelpdeskDashboard,
@@ -1125,7 +1243,8 @@ const HrConsolidationHub = () => {
       dispatch(setSelectedCategory(categoryParam));
       
       if (tabParam) {
-        dispatch(setSelectedTab(tabParam));
+        const activeTab = tabParam === "Daily Attendance" ? "QR Attendance" : tabParam;
+        dispatch(setSelectedTab(activeTab));
         
         // Special case mapping for shared tab name "Reports"
         if (tabParam === "Reports") {
@@ -1172,38 +1291,67 @@ const HrConsolidationHub = () => {
     }
   }, [categoryParam, tabParam, dispatch]);
 
-  // Fetch all tables from MySQL database
-  const fetchAllData = async () => {
-    dispatch(setLoading(true));
+  const isFetchingAllRef = useRef(false);
+
+  // Fetch all tables from MySQL database with safe concurrency chunking
+  const fetchAllData = async (silent = true, forceBypass = false) => {
+    if (isFetchingAllRef.current) return;
+    isFetchingAllRef.current = true;
     try {
-      const keys = Object.keys(tabToSqlTableMap);
-      const responses = await Promise.all(
-        keys.map(tab => getTableData(tabToSqlTableMap[tab]))
-      );
+      const uniqueTables = [...new Set(Object.values(tabToSqlTableMap))];
+      const tableMap = {};
+      const chunkSize = 4;
+      for (let i = 0; i < uniqueTables.length; i += chunkSize) {
+        const chunk = uniqueTables.slice(i, i + chunkSize);
+        const chunkRes = await Promise.all(chunk.map(tbl => getTableData(tbl, forceBypass).catch(() => [])));
+        chunk.forEach((tbl, idx) => {
+          tableMap[tbl] = chunkRes[idx] || [];
+        });
+      }
       
       const newDbState = {};
-      keys.forEach((tab, index) => {
-        newDbState[tab] = responses[index] || [];
+      Object.keys(tabToSqlTableMap).forEach(tab => {
+        const tbl = tabToSqlTableMap[tab];
+        newDbState[tab] = tableMap[tbl] || [];
       });
       dispatch(setDbData(newDbState));
     } catch (err) {
       console.error("Error loading data from database:", err);
     } finally {
-      dispatch(setLoading(false));
+      isFetchingAllRef.current = false;
+      window.dispatchEvent(new Event('refresh-complete'));
     }
   };
 
   useEffect(() => {
     fetchAllData();
 
-    const handleFocus = () => {
-      fetchAllData();
+    const handleSilentRefresh = () => {
+      fetchAllData(true);
     };
-    window.addEventListener("focus", handleFocus);
+
+    const handleBranchOrTenantChange = () => {
+      invalidateTableCache();
+      isFetchingAllRef.current = false;
+      fetchAllData(true, true);
+    };
+
+    window.addEventListener("silent-refresh", handleSilentRefresh);
+    window.addEventListener("branches_updated", handleBranchOrTenantChange);
+    window.addEventListener("branch_changed", handleBranchOrTenantChange);
+    window.addEventListener("branch_switched", handleBranchOrTenantChange);
+    window.addEventListener("companies_updated", handleBranchOrTenantChange);
+    window.addEventListener("storage", handleBranchOrTenantChange);
+
     return () => {
-      window.removeEventListener("focus", handleFocus);
+      window.removeEventListener("silent-refresh", handleSilentRefresh);
+      window.removeEventListener("branches_updated", handleBranchOrTenantChange);
+      window.removeEventListener("branch_changed", handleBranchOrTenantChange);
+      window.removeEventListener("branch_switched", handleBranchOrTenantChange);
+      window.removeEventListener("companies_updated", handleBranchOrTenantChange);
+      window.removeEventListener("storage", handleBranchOrTenantChange);
     };
-  }, [dispatch, categoryParam, tabParam]);
+  }, [dispatch]);
 
   // Synchronize checkedIn and punchTime state dynamically for the logged-in admin user
   useEffect(() => {
@@ -1251,8 +1399,27 @@ const HrConsolidationHub = () => {
         { name: "status", label: "Status", type: "select", options: ["Active", "Inactive"] }
       ];
     }
+    if (
+      selectedTab === "Company" || 
+      selectedTab === "Company Settings" || 
+      selectedTab === "company" || 
+      selectedTab === "company_settings" ||
+      selectedTab?.toLowerCase().includes("company")
+    ) {
+      return hrSchemas["1. Organization Setup"]?.["Company"] || [];
+    }
     const moduleSchema = hrSchemas[selectedModule] || {};
-    return moduleSchema[selectedTab] || [];
+    if (moduleSchema[selectedTab]) return moduleSchema[selectedTab];
+    if (moduleSchema[selectedTab + " Master"]) return moduleSchema[selectedTab + " Master"];
+    if (moduleSchema[selectedTab.replace(/ Master$/i, "")]) return moduleSchema[selectedTab.replace(/ Master$/i, "")];
+
+    // Global fallback across all modules
+    for (const mod of Object.keys(hrSchemas)) {
+      if (hrSchemas[mod]?.[selectedTab]) return hrSchemas[mod][selectedTab];
+      if (hrSchemas[mod]?.[selectedTab + " Master"]) return hrSchemas[mod][selectedTab + " Master"];
+      if (hrSchemas[mod]?.[selectedTab.replace(/ Master$/i, "")]) return hrSchemas[mod][selectedTab.replace(/ Master$/i, "")];
+    }
+    return hrSchemas[selectedTab] || [];
   }, [selectedModule, selectedTab]);
 
   const sqlTableName = useMemo(() => {
@@ -1285,14 +1452,36 @@ const HrConsolidationHub = () => {
       setOpenDeptModalTrigger(prev => prev + 1);
       return;
     }
+
+    if (selectedTab === "Branch" || selectedTab?.toLowerCase().includes("branch")) {
+      const currentBranches = dbData["Branch"] || dbData["branch"] || dbData["branches"] || [];
+      if (currentBranches.length >= 50) {
+        alert("Maximum limit of 50 branches has been reached for this company. Cannot add more branches.");
+        return;
+      }
+    }
     const emptyForm = {};
     activeFields.forEach(f => {
       if (f.name === "company" || f.name === "company_name") {
-        emptyForm[f.name] = user?.companyName || user?.company || "Yash Technologies";
+        emptyForm[f.name] = user?.companyName || user?.company || "NIB Insurance";
       } else {
         emptyForm[f.name] = f.type === "number" ? "" : f.type === "select" ? (f.options?.[0] || "") : "";
       }
     });
+
+    if (
+      selectedTab === "Company" || 
+      selectedTab === "Company Settings" || 
+      selectedTab?.toLowerCase().includes("company")
+    ) {
+      emptyForm.type = emptyForm.type || "Pvt Ltd";
+      emptyForm.status = emptyForm.status || "Active";
+      emptyForm.currency = emptyForm.currency || "INR (₹)";
+      emptyForm.financialYear = emptyForm.financialYear || "2026-27";
+      emptyForm.timezone = emptyForm.timezone || "IST (UTC+5:30)";
+      emptyForm.country = emptyForm.country || "India";
+    }
+
     setFormFields(emptyForm);
     setEditingRecord(null);
     setValidationError("");
@@ -1316,6 +1505,11 @@ const HrConsolidationHub = () => {
             id
           }));
           await fetchAllData();
+          if (sqlTableName === "branch" || selectedTab === "Branch") {
+            window.dispatchEvent(new Event("branches_updated"));
+          } else if (sqlTableName === "company" || selectedTab === "Company Settings") {
+            window.dispatchEvent(new Event("companies_updated"));
+          }
         }
       } catch (err) {
         alert("Failed to delete record from database: " + err.message);
@@ -1340,6 +1534,14 @@ const HrConsolidationHub = () => {
     if (missing) {
       setValidationError(`"${missing.label}" is required.`);
       return;
+    }
+
+    if (!editingRecord && (sqlTableName === "branch" || sqlTableName === "branches" || selectedTab === "Branch")) {
+      const currentBranches = dbData["Branch"] || dbData["branch"] || dbData["branches"] || [];
+      if (currentBranches.length >= 50) {
+        setValidationError("Maximum capacity limit of 50 branches reached for this company.");
+        return;
+      }
     }
 
     try {
@@ -1377,6 +1579,11 @@ const HrConsolidationHub = () => {
             record: createdRecord
           }));
           await fetchAllData();
+          if (sqlTableName === "branch" || selectedTab === "Branch") {
+            window.dispatchEvent(new Event("branches_updated"));
+          } else if (sqlTableName === "company" || selectedTab === "Company Settings") {
+            window.dispatchEvent(new Event("companies_updated"));
+          }
         }
       }
       setShowModal(false);
@@ -1412,8 +1619,8 @@ const HrConsolidationHub = () => {
           lateComing: 0,
           earlyLeaving: 0,
           overtime: 0,
-          company: currentUserProfile?.company || "Yashtech",
-          branch: currentUserProfile?.branch || "Headquarters",
+          company: currentUserProfile?.company || localStorage.getItem("selected_company_name") || "",
+          branch: currentUserProfile?.branch || (localStorage.getItem("selected_branch_name") !== "All Branches" ? localStorage.getItem("selected_branch_name") : "") || "",
           department: currentUserProfile?.department || "Operations",
           shift: "General Shift"
         };
@@ -1466,7 +1673,10 @@ const HrConsolidationHub = () => {
       const names = departmentsList.map(d => d.deptName || d.dept_name || d.name).filter(Boolean);
       return Array.from(new Set(names));
     }
-    return Object.keys(hrSchemas[selectedModule] || {});
+    const fromSchema = Object.keys(hrSchemas[selectedModule] || {});
+    if (fromSchema.length > 0) return fromSchema;
+    if (selectedTab) return [selectedTab];
+    return [];
   }, [selectedModule, dbData]);
 
   // Filtered rows of the active tab table
@@ -1577,6 +1787,17 @@ const HrConsolidationHub = () => {
       );
     }
 
+    if (tabName === "Organization Analytics" || tabName === "Organization Dashboard" || (selectedModule === "1. Organization Setup" && (tabName === "Organization Analytics" || tabName === "Dashboard"))) {
+      return (
+        <OrganizationDashboard
+          dbData={dbData}
+          onRefreshData={fetchAllData}
+          onOpenCreate={handleOpenCreate}
+          onOpenEdit={handleOpenEdit}
+        />
+      );
+    }
+
     if (tabName === "Employee Dashboard") {
       return <EmployeeDashboard />;
     }
@@ -1593,7 +1814,7 @@ const HrConsolidationHub = () => {
     }
 
     if (tabName === "Attendance Dashboard") {
-      return <AttendanceDashboard dbData={dbData} />;
+      return <AttendanceDashboard dbData={dbData} onRefreshData={fetchAllData} />;
     }
 
     if (tabName === "Recruitment Dashboard") {
@@ -1655,6 +1876,31 @@ const HrConsolidationHub = () => {
       return <AttendanceRegularizationAdmin records={records} dbData={dbData} openCreateTrigger={handleOpenCreate} />;
     }
 
+    if (tabName === "Company QR Attendance") {
+      return (
+        <div className="py-2">
+          <CompanyQrAdminConsole />
+        </div>
+      );
+    }
+
+    if (tabName === "Scan Employee QR" || tabName === "Admin QR Scanner" || tabName === "Scan Employee QR 📷") {
+      return (
+        <div className="py-2">
+          <AdminEmployeeQrScannerPage standalone={false} />
+        </div>
+      );
+    }
+
+    if (tabName === "QR Attendance" || tabName === "Employee QR Attendance" || tabName === "QR Code Directory" || tabName === "QR Attendance 📷") {
+      return (
+        <QrAttendanceAdminSection
+          dbData={dbData}
+          onRefreshData={fetchAllData}
+        />
+      );
+    }
+
     if (tabName === "Reports" && selectedModule === "4. Attendance & Shift") {
       return <AttendanceReportsAdmin dbData={dbData} />;
     }
@@ -1663,7 +1909,11 @@ const HrConsolidationHub = () => {
       return <LeaveReports dbData={dbData} onRefreshData={fetchAllData} />;
     }
 
-    if (tabName === "Reports" && selectedModule === "6. Payroll & Compensation") {
+    if (tabName === "Payroll Dashboard" || tabName === "payroll_dashboard") {
+      return <PayrollDashboard dbData={dbData} onRefreshData={fetchAllData} />;
+    }
+
+    if ((tabName === "Reports" && (selectedModule === "6. Payroll & Compensation" || selectedCategory === "PAYROLL")) || tabName === "Payroll Reports") {
       return <PayrollReports dbData={dbData} onRefreshData={fetchAllData} />;
     }
 
@@ -1733,9 +1983,9 @@ const HrConsolidationHub = () => {
     }
 
     return (
-      <div className="overflow-x-auto border border-gray-200/60 rounded-xl shadow-sm">
-        <table className="min-w-full divide-y divide-gray-200 text-left text-xs bg-white">
-          <thead className="bg-gray-50">
+      <div className="overflow-x-auto border border-slate-200/80 rounded-2xl shadow-xs">
+        <table className="min-w-full divide-y divide-slate-100 text-left text-xs bg-white">
+          <thead className="bg-slate-50/70 border-b border-slate-200/80">
             <tr>
               <th className="px-4 py-3 text-slate-500 font-bold uppercase tracking-wider">S.No</th>
               {activeFields.slice(0, 5).map(f => (
@@ -1798,7 +2048,7 @@ const HrConsolidationHub = () => {
 
   const isEmployeeWorkspaceTab = ["Employee List", "Add Employee", "employee_profile", "employees"].includes(selectedTab);
   const isDesignationTab = ["Designation", "Designation Master", "Designation Workspace", "designation", "designations"].includes(selectedTab);
-  const isCustomSetupTab = ["Business Unit", "Cost Center", "Reporting Hierarchy", "Organizational Chart"].includes(selectedTab);
+  const isCustomSetupTab = ["Organization Analytics", "Organization Dashboard", "Business Unit", "Cost Center", "Reporting Hierarchy", "Organizational Chart"].includes(selectedTab);
 
   useEffect(() => {
     if (selectedTab === "Add Employee") {
@@ -1809,25 +2059,27 @@ const HrConsolidationHub = () => {
   return (
     <div className="min-h-screen text-gray-800 bg-gray-50/50 p-2">
       {/* Main Workspace */}
-      <div className="w-full bg-white rounded-2xl border border-gray-200/80 shadow-md p-6 font-sans">
+      <div className="w-full bg-white rounded-3xl border border-slate-200/80 shadow-xs p-6 font-sans">
         {/* Module Header */}
         {!isEmployeeWorkspaceTab && !isDesignationTab && !isCustomSetupTab && selectedTab !== "Reports" && selectedTab !== "Document Log" && selectedTab !== "Documents" && selectedTab !== "Letter Workspace" && selectedModule !== "8. Performance Management" && (
-            <div className="flex flex-col md:flex-row md:items-center justify-between border-b pb-5 mb-6 gap-4">
+            <div className={`flex flex-col md:flex-row md:items-center justify-between gap-4 ${selectedTab === "Company" ? "mb-6" : "border-b pb-5 mb-6"}`}>
               <div>
                 <h1 className="text-2xl font-extrabold text-gray-900 tracking-tight">
-                  {selectedTab === "Company" ? "Company Profile" : (selectedTab || "Workspace")}
+                  {selectedTab === "Company" ? "Company Profile" : (selectedTab === "Leave Requests" ? "Leave Request" : (selectedTab || "Workspace"))}
                 </h1>
                 <p className="text-sm text-gray-500 mt-1">
                   {selectedTab === "Company" 
                     ? "Official company profile, registered headquarters, legal registration numbers, and operational configurations." 
+                    : (selectedTab === "Leave Requests" || selectedTab === "Leave Request")
+                    ? "Manage employee leave applications, approve or reject requests, and monitor department leave balances."
                     : `Manage and configure ${selectedTab || "organization"} records, settings, and operations.`}
                 </p>
               </div>
 
-              {!isDynamicSubDept && currentTabs.length > 0 && isAuthorizedAdmin && selectedTab !== "Employee Profile" && selectedTab !== "Employee Dashboard" && selectedTab !== "Add Employee" && selectedTab !== "employees" && (
+              {!isDynamicSubDept && currentTabs.length > 0 && isAuthorizedAdmin && selectedTab !== "Employee Profile" && selectedTab !== "Employee Dashboard" && selectedTab !== "Add Employee" && selectedTab !== "employees" && selectedTab !== "Shift Master" && selectedTab !== "Shift" && selectedTab !== "Overtime" && selectedTab !== "Overtime Master" && selectedTab !== "Attendance Dashboard" && selectedTab !== "Attendance" && (
                 <div className="flex items-center gap-2">
-                  {selectedTab === "Company" ? (
-                    <div className="flex items-center gap-2">
+                  {(selectedTab === "Company" || selectedTab === "Company Settings" || selectedTab?.toLowerCase().includes("company")) ? (
+                    <div className="flex items-center gap-2.5">
                       <button
                         onClick={() => {
                           const comps = dbData["Company"] || dbData["company"] || [];
@@ -1842,18 +2094,19 @@ const HrConsolidationHub = () => {
                             handleOpenCreate();
                           }
                         }}
-                        className="bg-white hover:bg-slate-50 text-slate-700 border border-slate-300 flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-xs font-semibold shadow-sm transition cursor-pointer"
+                        className="bg-white hover:bg-slate-50 text-slate-700 border border-slate-200/90 flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold shadow-2xs transition cursor-pointer"
                       >
                         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-3.5 h-3.5 text-slate-500">
                           <path strokeLinecap="round" strokeLinejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L10.582 16.07a4.5 4.5 0 0 1-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 0 1 1.13-1.897l8.932-8.931Zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0 1 15.75 21H5.25A2.25 2.25 0 0 1 3 18.75V8.25A2.25 2.25 0 0 1 5.25 6H10" />
                         </svg>
-                        <span>✏️ Edit Profile</span>
+                        <span>Edit Profile</span>
                       </button>
                       <button
                         onClick={handleOpenCreate}
-                        className="bg-blue-600 hover:bg-blue-700 text-white flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-xs font-semibold shadow-sm transition cursor-pointer"
+                        className="bg-blue-600 hover:bg-blue-700 text-white flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold shadow-xs transition cursor-pointer"
                       >
-                        <span>+ Add Company</span>
+                        <PlusIcon className="w-4 h-4" />
+                        <span>Add Company Record</span>
                       </button>
                     </div>
                   ) : (
@@ -1886,20 +2139,25 @@ const HrConsolidationHub = () => {
       {/* CRUD Side Drawer/Modal Dialog */}
       {showModal && (
         <div className="fixed inset-0 bg-slate-900/60 z-50 flex items-center justify-center p-4 backdrop-blur-sm transition-opacity">
-          <div className="bg-white rounded-2xl border border-gray-200 shadow-2xl max-w-xl w-full max-h-[85vh] flex flex-col animate-in fade-in zoom-in-95 duration-200">
+          <div className="bg-white rounded-3xl border border-slate-200/90 shadow-2xl max-w-xl w-full max-h-[85vh] flex flex-col animate-fade-in">
             {/* Header */}
-            <div className="px-6 py-4 border-b flex items-center justify-between bg-gray-50 rounded-t-2xl">
+            <div className="px-6 py-4.5 border-b border-slate-100 flex items-center justify-between bg-slate-50/70 rounded-t-3xl">
               <div>
                 <h3 className="font-bold text-gray-900 text-base">
-                  {editingRecord ? "Edit" : "Create New"} {selectedTab} Record
+                  {editingRecord ? "Edit" : "Create New"} {(selectedTab === "Company Settings" || selectedTab === "Company" || selectedTab?.toLowerCase().includes("company")) ? "Company" : selectedTab} Record
                 </h3>
-                <p className="text-[11px] text-gray-500 mt-0.5">Please write directly to the database table.</p>
+                <p className="text-[11px] text-gray-500 mt-0.5">
+                  {(selectedTab === "Company Settings" || selectedTab === "Company" || selectedTab?.toLowerCase().includes("company"))
+                    ? "Official company profile, registered headquarters, legal registration numbers, and operational parameters."
+                    : "Please write directly to the database table."}
+                </p>
               </div>
               <button
+                type="button"
                 onClick={() => setShowModal(false)}
-                className="text-gray-400 hover:text-gray-600 text-lg font-bold"
+                className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition cursor-pointer"
               >
-                ✕
+                <svg className="w-5 h-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" /></svg>
               </button>
             </div>
 
@@ -1951,22 +2209,31 @@ const HrConsolidationHub = () => {
                             const val = e.target.value;
                             setFormFields(prev => {
                               const updated = { ...prev, [f.name]: val };
+                              if (f.name === "department" && (selectedTab === "Shift Master" || sqlTableName === "shift_master")) {
+                                updated.employee = "";
+                              }
                               if (f.name === "employee" || f.name === "employee_id") {
-                                const emps = dbData["employees"] || dbData["employee_profile"] || dbData["Employee Profile"] || [];
-                                const selected = emps.find(emp => {
-                                  const empName = `${emp.firstName || ''} ${emp.lastName || ''}`.trim() || emp.employeeName || emp.employee_name || emp.email;
-                                  return empName === val || emp.id === val || emp.email === val;
-                                });
-                                if (selected) {
-                                  updated.employeeCode = selected.employeeCode || selected.empCode || selected.employeeId || `EMP-${selected.id || '101'}`;
-                                  updated.empId = selected.empCode || selected.employeeCode || selected.employeeId || `EMP-${selected.id || '101'}`;
-                                  updated.department = selected.department || "Operations";
-                                  updated.designation = selected.designation || "Staff Professional";
-                                  updated.officialEmail = selected.officialEmail || selected.email || "";
-                                  updated.bankAccount = selected.bankAccount || selected.accountNumber || "Primary Bank A/C";
-                                  updated.uanNumber = selected.uanNumber || selected.uan || "UAN1008874";
-                                  updated.panNumber = selected.panNumber || selected.pan || "ABCDE1234F";
-                                  updated.esiNumber = selected.esiNumber || selected.esi || "ESI9005521";
+                                if (val === "All Employees") {
+                                  updated.employee = "All Employees";
+                                } else {
+                                  const emps = dbData["employees"] || dbData["employee_profile"] || dbData["Employee Profile"] || [];
+                                  const selected = emps.find(emp => {
+                                    const empName = `${emp.firstName || ''} ${emp.lastName || ''}`.trim() || emp.employeeName || emp.employee_name || emp.email;
+                                    return empName === val || emp.id === val || emp.email === val;
+                                  });
+                                  if (selected) {
+                                    updated.employeeCode = selected.employeeCode || selected.empCode || selected.employeeId || `EMP-${selected.id || '101'}`;
+                                    updated.empId = selected.empCode || selected.employeeCode || selected.employeeId || `EMP-${selected.id || '101'}`;
+                                    if ((selectedTab !== "Shift Master" && sqlTableName !== "shift_master") || !updated.department || updated.department === "All Departments") {
+                                      updated.department = selected.department || "Operations";
+                                    }
+                                    updated.designation = selected.designation || "Staff Professional";
+                                    updated.officialEmail = selected.officialEmail || selected.email || "";
+                                    updated.bankAccount = selected.bankAccount || selected.accountNumber || "Primary Bank A/C";
+                                    updated.uanNumber = selected.uanNumber || selected.uan || "UAN1008874";
+                                    updated.panNumber = selected.panNumber || selected.pan || "ABCDE1234F";
+                                    updated.esiNumber = selected.esiNumber || selected.esi || "ESI9005521";
+                                  }
                                 }
                               }
                               return updated;
@@ -1977,34 +2244,58 @@ const HrConsolidationHub = () => {
                           {(f.name === "employee" || f.name === "approvedBy" || f.name === "generatedBy" || f.name === "employee_id") ? (
                             <>
                               <option value="">-- Select Employee --</option>
-                              {(dbData["employees"] || dbData["employee_profile"] || dbData["Employee Profile"] || []).map(emp => {
-                                const name = `${emp.firstName || ''} ${emp.lastName || ''}`.trim() || emp.employeeName || emp.employee_name || emp.email;
-                                const code = emp.employeeCode || emp.empCode || emp.employeeId || "";
-                                return (
-                                  <option key={emp.id || name} value={name}>
-                                    {name} {code ? `(${code})` : ""}
-                                  </option>
-                                );
-                              })}
+                              {(selectedTab === "Shift Master" || sqlTableName === "shift_master" || selectedTab?.toLowerCase().includes("overtime") || sqlTableName?.includes("overtime")) && (
+                                <option value="All Employees">
+                                  {(formFields.department || formFields.applicableDept) && (formFields.department || formFields.applicableDept) !== "All Departments" 
+                                    ? `All Employees in ${formFields.department || formFields.applicableDept}` 
+                                    : "All Employees (All Departments)"}
+                                </option>
+                              )}
+                              {(() => {
+                                const allEmps = dbData["employees"] || dbData["employee_profile"] || dbData["Employee Profile"] || [];
+                                const currentDept = formFields.department || formFields.applicableDept;
+                                const isSpecialTab = selectedTab === "Shift Master" || sqlTableName === "shift_master" || selectedTab?.toLowerCase().includes("overtime");
+                                const filtered = (isSpecialTab && currentDept && currentDept !== "All Departments")
+                                  ? allEmps.filter(e => {
+                                      const empDept = String(e.department || '').trim().toLowerCase();
+                                      const selDept = String(currentDept).trim().toLowerCase();
+                                      return empDept === selDept || empDept.includes(selDept) || selDept.includes(empDept);
+                                    })
+                                  : allEmps;
+
+                                return filtered.map(emp => {
+                                  const name = `${emp.firstName || ''} ${emp.lastName || ''}`.trim() || emp.employeeName || emp.employee_name || emp.email;
+                                  const code = emp.employeeCode || emp.empCode || emp.employeeId || "";
+                                  const dept = emp.department ? ` • ${emp.department}` : "";
+                                  return (
+                                    <option key={emp.id || name} value={name}>
+                                      {name} {code ? `(${code})` : ""}{isSpecialTab ? dept : ""}
+                                    </option>
+                                  );
+                                });
+                              })()}
                             </>
                           ) : (f.name === "company" || f.name === "company_name") ? (
                             <>
                               <option value="">-- Select Company --</option>
                               {(() => {
                                 const companiesFromDb = (dbData["Company"] || dbData["company"] || []).map(c => c.companyName || c.company_name || c.name).filter(Boolean);
-                                const defaultCompany = user?.companyName || user?.company || "Yash Technologies";
+                                const defaultCompany = user?.companyName || user?.company || "NIB Insurance";
                                 const allCompanies = Array.from(new Set([...companiesFromDb, defaultCompany]));
                                 return allCompanies.map(c => (
                                   <option key={c} value={c}>{c}</option>
                                 ));
                               })()}
                             </>
-                          ) : (f.name === "department" || f.name === "department_id") ? (
+                          ) : (f.name === "department" || f.name === "department_id" || f.name === "applicableDept" || f.name === "applicable_dept") ? (
                             <>
                               <option value="">-- Select Department --</option>
+                              {(selectedTab === "Shift Master" || sqlTableName === "shift_master" || selectedTab?.toLowerCase().includes("overtime") || sqlTableName?.includes("overtime")) && (
+                                <option value="All Departments">All Departments (Company-wide)</option>
+                              )}
                               {(() => {
-                                const deptsFromDb = (dbData["Department"] || dbData["department"] || []).map(d => d.deptName || d.dept_name || d.name).filter(Boolean);
-                                const defaultDepts = f.options || ["IT", "Software Engineering", "Operations", "Finance", "Human Resources", "Sales & Marketing"];
+                                const deptsFromDb = (dbData["Department"] || dbData["department"] || dbData["departments"] || []).map(d => d.deptName || d.dept_name || d.name).filter(Boolean);
+                                const defaultDepts = f.options || ["Sales & Marketing", "Information Technology", "Finance & Accounts", "Human Resources", "Operations"];
                                 const allDepts = Array.from(new Set([...deptsFromDb, ...defaultDepts]));
                                 return allDepts.map(d => (
                                   <option key={d} value={d}>{d}</option>
@@ -2016,7 +2307,7 @@ const HrConsolidationHub = () => {
                               <option value="">-- Select Branch --</option>
                               {(() => {
                                 const branchesFromDb = (dbData["Branch"] || dbData["branch"] || dbData["branches"] || []).map(b => b.branchName || b.branch_name || b.name).filter(Boolean);
-                                const defaultBranches = f.options || ["Headquarters", "Main Branch", "Regional Office", "Indore Branch"];
+                                const defaultBranches = f.options || [];
                                 const allBranches = Array.from(new Set([...branchesFromDb, ...defaultBranches]));
                                 return allBranches.map(b => (
                                   <option key={b} value={b}>{b}</option>
@@ -2070,7 +2361,7 @@ const HrConsolidationHub = () => {
                 <button
                   type="button"
                   onClick={() => setShowModal(false)}
-                  className="px-4 py-2 border rounded-lg text-xs font-semibold text-gray-600 hover:bg-gray-50 transition"
+                  className="px-4 py-2 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-700 hover:bg-slate-50 transition cursor-pointer shadow-2xs"
                 >
                   Cancel
                 </button>

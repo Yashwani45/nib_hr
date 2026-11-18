@@ -67,8 +67,37 @@ const BankDetailsDashboard = ({ records = [], onOpenEdit, onDelete }) => {
 
   // Filter records that have bank details populated, or fall back to mock accounts if none have it
   const displayRecords = useMemo(() => {
-    const hasAnyBankData = records.some(r => r.bankName || r.accountNumber || r.ifscCode);
-    return hasAnyBankData ? records : mockAccounts;
+    const parsedRecords = (records || []).map(r => {
+      let pData = {};
+      try {
+        const rawJson = r.profile_data || r.profileData;
+        if (typeof rawJson === "string") pData = JSON.parse(rawJson);
+        else if (typeof rawJson === "object" && rawJson) pData = rawJson;
+      } catch (e) {}
+
+      const firstName = r.firstName || pData.firstName || "";
+      const lastName = r.lastName || pData.lastName || "";
+      const fullName = r.employee_name || r.employeeName || `${firstName} ${lastName}`.trim() || r.name || "Employee";
+
+      return {
+        ...pData,
+        ...r,
+        firstName: firstName || fullName.split(" ")[0],
+        lastName: lastName || fullName.split(" ").slice(1).join(" "),
+        employeeCode: r.employeeCode || r.emp_code || r.empCode || pData.employeeCode || "--",
+        department: r.department || pData.department || "General",
+        designation: r.designation || pData.designation || "Staff",
+        bankName: r.bankName || pData.bankName || "",
+        accountHolderName: r.accountHolderName || pData.accountHolderName || fullName,
+        accountNumber: r.accountNumber || pData.accountNumber || "",
+        ifscCode: r.ifscCode || pData.ifscCode || "",
+        branchName: r.branchName || pData.branchName || "",
+        upiId: r.upiId || pData.upiId || ""
+      };
+    });
+
+    const hasAnyBankData = parsedRecords.some(r => r.bankName || r.accountNumber || r.ifscCode);
+    return hasAnyBankData ? parsedRecords.filter(r => r.bankName || r.accountNumber || r.ifscCode) : mockAccounts;
   }, [records, mockAccounts]);
 
   // Unique list of banks for tabs

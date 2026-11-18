@@ -9,7 +9,7 @@ const EmployeeLoan = sequelize.define('EmployeeLoan', {
     primaryKey: true,
   },
   employeeId: {
-    type: DataTypes.UUID,
+    type: DataTypes.STRING(255),
     allowNull: false,
     field: 'employee_id',
   },
@@ -18,9 +18,16 @@ const EmployeeLoan = sequelize.define('EmployeeLoan', {
     allowNull: false,
     field: 'loan_type',
   },
+  principalAmount: {
+    type: DataTypes.DECIMAL(12, 2),
+    allowNull: false,
+    defaultValue: 0.00,
+    field: 'principal_amount',
+  },
   requestedAmount: {
     type: DataTypes.DECIMAL(12, 2),
     allowNull: false,
+    defaultValue: 0.00,
     field: 'requested_amount',
   },
   approvedAmount: {
@@ -33,12 +40,41 @@ const EmployeeLoan = sequelize.define('EmployeeLoan', {
     defaultValue: 0.00,
     field: 'interest_rate',
   },
+  outstandingBalance: {
+    type: DataTypes.DECIMAL(12, 2),
+    defaultValue: 0.00,
+    field: 'outstanding_balance',
+  },
+  installmentAmount: {
+    type: DataTypes.DECIMAL(12, 2),
+    defaultValue: 0.00,
+    field: 'installment_amount',
+  },
+  numberOfInstallments: {
+    type: DataTypes.INTEGER,
+    defaultValue: 12,
+    field: 'number_of_installments',
+  },
   tenureMonths: {
     type: DataTypes.INTEGER,
-    allowNull: false,
+    defaultValue: 12,
     field: 'tenure_months',
   },
+  startDate: {
+    type: DataTypes.DATEONLY,
+    allowNull: true,
+    field: 'start_date',
+  },
+  endDate: {
+    type: DataTypes.DATEONLY,
+    allowNull: true,
+    field: 'end_date',
+  },
   reason: {
+    type: DataTypes.TEXT,
+    allowNull: true,
+  },
+  remarks: {
     type: DataTypes.TEXT,
     allowNull: true,
   },
@@ -47,28 +83,23 @@ const EmployeeLoan = sequelize.define('EmployeeLoan', {
     allowNull: true,
     field: 'supporting_document',
   },
-  startDate: {
-    type: DataTypes.DATEONLY,
-    allowNull: true,
-    field: 'start_date',
-  },
   status: {
-    type: DataTypes.ENUM('Pending', 'Approved', 'Rejected', 'Closed'),
+    type: DataTypes.STRING(50),
     defaultValue: 'Pending',
     allowNull: false,
-  },
-  outstandingBalance: {
-    type: DataTypes.DECIMAL(12, 2),
-    defaultValue: 0.00,
-    field: 'outstanding_balance',
   },
   totalPaid: {
     type: DataTypes.DECIMAL(12, 2),
     defaultValue: 0.00,
     field: 'total_paid',
   },
+  requestedBy: {
+    type: DataTypes.STRING(255),
+    allowNull: true,
+    field: 'requested_by',
+  },
   approvedBy: {
-    type: DataTypes.UUID,
+    type: DataTypes.STRING(255),
     allowNull: true,
     field: 'approved_by',
   },

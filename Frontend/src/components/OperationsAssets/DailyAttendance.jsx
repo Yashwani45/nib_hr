@@ -1,10 +1,21 @@
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 import { apiFetch } from "../../services/hrApi";
 import { useAuth } from "../../auth/AuthProvider";
+import { FingerPrintIcon, QrCodeIcon, CameraIcon } from "@heroicons/react/24/outline";
+import BiometricAttendanceTerminal from "../Biometric/BiometricAttendanceTerminal";
+import CompanyQrAdminConsole from "../Attendance/CompanyQrAdminConsole";
+import CompanyQrScannerModal from "../Attendance/CompanyQrScannerModal";
+import EmployeeQrScannerModal from "../Attendance/EmployeeQrScannerModal";
+import EmployeeQrCardModal from "../Attendance/EmployeeQrCardModal";
 
 const DailyAttendance = ({ records = [], checkedIn, punchTime, handlePunchClick, dbData = [] }) => {
   const { user } = useAuth();
-  const employees = dbData["employees"] || dbData["employee_profile"] || [];
+  const [showBiometricTerminal, setShowBiometricTerminal] = useState(false);
+  const [showCompanyQrAdmin, setShowCompanyQrAdmin] = useState(false);
+  const [showCompanyQrScanner, setShowCompanyQrScanner] = useState(false);
+  const [showEmployeeQrScanner, setShowEmployeeQrScanner] = useState(false);
+  const [selectedEmployeeForQr, setSelectedEmployeeForQr] = useState(null);
+  const employees = dbData["employees"] || dbData["employee_profile"] || dbData["Employee Profile"] || dbData["Employee"] || [];
 
   const userRole = typeof user?.role === "object" ? user?.role?.name : user?.role;
   const isEmployee = userRole === "Employee";
@@ -25,6 +36,15 @@ const DailyAttendance = ({ records = [], checkedIn, punchTime, handlePunchClick,
   const [creatingRecord, setCreatingRecord] = useState(false);
   const [viewingRecord, setViewingRecord] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [loadingEmpId, setLoadingEmpId] = useState(null);
+
+  useEffect(() => {
+    const handleRefreshComplete = () => {
+      setLoadingEmpId(null);
+    };
+    window.addEventListener("refresh-complete", handleRefreshComplete);
+    return () => window.removeEventListener("refresh-complete", handleRefreshComplete);
+  }, []);
 
   // Form states
   const [formEmpCode, setFormEmpCode] = useState("");
@@ -89,8 +109,8 @@ const DailyAttendance = ({ records = [], checkedIn, punchTime, handlePunchClick,
         earlyLeaving: 0,
         overtime: Number(formOvertime),
         remarks: formRemarks,
-        company: matchedEmp?.company || "NIB Technologies Pvt Ltd",
-        branch: matchedEmp?.branch || "Headquarters",
+        company: matchedEmp?.company || localStorage.getItem("selected_company_name") || "Company",
+        branch: matchedEmp?.branch || matchedEmp?.branchName || (localStorage.getItem("selected_branch_name") !== "All Branches" ? localStorage.getItem("selected_branch_name") : "") || "Branch",
         department: matchedEmp?.department || "Operations",
         shift: "General Shift"
       };
@@ -169,7 +189,7 @@ const DailyAttendance = ({ records = [], checkedIn, punchTime, handlePunchClick,
 
       setEditingRecord(null);
       setCreatingRecord(false);
-      window.location.reload();
+      window.dispatchEvent(new Event('silent-refresh'));
     } catch (err) {
       console.error(err);
       alert("Failed to save attendance record.");
@@ -180,34 +200,159 @@ const DailyAttendance = ({ records = [], checkedIn, punchTime, handlePunchClick,
 
   return (
     <div className="space-y-6">
-      {/* Simulation Box for Admin Punch In */}
+      {/* Admin Quick Punch Console (All Employees List) */}
       {!isEmployee && (
-        <div className="p-5 border border-emerald-100 bg-emerald-50/20 rounded-xl flex flex-col md:flex-row md:items-center justify-between gap-6">
-          <div>
-            <h3 className="text-sm font-bold text-emerald-900 flex items-center gap-1.5">
-              <span className={`h-2.5 w-2.5 rounded-full ${checkedIn ? "bg-emerald-500 animate-ping" : "bg-red-400"}`}></span>
-              Daily Check-In & Punch Console (HR Admin Check-in Simulation)
-            </h3>
-            <p className="text-xs text-gray-500 mt-1">
-              Punch check-in/out simulation for HR Admin user account
-            </p>
-            {checkedIn && (
-              <div className="mt-2 text-xs text-emerald-800 font-medium">
-                Checked in at: <span className="font-bold">{punchTime}</span>
-              </div>
-            )}
+        <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm space-y-4">
+          <div className="flex justify-between items-center pb-3 border-b border-slate-100">
+            <div>
+              <h4 className="font-extrabold text-sm text-slate-800">
+                ⚡ Admin Quick Punch Console
+              </h4>
+              <p className="text-[10px] text-slate-500 font-bold mt-1">Mark attendance for employees directly</p>
+            </div>
           </div>
-          <div className="flex gap-2">
-            <button
-              onClick={handlePunchClick}
-              className={`px-5 py-3 rounded-lg text-xs font-bold text-white shadow transition-all shrink-0 ${
-                checkedIn
-                  ? "bg-red-500 hover:bg-red-600 hover:shadow-red-200"
-                  : "bg-emerald-600 hover:bg-emerald-700 hover:shadow-emerald-200"
-              }`}
-            >
-              {checkedIn ? "Punch Check-Out" : "Punch Web Check-In"}
-            </button>
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-xs font-bold text-slate-600">
+              <thead>
+                <tr className="border-b border-slate-100 text-slate-400 uppercase text-[9px]">
+                  <th className="py-2.5">Employee</th>
+                  <th>Department</th>
+                  <th>Current Status</th>
+                  <th>Action</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {employees.map(emp => {
+                  const empCode = emp.employeeCode || emp.emp_code || emp.id;
+                  const empName = `${emp.firstName || ""} ${emp.lastName || ""}`.trim() || emp.name || "Employee";
+                  
+                  // Find today's record for this employee
+                  const todayStr = new Date().toISOString().split("T")[0];
+                  const todayRecord = records.find(r => 
+                    String(r.empId).toLowerCase() === String(empCode).toLowerCase() && 
+                    r.date === todayStr
+                  );
+                  
+                  const isCheckedIn = todayRecord && todayRecord.checkIn && (!todayRecord.checkOut || todayRecord.checkOut === "--");
+                  const isShiftCompleted = todayRecord && todayRecord.checkOut && todayRecord.checkOut !== "--";
+
+                  return (
+                    <tr key={empCode} className="hover:bg-slate-50/50 transition">
+                      <td className="py-3">
+                        <div className="flex items-center gap-2">
+                          <div className="w-8 h-8 rounded-full bg-slate-200 flex items-center justify-center text-[10px] text-slate-600">
+                            {empName.charAt(0)}
+                          </div>
+                          <div>
+                            <p className="text-slate-800">{empName}</p>
+                            <p className="font-mono text-[9px] text-slate-400">{empCode}</p>
+                          </div>
+                        </div>
+                      </td>
+                      <td>{emp.department || "Operations"}</td>
+                      <td>
+                        <span className={`px-2 py-0.5 rounded text-[9px] font-black uppercase ${
+                          isShiftCompleted ? "bg-slate-100 text-slate-600 border border-slate-200" :
+                          isCheckedIn ? "bg-emerald-50 text-emerald-700 border border-emerald-200" :
+                          "bg-amber-50 text-amber-700 border border-amber-200"
+                        }`}>
+                          {isShiftCompleted ? `Completed (${todayRecord.checkOut})` : isCheckedIn ? `Punched In (${todayRecord.checkIn})` : "Not Punched In"}
+                        </span>
+                      </td>
+                      <td>
+                        <div className="flex items-center gap-1.5">
+                          <button
+                            type="button"
+                            onClick={() => setSelectedEmployeeForQr({
+                              id: emp.id || empCode,
+                              employeeCode: empCode,
+                              name: empName,
+                              department: emp.department || "Operations",
+                              designation: emp.designation || "Staff",
+                              photo: emp.photo || ""
+                            })}
+                            className="p-1.5 rounded-lg border border-slate-200 hover:bg-indigo-50 hover:border-indigo-300 hover:text-indigo-600 text-slate-500 transition cursor-pointer"
+                            title={`View / Print QR ID Card for ${empName}`}
+                          >
+                            <QrCodeIcon className="w-3.5 h-3.5" />
+                          </button>
+                          {isShiftCompleted ? (
+                            <span className="text-[10px] text-slate-400 font-bold">Shift Done</span>
+                          ) : (
+                          <button
+                            disabled={loadingEmpId === empCode}
+                            onClick={async () => {
+                              setLoadingEmpId(empCode);
+                              try {
+                                const now = new Date();
+                                const timeStr = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false });
+                                
+                                if (!isCheckedIn) {
+                                  // Punch In
+                                  const newId = (typeof crypto !== "undefined" && crypto.randomUUID) ? crypto.randomUUID() : "att-" + Math.random().toString(36).substring(2, 15);
+                                  await apiFetch("/api/table/daily_attendance", {
+                                    method: "POST",
+                                    body: JSON.stringify({
+                                      id: newId,
+                                      empId: String(empCode),
+                                      name: empName,
+                                      date: todayStr,
+                                      checkIn: timeStr,
+                                      checkOut: "--",
+                                      workingHours: 0,
+                                      status: "Present",
+                                      lateComing: 0,
+                                      earlyLeaving: 0,
+                                      overtime: 0,
+                                      remarks: "Admin Quick Punch In",
+                                      company: emp.company || localStorage.getItem("selected_company_name") || "Company",
+                                      branch: emp.branch || emp.branchName || (localStorage.getItem("selected_branch_name") !== "All Branches" ? localStorage.getItem("selected_branch_name") : "") || "Branch",
+                                      department: emp.department || "Operations",
+                                      shift: emp.shift || "General Shift"
+                                    })
+                                  });
+                                } else {
+                                  // Punch Out
+                                  let workingHours = 0;
+                                  if (todayRecord.checkIn && todayRecord.checkIn !== "--") {
+                                    const [ciH, ciM] = todayRecord.checkIn.split(":").map(Number);
+                                    const [coH, coM] = timeStr.split(":").map(Number);
+                                    const diffHrs = (coH + coM/60) - (ciH + ciM/60);
+                                    workingHours = Math.max(0, diffHrs);
+                                  }
+                                  await apiFetch(`/api/table/daily_attendance/${todayRecord.id}`, {
+                                    method: "PUT",
+                                    body: JSON.stringify({
+                                      ...todayRecord,
+                                      checkOut: timeStr,
+                                      workingHours: Number(workingHours.toFixed(2)),
+                                      remarks: "Admin Quick Punch Out"
+                                    })
+                                  });
+                                }
+                                window.dispatchEvent(new Event('silent-refresh'));
+                              } catch(e) {
+                                alert("Failed to punch.");
+                              } finally {
+                                // Do not clear loading state here, wait for 'refresh-complete'
+                              }
+                            }}
+                            className={`px-3 py-1.5 rounded-lg text-[10px] font-black uppercase text-white shadow-xs transition ${
+                              loadingEmpId === empCode 
+                                ? "bg-slate-300 text-slate-500 cursor-not-allowed" 
+                                : isCheckedIn ? "bg-rose-500 hover:bg-rose-600" : "bg-emerald-500 hover:bg-emerald-600"
+                            }`}
+                          >
+                            {loadingEmpId === empCode ? "..." : (isCheckedIn ? "Punch Out" : "Punch In")}
+                          </button>
+                        )}
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
           </div>
         </div>
       )}
@@ -218,14 +363,46 @@ const DailyAttendance = ({ records = [], checkedIn, punchTime, handlePunchClick,
           <h4 className="font-extrabold text-sm text-slate-800">
             📜 Active Daily Logs
           </h4>
-          {!isEmployee && (
-            <button 
-              onClick={handleOpenCreate}
-              className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-bold shadow-xs transition"
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              onClick={() => setShowEmployeeQrScanner(true)}
+              className="px-3.5 py-2 bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-700 hover:to-violet-700 text-white rounded-lg text-xs font-bold shadow-xs transition flex items-center gap-1.5 cursor-pointer"
+              title="Scan Employee QR Badges via Webcam or USB Scanner"
             >
-              + Create Attendance
+              <QrCodeIcon className="w-4 h-4 text-indigo-200" />
+              <span>Scan Employee QR</span>
             </button>
-          )}
+
+            <button
+              onClick={() => setShowCompanyQrScanner(true)}
+              className="px-3.5 py-2 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white rounded-lg text-xs font-bold shadow-xs transition flex items-center gap-1.5 cursor-pointer"
+              title="Scan Company QR Code to Clock In / Out"
+            >
+              <QrCodeIcon className="w-4 h-4 text-emerald-200" />
+              <span>Scan Company QR</span>
+            </button>
+
+            {!isEmployee && (
+              <button
+                onClick={() => setShowCompanyQrAdmin(true)}
+                className="px-3.5 py-2 bg-slate-800 hover:bg-slate-900 text-white border border-slate-700 rounded-lg text-xs font-bold shadow-xs transition flex items-center gap-1.5 cursor-pointer"
+                title="Launch Company QR Kiosk Display & Settings"
+              >
+                <QrCodeIcon className="w-4 h-4 text-indigo-400" />
+                <span>QR Kiosk Console</span>
+              </button>
+            )}
+
+
+            {!isEmployee && (
+              <button 
+                onClick={handleOpenCreate}
+                className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-bold shadow-xs transition cursor-pointer"
+              >
+                + Create Attendance
+              </button>
+            )}
+          </div>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full text-left text-xs font-bold text-slate-600">
@@ -274,6 +451,23 @@ const DailyAttendance = ({ records = [], checkedIn, punchTime, handlePunchClick,
                         className="px-2 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded text-[10px] font-extrabold uppercase transition"
                       >
                         View
+                      </button>
+                      <button
+                        onClick={() => {
+                          const matchedEmp = employees.find(e => 
+                            String(e.employeeCode || e.emp_code || e.id).toLowerCase() === String(rec.empId).toLowerCase()
+                          );
+                          setSelectedEmployeeForQr(matchedEmp || {
+                            id: rec.empId,
+                            employeeCode: rec.empId,
+                            name: rec.name,
+                            department: "Operations"
+                          });
+                        }}
+                        className="px-2 py-1 bg-indigo-50 hover:bg-indigo-600 hover:text-white text-indigo-600 rounded text-[10px] font-extrabold uppercase transition cursor-pointer"
+                        title="View / Print Employee QR ID Badge"
+                      >
+                        Badge
                       </button>
                     </div>
                   </td>
@@ -457,7 +651,7 @@ const DailyAttendance = ({ records = [], checkedIn, punchTime, handlePunchClick,
                 <p className="text-[10px] text-slate-400 font-bold mt-0.5">
                   {(() => {
                     const emp = employees.find(e => String(e.employeeCode || e.emp_code || e.id).toLowerCase() === String(viewingRecord.empId).toLowerCase());
-                    return `${viewingRecord.company || emp?.company || "Yashtech"} • ${viewingRecord.branch || emp?.branch || "Headquarters"}`;
+                    return `${viewingRecord.company || emp?.company || "Company"} • ${viewingRecord.branch || emp?.branch || emp?.branchName || "Branch"}`;
                   })()}
                 </p>
               </div>
@@ -528,6 +722,58 @@ const DailyAttendance = ({ records = [], checkedIn, punchTime, handlePunchClick,
             </div>
           </div>
         </div>
+      )}
+
+
+
+      {/* Company QR Scanner Modal */}
+      <CompanyQrScannerModal
+        isOpen={showCompanyQrScanner}
+        onClose={() => {
+          setShowCompanyQrScanner(false);
+          window.dispatchEvent(new Event("silent-refresh"));
+        }}
+        onSuccess={() => {
+          window.dispatchEvent(new Event("silent-refresh"));
+        }}
+      />
+
+      {/* Company QR Admin Console Modal */}
+      {showCompanyQrAdmin && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md overflow-y-auto">
+          <div className="relative w-full max-w-5xl my-8">
+            <CompanyQrAdminConsole
+              onClose={() => {
+                setShowCompanyQrAdmin(false);
+                window.dispatchEvent(new Event("silent-refresh"));
+              }}
+            />
+          </div>
+        </div>
+      )}
+
+      {/* Employee QR Scanner Modal (Webcam / USB scanner on Office Laptop) */}
+      <EmployeeQrScannerModal
+        isOpen={showEmployeeQrScanner}
+        onClose={() => {
+          setShowEmployeeQrScanner(false);
+          window.dispatchEvent(new Event("silent-refresh"));
+        }}
+        onSuccess={() => {
+          window.dispatchEvent(new Event("silent-refresh"));
+        }}
+      />
+
+      {/* Employee QR ID Card / PVC Badge Modal */}
+      {selectedEmployeeForQr && (
+        <EmployeeQrCardModal
+          isOpen={!!selectedEmployeeForQr}
+          onClose={() => setSelectedEmployeeForQr(null)}
+          employee={selectedEmployeeForQr}
+          onUpdated={() => {
+            window.dispatchEvent(new Event("silent-refresh"));
+          }}
+        />
       )}
     </div>
   );

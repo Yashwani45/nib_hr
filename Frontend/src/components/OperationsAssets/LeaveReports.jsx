@@ -31,7 +31,7 @@ import {
 const LeaveReports = ({ dbData = {} }) => {
   // Extract records from database
   const leaveRequests = useMemo(() => dbData["leave_requests"] || dbData["Leave Requests"] || [], [dbData]);
-  const employees = useMemo(() => dbData["employees"] || dbData["employee_profile"] || [], [dbData]);
+  const employees = useMemo(() => dbData["employees"] || dbData["employee_profile"] || dbData["Employee Profile"] || dbData["Employee"] || [], [dbData]);
 
   // Filters State
   const [dateRange, setDateRange] = useState("2026-08-01 - 2026-08-10");

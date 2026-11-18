@@ -7,7 +7,8 @@ const logger = require('./logger');
 const connectionPools = {};
 
 /**
- * Retrieves or instantiates an active Sequelize connection pool for a Company Code.
+ * Retrieves or instantiates an active Sequelize connection pool for a Company / Tenant ID.
+ * Resolves connection dynamically from system_master_db.tenants without any hardcoded names.
  */
 const getTenantConnection = async (tenantId) => {
   if (!tenantId) {
@@ -15,50 +16,97 @@ const getTenantConnection = async (tenantId) => {
   }
 
   const cleanId = String(tenantId).trim();
-  if (['DEFAULT', 'PUBLIC', 'MAIN'].includes(cleanId.toUpperCase())) {
+  if (['DEFAULT', 'PUBLIC', 'MAIN', 'SYSTEM_MASTER_DB'].includes(cleanId.toUpperCase())) {
     return masterSequelize;
   }
 
-  let cacheKey = cleanId;
-  const upper = cleanId.toUpperCase();
-  if (['NIB', 'NIB01', 'NIBINSURANCE', 'NIB_INSURANCE'].includes(upper)) {
-    cacheKey = 'nib_insurance';
-  } else if (['YASHTECH', 'YASH_TECH', 'YASH'].includes(upper)) {
-    cacheKey = 'yashtech';
+  // 1. Check in-memory cache first
+  if (connectionPools[cleanId]) {
+    return connectionPools[cleanId];
+  }
+  const lowerId = cleanId.toLowerCase();
+  if (connectionPools[lowerId]) {
+    return connectionPools[lowerId];
   }
 
-  // Return cached connection if active
-  if (connectionPools[cacheKey]) {
-    return connectionPools[cacheKey];
+  // Robust Alias Normalization across all registered tenants
+  const normalizedKey = cleanId.toUpperCase().replace(/[\s\-_()]+/g, '');
+  let lookupCandidate = cleanId;
+  if (
+    normalizedKey.includes('NIBMASTER') ||
+    normalizedKey === 'NIB' ||
+    normalizedKey === 'NIB01' ||
+    normalizedKey === 'NIBINSURANCE' ||
+    normalizedKey === '2731B26627C4483DA699382B022D6C50'
+  ) {
+    lookupCandidate = '2731b266-27c4-483d-a699-382b022d6c50';
+  } else if (
+    normalizedKey.includes('NIBALT') ||
+    normalizedKey === 'NIBINSURANCEALT' ||
+    normalizedKey === 'NIBINSURANCEALT001'
+  ) {
+    lookupCandidate = 'nib-insurance-alt-001';
+  } else if (
+    normalizedKey.includes('YASHTECH') ||
+    normalizedKey === '983B8E341DF24F9BAF07693BE0B23681'
+  ) {
+    lookupCandidate = '983b8e34-1df2-4f9b-af07-693be0b23681';
   }
 
   try {
-    const sanitizedDbName = cacheKey.toLowerCase().replace(/\s+/g, '_').replace(/[^a-z0-9_]/g, '');
+    const sanitizedCandidate = lowerId.replace(/\s+/g, '_').replace(/[^a-z0-9_]/g, '');
 
-    // 1. Check if tenant exists in master database
+    // 2. Query master database tenants registry dynamically (with robust alias resolution)
     const [rows] = await masterSequelize.query(
-      `SELECT * FROM tenants WHERE id = ? OR db_name = ? OR company_name = ? LIMIT 1`,
-      { replacements: [cacheKey, sanitizedDbName, cacheKey] }
+      `SELECT * FROM tenants 
+       WHERE id = :cleanId OR id = :lookupCandidate OR db_name = :cleanId OR LOWER(company_name) = :lowerId OR LOWER(db_name) = :sanitizedCandidate
+          OR (:upperId IN ('NIB', 'NIB01', 'NIB_INSURANCE', 'NIB MASTER OPERATIONS', 'NIB_MASTER_OPERATIONS', 'NIB MASTER', 'NIB_MASTER', '2731B266-27C4-483D-A699-382B022D6C50') AND db_name = 'nib_insurance')
+          OR (:upperId IN ('NIB_ALT', 'NIB-ALT', 'NIB_INSURANCE_ALT', 'NIB INSURANCE (ALT)', 'NIB_INSURANCE_(ALT)', 'NIB-INSURANCE-ALT-001') AND db_name = 'nib_insurance_alt')
+          OR (:upperId IN ('YASHTECH', 'YASHTECH SOLUTIONS', 'YASHTECH_SOLUTIONS', '983B8E34-1DF2-4F9B-AF07-693BE0B23681') AND db_name = 'yashtech')
+       LIMIT 1`,
+      { replacements: { cleanId, lookupCandidate, lowerId, sanitizedCandidate, upperId: cleanId.toUpperCase() } }
     );
 
     const tenant = rows && rows.length > 0 ? rows[0] : null;
-    const targetDbName = tenant ? tenant.db_name : sanitizedDbName;
-    const targetUser = tenant ? (tenant.db_username || process.env.DB_USER || 'root') : (process.env.DB_USER || 'root');
-    const targetPassword = tenant ? (tenant.db_password || process.env.DB_PASSWORD || '') : (process.env.DB_PASSWORD || '');
-    const targetHost = tenant ? (tenant.db_host || process.env.DB_HOST || 'localhost') : (process.env.DB_HOST || 'localhost');
-    const targetPort = tenant ? (tenant.db_port || parseInt(process.env.DB_PORT) || 3306) : (parseInt(process.env.DB_PORT) || 3306);
 
-    // 2. Ensure target database exists in MySQL
+    let targetDbName = null;
+    let targetUser = process.env.DB_USER || 'root';
+    let targetPassword = process.env.DB_PASSWORD || '';
+    let targetHost = process.env.DB_HOST || 'localhost';
+    let targetPort = parseInt(process.env.DB_PORT, 10) || 3306;
+
+    if (tenant) {
+      targetDbName = tenant.db_name;
+      targetUser = tenant.db_username || targetUser;
+      targetPassword = tenant.db_password || targetPassword;
+      targetHost = tenant.db_host || targetHost;
+      targetPort = tenant.db_port || targetPort;
+
+      if (tenant.status && tenant.status.toLowerCase() !== 'active') {
+        logger.warn(`[Tenant Pool Warning] Tenant '${cleanId}' is deactivated.`);
+        throw new Error(`Company tenant '${tenant.company_name || cleanId}' is deactivated.`);
+      }
+    } else {
+      logger.error(`[Tenant Pool Error] Tenant '${cleanId}' is not registered in system_master_db.tenants.`);
+      throw new Error(`Tenant '${cleanId}' is not registered in the system.`);
+    }
+
+    if (connectionPools[targetDbName]) {
+      connectionPools[cleanId] = connectionPools[targetDbName];
+      return connectionPools[targetDbName];
+    }
+
+    // 3. Ensure target database exists in MySQL
     await masterSequelize.query(`CREATE DATABASE IF NOT EXISTS \`${targetDbName}\``);
 
-    // 3. Instantiate dedicated tenant Sequelize instance
+    // 4. Instantiate dedicated tenant Sequelize instance
     const tenantSequelize = new Sequelize(targetDbName, targetUser, targetPassword, {
       host: targetHost,
       port: targetPort,
       dialect: 'mysql',
       logging: false,
       pool: {
-        max: 10,
+        max: 15,
         min: 1,
         acquire: 30000,
         idle: 10000,
@@ -71,7 +119,7 @@ const getTenantConnection = async (tenantId) => {
 
     await tenantSequelize.authenticate();
 
-    // 4. Ensure departments table exists in target database
+    // 5. Ensure core tables & branch column exist in target database
     await tenantSequelize.query(`
       CREATE TABLE IF NOT EXISTS departments (
         id CHAR(36) NOT NULL PRIMARY KEY,
@@ -91,6 +139,34 @@ const getTenantConnection = async (tenantId) => {
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
     `);
 
+    await tenantSequelize.query(`
+      CREATE TABLE IF NOT EXISTS branches (
+        id CHAR(36) NOT NULL PRIMARY KEY,
+        branch_code VARCHAR(100) NOT NULL,
+        branch_name VARCHAR(255) NOT NULL,
+        branch_type VARCHAR(100) NULL DEFAULT 'Branch',
+        companyId INT NULL,
+        company VARCHAR(255) NULL,
+        company_name VARCHAR(255) NULL,
+        address TEXT NULL,
+        city VARCHAR(255) NULL,
+        state VARCHAR(255) NULL,
+        country VARCHAR(255) NULL,
+        district VARCHAR(255) NULL,
+        pincode VARCHAR(50) NULL,
+        email VARCHAR(255) NULL,
+        phone VARCHAR(50) NULL,
+        manager VARCHAR(255) NULL,
+        working_days VARCHAR(255) NULL,
+        timezone VARCHAR(100) DEFAULT 'UTC',
+        status ENUM('Active', 'Inactive') NOT NULL DEFAULT 'Active',
+        created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        deleted_at TIMESTAMP NULL,
+        UNIQUE KEY uq_branch_code (branch_code)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+    `);
+
     const alterSqlList = [
       "ALTER TABLE employees MODIFY COLUMN emp_code VARCHAR(255) NULL",
       "ALTER TABLE employees MODIFY COLUMN first_name VARCHAR(255) NULL",
@@ -100,26 +176,56 @@ const getTenantConnection = async (tenantId) => {
       "ALTER TABLE employees MODIFY COLUMN date_of_joining DATE NULL",
       "ALTER TABLE employees ADD COLUMN employee_name VARCHAR(255) NULL",
       "ALTER TABLE employees ADD COLUMN email VARCHAR(255) NULL",
-      "ALTER TABLE employees ADD COLUMN department VARCHAR(255) NULL"
+      "ALTER TABLE employees ADD COLUMN department VARCHAR(255) NULL",
+      "ALTER TABLE employees ADD COLUMN branch_id CHAR(36) NULL",
+      "ALTER TABLE employees ADD COLUMN branchName VARCHAR(255) NULL",
+      "ALTER TABLE daily_attendance ADD COLUMN branch VARCHAR(255) NULL",
+      "ALTER TABLE payroll_process ADD COLUMN branch VARCHAR(255) NULL",
+      "ALTER TABLE holidays ADD COLUMN branch VARCHAR(255) NULL"
     ];
     for (const sql of alterSqlList) {
       await tenantSequelize.query(sql).catch(() => {});
     }
 
-    await tenantSequelize.query(`
-      DELETE FROM departments WHERE dept_code = 'ADMIN' OR dept_name = 'Administration' OR dept_code = 'DEPT-GEN' OR dept_name = 'General Administration';
-    `).catch(() => {});
+    // Cache the active connection under various lookup keys
+    connectionPools[cleanId] = tenantSequelize;
+    connectionPools[lowerId] = tenantSequelize;
+    connectionPools[targetDbName] = tenantSequelize;
+    if (tenant) {
+      connectionPools[tenant.id] = tenantSequelize;
+      if (tenant.company_name) {
+        connectionPools[tenant.company_name.toLowerCase()] = tenantSequelize;
+      }
+    }
 
-    connectionPools[cacheKey] = tenantSequelize;
-    logger.info(`[Tenant Pool] Connected pool for tenant '${cacheKey}' to database: '${targetDbName}'`);
+    logger.info(`[Tenant Pool] Connected pool for tenant '${cleanId}' to database: '${targetDbName}'`);
     return tenantSequelize;
   } catch (err) {
-    logger.warn(`[Tenant Pool Warning] Failed to connect dedicated pool for '${cacheKey}': ${err.message}. Using master fallback.`);
-    connectionPools[cacheKey] = masterSequelize;
-    return masterSequelize;
+    logger.error(`[Tenant Pool Error] Dedicated pool error for tenant '${cleanId}': ${err.message}`);
+    delete connectionPools[cleanId];
+    delete connectionPools[lowerId];
+    throw err;
   }
 };
 
+/**
+ * Flush cache for a deleted or modified tenant pool
+ */
+const evictTenantConnection = async (tenantId) => {
+  if (!tenantId) return;
+  const key = String(tenantId).trim();
+  const pool = connectionPools[key];
+  if (pool && pool !== masterSequelize) {
+    try {
+      await pool.close();
+    } catch (e) {}
+  }
+  delete connectionPools[key];
+  delete connectionPools[key.toLowerCase()];
+};
+
 module.exports = {
-  getTenantConnection
+  getTenantConnection,
+  evictTenantConnection,
+  connectionPools
 };

@@ -8,13 +8,23 @@ const Payslip = sequelize.define('Payslip', {
     defaultValue: DataTypes.UUIDV4,
     primaryKey: true,
   },
+  payslipNumber: {
+    type: DataTypes.STRING(100),
+    allowNull: true,
+    field: 'payslip_number',
+  },
+  payrollRecordId: {
+    type: DataTypes.UUID,
+    allowNull: true,
+    field: 'payroll_record_id',
+  },
   payrollItemId: {
     type: DataTypes.UUID,
     allowNull: true,
     field: 'payroll_item_id',
   },
   employeeId: {
-    type: DataTypes.UUID,
+    type: DataTypes.STRING(255),
     allowNull: false,
     field: 'employee_id',
   },
@@ -80,10 +90,20 @@ const Payslip = sequelize.define('Payslip', {
     defaultValue: 0.00,
     field: 'loan_deduction',
   },
+  otherDeductions: {
+    type: DataTypes.DECIMAL(12, 2),
+    defaultValue: 0.00,
+    field: 'other_deductions',
+  },
   grossSalary: {
     type: DataTypes.DECIMAL(12, 2),
     defaultValue: 0.00,
     field: 'gross_salary',
+  },
+  grossEarnings: {
+    type: DataTypes.DECIMAL(12, 2),
+    defaultValue: 0.00,
+    field: 'gross_earnings',
   },
   totalDeductions: {
     type: DataTypes.DECIMAL(12, 2),
@@ -95,13 +115,62 @@ const Payslip = sequelize.define('Payslip', {
     defaultValue: 0.00,
     field: 'net_salary',
   },
+  employerPf: {
+    type: DataTypes.DECIMAL(12, 2),
+    defaultValue: 0.00,
+    field: 'employer_pf',
+  },
+  employerEsi: {
+    type: DataTypes.DECIMAL(12, 2),
+    defaultValue: 0.00,
+    field: 'employer_esi',
+  },
+  workingDays: {
+    type: DataTypes.INTEGER,
+    defaultValue: 0,
+    field: 'working_days',
+  },
+  paidDays: {
+    type: DataTypes.DECIMAL(5, 2),
+    defaultValue: 0.00,
+    field: 'paid_days',
+  },
+  payableDays: {
+    type: DataTypes.DECIMAL(5, 2),
+    defaultValue: 0.00,
+    field: 'payable_days',
+  },
+  lopDays: {
+    type: DataTypes.DECIMAL(5, 2),
+    defaultValue: 0.00,
+    field: 'lop_days',
+  },
+  status: {
+    type: DataTypes.STRING(50),
+    defaultValue: 'Generated',
+  },
+  generatedBy: {
+    type: DataTypes.STRING(255),
+    allowNull: true,
+    field: 'generated_by',
+  },
+  generatedAt: {
+    type: DataTypes.DATE,
+    allowNull: true,
+    field: 'generated_at',
+  },
+  filePath: {
+    type: DataTypes.STRING(512),
+    allowNull: true,
+    field: 'file_path',
+  },
   paymentDate: {
     type: DataTypes.DATEONLY,
     allowNull: true,
     field: 'payment_date',
   },
   paymentStatus: {
-    type: DataTypes.ENUM('Pending', 'Paid'),
+    type: DataTypes.STRING(50),
     defaultValue: 'Pending',
     field: 'payment_status',
   },

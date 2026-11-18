@@ -29,7 +29,7 @@ const DAYS_OF_WEEK = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
 const MonthlyAttendance = ({ records = [], dbData = {}, onRefreshData }) => {
   const { user } = useAuth();
-  const employees = dbData["employees"] || dbData["employee_profile"] || [];
+  const employees = dbData["employees"] || dbData["employee_profile"] || dbData["Employee Profile"] || dbData["Employee"] || [];
 
   const currentDate = new Date();
   const [selectedYear, setSelectedYear] = useState(currentDate.getFullYear());

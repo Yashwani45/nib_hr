@@ -143,6 +143,30 @@ async function provisionDocumentTables(tenantDb) {
       if (!docColNames.includes('remarks')) {
         await tenantDb.query("ALTER TABLE `documents` ADD COLUMN `remarks` TEXT NULL").catch(() => {});
       }
+      if (!docColNames.includes('approved_by')) {
+        await tenantDb.query("ALTER TABLE `documents` ADD COLUMN `approved_by` VARCHAR(255) NULL").catch(() => {});
+      }
+      if (!docColNames.includes('approved_at')) {
+        await tenantDb.query("ALTER TABLE `documents` ADD COLUMN `approved_at` TIMESTAMP NULL").catch(() => {});
+      }
+      if (!docColNames.includes('issued_by')) {
+        await tenantDb.query("ALTER TABLE `documents` ADD COLUMN `issued_by` VARCHAR(255) NULL").catch(() => {});
+      }
+      if (!docColNames.includes('issued_at')) {
+        await tenantDb.query("ALTER TABLE `documents` ADD COLUMN `issued_at` TIMESTAMP NULL").catch(() => {});
+      }
+      if (!docColNames.includes('candidate_id')) {
+        await tenantDb.query("ALTER TABLE `documents` ADD COLUMN `candidate_id` VARCHAR(50) NULL").catch(() => {});
+      }
+      if (!docColNames.includes('branch_id')) {
+        await tenantDb.query("ALTER TABLE `documents` ADD COLUMN `branch_id` CHAR(36) NULL").catch(() => {});
+      }
+      if (!docColNames.includes('department_id')) {
+        await tenantDb.query("ALTER TABLE `documents` ADD COLUMN `department_id` CHAR(36) NULL").catch(() => {});
+      }
+      if (!docColNames.includes('file_hash')) {
+        await tenantDb.query("ALTER TABLE `documents` ADD COLUMN `file_hash` VARCHAR(64) NULL").catch(() => {});
+      }
       await tenantDb.query("ALTER TABLE `documents` MODIFY COLUMN `document_type_id` CHAR(36) NULL").catch(() => {});
     } catch (dhErr) {}
 

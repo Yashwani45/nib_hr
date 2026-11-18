@@ -2,7 +2,7 @@ import React from 'react';
 
 const Button = ({
   children,
-  variant = 'primary', // primary, secondary, success, danger, warning, info
+  variant = 'primary', // primary, secondary, success, danger, warning, info, outline, ghost
   size = 'medium', // small, medium, large
   disabled = false,
   loading = false,
@@ -14,44 +14,46 @@ const Button = ({
   className = '',
   ...props
 }) => {
-  const baseStyles = 'inline-flex items-center justify-center font-medium transition-all duration-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed';
-  
+  const baseStyles = 'inline-flex items-center justify-center font-semibold transition-all duration-150 rounded-xl focus:outline-none focus:ring-2 focus:ring-offset-1 disabled:opacity-50 disabled:cursor-not-allowed select-none cursor-pointer';
+
   const variants = {
-    primary: 'bg-blue-600 text-white hover:bg-blue-700 focus:ring-blue-500',
-    secondary: 'bg-gray-200 text-gray-800 hover:bg-gray-300 focus:ring-gray-500',
-    success: 'bg-green-600 text-white hover:bg-green-700 focus:ring-green-500',
-    danger: 'bg-red-600 text-white hover:bg-red-700 focus:ring-red-500',
-    warning: 'bg-yellow-500 text-white hover:bg-yellow-600 focus:ring-yellow-500',
-    info: 'bg-cyan-600 text-white hover:bg-cyan-700 focus:ring-cyan-500',
-    outline: 'border-2 border-blue-600 text-blue-600 hover:bg-blue-50 focus:ring-blue-500',
-    ghost: 'text-gray-700 hover:bg-gray-100 focus:ring-gray-500',
+    primary: 'bg-blue-600 hover:bg-blue-700 text-white shadow-xs focus:ring-blue-500/40 active:bg-blue-800',
+    secondary: 'bg-white hover:bg-slate-50 text-slate-700 border border-slate-200/90 shadow-2xs focus:ring-slate-300 active:bg-slate-100',
+    success: 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs focus:ring-emerald-500/40 active:bg-emerald-800',
+    danger: 'bg-rose-600 hover:bg-rose-700 text-white shadow-xs focus:ring-rose-500/40 active:bg-rose-800',
+    warning: 'bg-amber-500 hover:bg-amber-600 text-white shadow-xs focus:ring-amber-500/40 active:bg-amber-700',
+    info: 'bg-sky-600 hover:bg-sky-700 text-white shadow-xs focus:ring-sky-500/40 active:bg-sky-800',
+    outline: 'border border-slate-200 hover:border-slate-300 bg-white text-slate-700 hover:bg-slate-50 shadow-2xs focus:ring-slate-300',
+    ghost: 'text-slate-600 hover:text-slate-900 hover:bg-slate-100/80 focus:ring-slate-300',
   };
 
   const sizes = {
-    small: 'px-3 py-1.5 text-sm gap-1.5',
-    medium: 'px-4 py-2 text-base gap-2',
-    large: 'px-6 py-3 text-lg gap-2.5',
+    small: 'px-2.5 py-1.5 text-xs gap-1.5',
+    medium: 'px-3.5 py-2 text-xs font-bold gap-2',
+    large: 'px-5 py-2.5 text-sm font-bold gap-2.5',
   };
 
   const widthClass = fullWidth ? 'w-full' : '';
+  const selectedVariant = variants[variant] || variants.primary;
+  const selectedSize = sizes[size] || sizes.medium;
 
   return (
     <button
       type={type}
       onClick={onClick}
       disabled={disabled || loading}
-      className={`${baseStyles} ${variants[variant]} ${sizes[size]} ${widthClass} ${className}`}
+      className={`${baseStyles} ${selectedVariant} ${selectedSize} ${widthClass} ${className}`}
       {...props}
     >
       {loading && (
-        <svg className="animate-spin h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+        <svg className="animate-spin h-3.5 w-3.5 text-current" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
           <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
           <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
         </svg>
       )}
-      {icon && iconPosition === 'left' && !loading && <span className="inline-flex">{icon}</span>}
+      {icon && iconPosition === 'left' && !loading && <span className="inline-flex shrink-0">{icon}</span>}
       {children}
-      {icon && iconPosition === 'right' && <span className="inline-flex">{icon}</span>}
+      {icon && iconPosition === 'right' && !loading && <span className="inline-flex shrink-0">{icon}</span>}
     </button>
   );
 };

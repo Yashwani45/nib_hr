@@ -50,21 +50,25 @@ const provisionEmployeeTables = async (tenantDb) => {
       "specialization VARCHAR(255) NULL",
       "university VARCHAR(255) NULL",
       "prevCompany VARCHAR(255) NULL",
-      "prevDesignation VARCHAR(255) NULL"
-    ];
+      "prevDesignation VARCHAR(255) NULL",
 
-    const UI_COLUMNS_SET = new Set([
-      'id', 'employee_name', 'employeename', 'employeecode', 'emp_code',
-      'employeeid', 'photo', 'firstname', 'middlename', 'lastname',
-      'gender', 'dateofbirth', 'maritalstatus', 'bloodgroup', 'nationality',
-      'company', 'department', 'designation', 'dateofjoining',
-      'reportingmanager', 'employeetype', 'employeestatus', 'shift',
-      'weeklyoff', 'officialemail', 'personalemail', 'email',
-      'mobilenumber', 'alternatemobile', 'currentaddress', 'permanentaddress',
-      'highestdegree', 'specialization', 'university', 'prevcompany',
-      'prevdesignation', 'profile_data', 'user_id', 'userid',
-      'created_at', 'updated_at'
-    ]);
+      // Branch & Organization Association
+      "branch_id CHAR(36) NULL",
+      "branchName VARCHAR(255) NULL",
+      "branch VARCHAR(255) NULL",
+
+      // Bank & Financial Information
+      "bankName VARCHAR(255) NULL",
+      "accountHolderName VARCHAR(255) NULL",
+      "accountNumber VARCHAR(255) NULL",
+      "ifscCode VARCHAR(255) NULL",
+      "upiId VARCHAR(255) NULL",
+      "basicSalary VARCHAR(255) NULL",
+      "grossSalary VARCHAR(255) NULL",
+      "ctc VARCHAR(255) NULL",
+      "pfApplicable VARCHAR(50) NULL",
+      "esiApplicable VARCHAR(50) NULL"
+    ];
 
     for (const targetTbl of ['employees', 'employee_profile']) {
       let colResults = [];
@@ -86,13 +90,6 @@ const provisionEmployeeTables = async (tenantDb) => {
         const colName = colDef.split(' ')[0];
         if (!existingCols.includes(colName.toLowerCase())) {
           await tenantDb.query(`ALTER TABLE \`${targetTbl}\` ADD COLUMN \`${colName}\` ${colDef.substring(colName.length)}`).catch(() => {});
-        }
-      }
-
-      // Drop any extra columns that are not in the UI
-      for (const col of colResults) {
-        if (!UI_COLUMNS_SET.has(col.Field.toLowerCase())) {
-          await tenantDb.query(`ALTER TABLE \`${targetTbl}\` DROP COLUMN \`${col.Field}\``).catch(() => {});
         }
       }
     }
@@ -395,6 +392,210 @@ const provisionLeaveTables = async (tenantDb) => {
 
   } catch (err) {
     console.warn('[table.controller] provisionLeaveTables notice:', err.message);
+  }
+};
+
+const provisionShiftTables = async (tenantDb) => {
+  try {
+    const { QueryTypes } = require('sequelize');
+
+    // 1. Ensure shift_master exists with all required columns
+    await tenantDb.query(`
+      CREATE TABLE IF NOT EXISTS \`shift_master\` (
+        \`id\` INT AUTO_INCREMENT PRIMARY KEY,
+        \`shiftCode\` VARCHAR(255) NULL,
+        \`shiftName\` VARCHAR(255) NULL,
+        \`startTime\` VARCHAR(255) NULL,
+        \`endTime\` VARCHAR(255) NULL,
+        \`graceTime\` INT NULL DEFAULT 15,
+        \`breakDuration\` INT NULL DEFAULT 60,
+        \`department\` VARCHAR(255) NULL,
+        \`departmentId\` VARCHAR(255) NULL,
+        \`employee\` VARCHAR(255) NULL,
+        \`employeeId\` VARCHAR(255) NULL,
+        \`employeeCode\` VARCHAR(255) NULL,
+        \`isOvernight\` TINYINT(1) NULL DEFAULT 0,
+        \`totalHours\` DECIMAL(4,2) NULL,
+        \`netWorkingHours\` DECIMAL(4,2) NULL,
+        \`effectiveFrom\` DATE NULL,
+        \`effectiveTo\` DATE NULL,
+        \`remarks\` TEXT NULL,
+        \`description\` TEXT NULL,
+        \`status\` VARCHAR(50) DEFAULT 'Active',
+        \`created_at\` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        \`updated_at\` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        \`deleted_at\` TIMESTAMP NULL
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+    `).catch(() => {});
+
+    const shiftCols = (await tenantDb.query("SHOW COLUMNS FROM `shift_master`", { type: QueryTypes.SELECT }).catch(() => [])).map(c => c.Field.toLowerCase());
+    const neededColumns = [
+      { name: 'department', def: 'VARCHAR(255) NULL' },
+      { name: 'department_id', def: 'VARCHAR(255) NULL' },
+      { name: 'departmentId', def: 'VARCHAR(255) NULL' },
+      { name: 'employee', def: 'VARCHAR(255) NULL' },
+      { name: 'employee_id', def: 'VARCHAR(255) NULL' },
+      { name: 'employeeId', def: 'VARCHAR(255) NULL' },
+      { name: 'employee_code', def: 'VARCHAR(255) NULL' },
+      { name: 'employeeCode', def: 'VARCHAR(255) NULL' },
+      { name: 'break_duration', def: 'INT NULL DEFAULT 60' },
+      { name: 'breakDuration', def: 'INT NULL DEFAULT 60' },
+      { name: 'is_overnight', def: 'TINYINT(1) NULL DEFAULT 0' },
+      { name: 'isOvernight', def: 'TINYINT(1) NULL DEFAULT 0' },
+      { name: 'total_hours', def: 'DECIMAL(4,2) NULL' },
+      { name: 'totalHours', def: 'DECIMAL(4,2) NULL' },
+      { name: 'net_working_hours', def: 'DECIMAL(4,2) NULL' },
+      { name: 'netWorkingHours', def: 'DECIMAL(4,2) NULL' },
+      { name: 'effective_from', def: 'DATE NULL' },
+      { name: 'effectiveFrom', def: 'DATE NULL' },
+      { name: 'effective_to', def: 'DATE NULL' },
+      { name: 'effectiveTo', def: 'DATE NULL' },
+      { name: 'remarks', def: 'TEXT NULL' },
+      { name: 'description', def: 'TEXT NULL' }
+    ];
+
+    for (const c of neededColumns) {
+      if (!shiftCols.includes(c.name.toLowerCase())) {
+        await tenantDb.query(`ALTER TABLE \`shift_master\` ADD COLUMN \`${c.name}\` ${c.def}`).catch(() => {});
+      }
+    }
+
+    // 2. Ensure shift_assignments table exists
+    await tenantDb.query(`
+      CREATE TABLE IF NOT EXISTS \`shift_assignments\` (
+        \`id\` CHAR(36) NOT NULL PRIMARY KEY,
+        \`shift_id\` VARCHAR(255) NULL,
+        \`shift_code\` VARCHAR(255) NULL,
+        \`shift_name\` VARCHAR(255) NULL,
+        \`department\` VARCHAR(255) NULL,
+        \`employee_id\` VARCHAR(255) NULL,
+        \`employee_code\` VARCHAR(255) NULL,
+        \`employee_name\` VARCHAR(255) NULL,
+        \`assignment_type\` ENUM('Department', 'Individual') DEFAULT 'Individual',
+        \`effective_from\` DATE NULL,
+        \`effective_to\` DATE NULL,
+        \`remarks\` TEXT NULL,
+        \`assigned_by\` VARCHAR(255) NULL,
+        \`status\` VARCHAR(50) DEFAULT 'Active',
+        \`created_at\` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        \`updated_at\` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+    `).catch(() => {});
+
+    // 3. Ensure shift_assignment_history table exists
+    await tenantDb.query(`
+      CREATE TABLE IF NOT EXISTS \`shift_assignment_history\` (
+        \`id\` CHAR(36) NOT NULL PRIMARY KEY,
+        \`employee_id\` VARCHAR(255) NULL,
+        \`employee_code\` VARCHAR(255) NULL,
+        \`employee_name\` VARCHAR(255) NULL,
+        \`department\` VARCHAR(255) NULL,
+        \`previous_shift\` VARCHAR(255) NULL,
+        \`new_shift\` VARCHAR(255) NULL,
+        \`effective_from\` DATE NULL,
+        \`effective_to\` DATE NULL,
+        \`assignment_type\` VARCHAR(50) NULL,
+        \`assigned_by\` VARCHAR(255) NULL,
+        \`remarks\` TEXT NULL,
+        \`created_at\` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+    `).catch(() => {});
+  } catch (err) {
+    console.warn('[table.controller] provisionShiftTables notice:', err.message);
+  }
+};
+
+const provisionOvertimeTables = async (tenantDb) => {
+  try {
+    const { QueryTypes } = require('sequelize');
+
+    // 1. Ensure overtime_masters exists with full enterprise schema
+    await tenantDb.query(`
+      CREATE TABLE IF NOT EXISTS \`overtime_masters\` (
+        \`id\` CHAR(36) NOT NULL PRIMARY KEY,
+        \`overtimeName\` VARCHAR(255) NULL,
+        \`overtime_name\` VARCHAR(255) NULL,
+        \`policyCode\` VARCHAR(255) NULL,
+        \`policy_code\` VARCHAR(255) NULL,
+        \`calculationType\` VARCHAR(255) NULL DEFAULT 'Salary-Based Multiplier',
+        \`calculation_type\` VARCHAR(255) NULL DEFAULT 'Salary-Based Multiplier',
+        \`rateMultiplier\` DECIMAL(12,2) NULL DEFAULT 1.50,
+        \`rate_multiplier\` FLOAT NULL DEFAULT 1.50,
+        \`fixedRate\` DECIMAL(12,2) NULL DEFAULT 0.00,
+        \`fixed_rate\` DECIMAL(12,2) NULL DEFAULT 0.00,
+        \`minHours\` DECIMAL(12,2) NULL DEFAULT 1.00,
+        \`min_hours\` FLOAT NULL DEFAULT 1.00,
+        \`maxHours\` DECIMAL(12,2) NULL DEFAULT 4.00,
+        \`max_hours\` FLOAT NULL DEFAULT 4.00,
+        \`maxDailyHours\` DECIMAL(5,2) NULL DEFAULT 4.00,
+        \`max_daily_hours\` DECIMAL(5,2) NULL DEFAULT 4.00,
+        \`maxMonthlyHours\` DECIMAL(5,2) NULL DEFAULT 40.00,
+        \`max_monthly_hours\` DECIMAL(5,2) NULL DEFAULT 40.00,
+        \`applicableDept\` VARCHAR(255) NULL DEFAULT 'All Departments',
+        \`applicable_dept\` VARCHAR(255) NULL DEFAULT 'All Departments',
+        \`department\` VARCHAR(255) NULL DEFAULT 'All Departments',
+        \`employee\` VARCHAR(255) NULL,
+        \`employeeId\` VARCHAR(255) NULL,
+        \`employee_id\` VARCHAR(255) NULL,
+        \`employeeCode\` VARCHAR(255) NULL,
+        \`employee_code\` VARCHAR(255) NULL,
+        \`allowWeeklyOff\` VARCHAR(50) NULL DEFAULT 'Yes',
+        \`allow_weekly_off\` VARCHAR(50) NULL DEFAULT 'Yes',
+        \`allowHolidays\` VARCHAR(50) NULL DEFAULT 'Yes',
+        \`allow_holidays\` VARCHAR(50) NULL DEFAULT 'Yes',
+        \`gracePeriod\` INT NULL DEFAULT 15,
+        \`grace_period\` INT NULL DEFAULT 15,
+        \`requiresManagerApproval\` VARCHAR(50) NULL DEFAULT 'Yes',
+        \`requires_manager_approval\` TINYINT(1) NULL DEFAULT 1,
+        \`requiresHrApproval\` VARCHAR(50) NULL DEFAULT 'Yes',
+        \`requires_hr_approval\` TINYINT(1) NULL DEFAULT 1,
+        \`payrollIntegrated\` VARCHAR(50) NULL DEFAULT 'Yes',
+        \`payroll_integrated\` TINYINT(1) NULL DEFAULT 1,
+        \`status\` VARCHAR(50) DEFAULT 'Active',
+        \`remarks\` TEXT NULL,
+        \`description\` TEXT NULL,
+        \`created_at\` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        \`updated_at\` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        \`deleted_at\` TIMESTAMP NULL
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+    `).catch(() => {});
+
+    // Ensure overtime_requests table exists
+    await tenantDb.query(`
+      CREATE TABLE IF NOT EXISTS \`overtime_requests\` (
+        \`id\` CHAR(36) NOT NULL PRIMARY KEY,
+        \`request_code\` VARCHAR(100) NULL,
+        \`employee_id\` VARCHAR(255) NULL,
+        \`employee_code\` VARCHAR(255) NULL,
+        \`employee_name\` VARCHAR(255) NULL,
+        \`department\` VARCHAR(255) NULL,
+        \`ot_date\` DATE NULL,
+        \`shift_name\` VARCHAR(255) NULL,
+        \`start_time\` VARCHAR(50) NULL,
+        \`end_time\` VARCHAR(50) NULL,
+        \`actual_ot_hours\` DECIMAL(5,2) NOT NULL DEFAULT 0.00,
+        \`approved_ot_hours\` DECIMAL(5,2) NOT NULL DEFAULT 0.00,
+        \`rate_multiplier\` DECIMAL(4,2) NOT NULL DEFAULT 1.50,
+        \`hourly_rate\` DECIMAL(12,2) NOT NULL DEFAULT 0.00,
+        \`ot_amount\` DECIMAL(12,2) NOT NULL DEFAULT 0.00,
+        \`ot_policy_name\` VARCHAR(255) NULL,
+        \`reason\` TEXT NULL,
+        \`manager_status\` ENUM('Pending', 'Approved', 'Rejected') DEFAULT 'Pending',
+        \`manager_id\` VARCHAR(255) NULL,
+        \`manager_remarks\` TEXT NULL,
+        \`manager_action_date\` DATETIME NULL,
+        \`hr_status\` ENUM('Pending', 'Approved', 'Rejected') DEFAULT 'Pending',
+        \`hr_id\` VARCHAR(255) NULL,
+        \`hr_remarks\` TEXT NULL,
+        \`hr_action_date\` DATETIME NULL,
+        \`payroll_status\` ENUM('Pending', 'Synced', 'Paid') DEFAULT 'Pending',
+        \`status\` ENUM('Pending', 'Approved', 'Rejected', 'Cancelled') DEFAULT 'Pending',
+        \`created_at\` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        \`updated_at\` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+    `).catch(() => {});
+  } catch (err) {
+    console.warn('[table.controller] provisionOvertimeTables notice:', err.message);
   }
 };
 
@@ -1426,6 +1627,7 @@ const ALLOWED_TABLES = [
   'reporting_hierarchy',
   'organizational_chart',
   'employee_profile',
+  'employee',
   'employees',
   'job_requisition',
   'candidate_database',
@@ -1435,6 +1637,12 @@ const ALLOWED_TABLES = [
   'attendance_regularization',
   'biometric_logs',
   'shift_master',
+  'shifts',
+  'shift',
+  'shift_assignments',
+  'shift_assignment',
+  'shift_assignment_history',
+  'shift_history',
   'leave_types',
   'leave_requests',
   'salary_structure',
@@ -1477,6 +1685,9 @@ const ALLOWED_TABLES = [
   'overtime_master',
   'overtime_masters',
   'overtime',
+  'overtime_requests',
+  'overtime_records',
+  'overtime_request',
   'bonus_master',
   'bonus_masters',
   'bonus',
@@ -1553,6 +1764,10 @@ const TABLE_NAME_MAP = {
   'exit_dashboard': 'exit_requests',
   'business_unit': 'business_units',
   'business_units': 'business_units',
+  'shifts': 'shift_master',
+  'shift': 'shift_master',
+  'shift_assignment': 'shift_assignments',
+  'shift_history': 'shift_assignment_history',
   'cost_center': 'cost_centers',
   'cost_centers': 'cost_centers',
   'reporting_hierarchy': 'reporting_hierarchies',
@@ -1568,6 +1783,11 @@ const TABLE_NAME_MAP = {
   'overtime': 'overtime_masters',
   'overtime_master': 'overtime_masters',
   'overtime_masters': 'overtime_masters',
+  'overtime_requests': 'overtime_requests',
+  'overtime_request': 'overtime_requests',
+  'overtime_records': 'overtime_requests',
+  'employee': 'employees',
+  'employee_profile': 'employees',
   'bonus': 'bonus_masters',
   'bonus_master': 'bonus_masters',
   'bonus_masters': 'bonus_masters',
@@ -1622,7 +1842,7 @@ const TABLE_NAME_MAP = {
 
 const validateTableName = (tableName) => {
   let clean = tableName.toLowerCase().trim();
-  if (clean === 'employee_profile') {
+  if (clean === 'employee_profile' || clean === 'employee') {
     clean = 'employees';
   }
   if (!ALLOWED_TABLES.includes(clean) && clean !== 'employees') {
@@ -1662,6 +1882,48 @@ const isHrOrAdminUser = async (req) => {
     } catch (e) {}
   }
   return false;
+};
+
+const resolveBranchInfo = async (tenantDb, branchInput, fallbackId, fallbackName, fallbackCode) => {
+  const candidate = branchInput || fallbackId || fallbackName || fallbackCode;
+  if (!candidate || String(candidate).toUpperCase() === 'ALL') {
+    return null;
+  }
+  try {
+    const branchRows = await tenantDb.query(
+      `SELECT id, 
+              COALESCE(NULLIF(branch_code, ''), branchCode) as branch_code, 
+              COALESCE(NULLIF(branch_name, ''), branchName) as branch_name 
+       FROM branches 
+       WHERE (id = :val 
+          OR branch_code = :val 
+          OR branchCode = :val 
+          OR branch_name = :val 
+          OR branchName = :val 
+          OR LOWER(branch_name) = LOWER(:val) 
+          OR LOWER(branchName) = LOWER(:val)) 
+         AND deleted_at IS NULL 
+       LIMIT 1`,
+      { replacements: { val: String(candidate).trim() }, type: QueryTypes.SELECT }
+    ).catch(() => []);
+
+    if (branchRows && branchRows.length > 0) {
+      return {
+        id: branchRows[0].id,
+        name: branchRows[0].branch_name || fallbackName,
+        code: branchRows[0].branch_code || fallbackCode || ''
+      };
+    }
+  } catch (e) {}
+
+  if (fallbackId && fallbackName) {
+    return {
+      id: fallbackId,
+      name: fallbackName,
+      code: fallbackCode || ''
+    };
+  }
+  return null;
 };
 
 // GET: Fetch all rows from a table
@@ -1724,6 +1986,16 @@ const getTableData = asyncHandler(async (req, res) => {
   const learningTables = ['learning_dashboard', 'learning_dashboards', 'courses', 'lms_progress', 'training_records', 'skill_development', 'certification_tracking', 'training_feedback'];
   if (learningTables.includes(tableName)) {
     await provisionLearningTables(req.tenantDb);
+  }
+
+  const shiftTables = ['shift_master', 'shifts', 'shift', 'shift_assignments', 'shift_assignment', 'shift_assignment_history', 'shift_history'];
+  if (shiftTables.includes(tableName)) {
+    await provisionShiftTables(req.tenantDb);
+  }
+
+  const overtimeTables = ['overtime_masters', 'overtime_master', 'overtime', 'overtime_requests', 'overtime_request', 'overtime_records'];
+  if (overtimeTables.includes(tableName)) {
+    await provisionOvertimeTables(req.tenantDb);
   }
 
   const documentTables = ['document_types', 'document_templates', 'documents', 'document_versions', 'document_approvals', 'document_assignments', 'document_acknowledgements', 'document_signatures', 'document_verifications', 'document_access_logs', 'document_expiry_reminders', 'document_field_values'];
@@ -1812,6 +2084,164 @@ const getTableData = asyncHandler(async (req, res) => {
     }
   }
 
+  // =========================================================================
+  // PRODUCTION COMPANY & BRANCH-WISE DATA ISOLATION
+  // =========================================================================
+  const activeBranchId = req.branchId || req.headers['x-branch-id'] || req.query.branchId;
+  const isBranchScoped = activeBranchId && String(activeBranchId).toUpperCase() !== 'ALL' && !req.isAllBranches;
+
+  if (isBranchScoped && rows && rows.length > 0) {
+    const activeBranchName = req.branchName || req.headers['x-branch-name'] || req.query.branchName;
+    const activeBranchCode = req.branchCode || req.headers['x-branch-code'] || req.query.branchCode;
+
+    const sharedCompanyTables = [
+      'branches', 'branch', 'company',
+      'designation', 'designations',
+      'leave_type_master', 'leave_type_masters', 'leave_types',
+      'overtime_master', 'overtime_masters',
+      'bonus_master', 'bonus_masters',
+      'shift_master', 'shifts',
+      'roles', 'permissions',
+      'org_attendance_configs', 'org_attendance_methods'
+    ];
+
+    if (!sharedCompanyTables.includes(tableName)) {
+      if (tableName === 'departments') {
+        rows = rows.filter(r => !r.branch_id || String(r.branch_id).trim() === String(activeBranchId).trim());
+      } else if (tableName === 'holidays') {
+        rows = rows.filter(r => {
+          if (!r.branch) return true;
+          const bLower = String(r.branch).trim().toLowerCase();
+          if (bLower === 'all' || bLower === 'all branches' || bLower.includes('all')) return true;
+          return (
+            (activeBranchName && String(r.branch).trim().toLowerCase() === String(activeBranchName).trim().toLowerCase()) ||
+            (activeBranchCode && String(r.branch).trim().toUpperCase() === String(activeBranchCode).trim().toUpperCase()) ||
+            (String(r.branch).trim() === String(activeBranchId).trim())
+          );
+        });
+      } else if (tableName === 'employees' || tableName === 'employee_profile') {
+        rows = rows.filter(r => {
+          const rBranchId = r.branch_id || r.branchId;
+          const rBranchName = r.branchName || r.branch_name || r.branch;
+          const idMatch = rBranchId && String(rBranchId).trim() === String(activeBranchId).trim();
+          const nameMatch = activeBranchName && rBranchName && String(rBranchName).trim().toLowerCase() === String(activeBranchName).trim().toLowerCase();
+          const codeMatch = activeBranchCode && rBranchName && String(rBranchName).trim().toUpperCase() === String(activeBranchCode).trim().toUpperCase();
+          return idMatch || nameMatch || codeMatch;
+        });
+      } else {
+        // Retrieve all employee identifiers currently associated with this branch in the tenant DB
+        let branchEmployees = [];
+        try {
+          branchEmployees = await req.tenantDb.query(
+            `SELECT id, employeeCode, emp_code, employeeId, email, employee_name, firstName, lastName 
+             FROM employees 
+             WHERE (branch_id = :bId 
+                OR LOWER(branchName) = LOWER(:bName) 
+                OR UPPER(branchName) = UPPER(:bCode)
+                OR LOWER(branch) = LOWER(:bName)
+                OR UPPER(branch) = UPPER(:bCode))`,
+            {
+              replacements: {
+                bId: activeBranchId,
+                bName: activeBranchName || activeBranchId,
+                bCode: activeBranchCode || activeBranchId
+              },
+              type: QueryTypes.SELECT
+            }
+          );
+        } catch (e) {
+          branchEmployees = [];
+        }
+
+        if (!branchEmployees || branchEmployees.length === 0) {
+          try {
+            branchEmployees = await req.tenantDb.query(
+              `SELECT id, employeeCode, emp_code, employeeId, email, employee_name, firstName, lastName 
+               FROM employee_profile 
+               WHERE (branch_id = :bId 
+                  OR LOWER(branchName) = LOWER(:bName) 
+                  OR UPPER(branchName) = UPPER(:bCode)
+                  OR LOWER(branch) = LOWER(:bName)
+                  OR UPPER(branch) = UPPER(:bCode))`,
+              {
+                replacements: {
+                  bId: activeBranchId,
+                  bName: activeBranchName || activeBranchId,
+                  bCode: activeBranchCode || activeBranchId
+                },
+                type: QueryTypes.SELECT
+              }
+            );
+          } catch (e2) {
+            branchEmployees = [];
+          }
+        }
+
+        const branchEmpKeys = new Set();
+        for (const emp of branchEmployees) {
+          if (emp.id) branchEmpKeys.add(String(emp.id).toLowerCase().trim());
+          if (emp.employeeCode) branchEmpKeys.add(String(emp.employeeCode).toLowerCase().trim());
+          if (emp.emp_code) branchEmpKeys.add(String(emp.emp_code).toLowerCase().trim());
+          if (emp.employeeId) branchEmpKeys.add(String(emp.employeeId).toLowerCase().trim());
+          if (emp.email) branchEmpKeys.add(String(emp.email).toLowerCase().trim());
+          if (emp.employee_name) branchEmpKeys.add(String(emp.employee_name).toLowerCase().trim());
+          const fullName = `${emp.firstName || ''} ${emp.lastName || ''}`.trim().toLowerCase();
+          if (fullName) branchEmpKeys.add(fullName);
+        }
+
+        if (tableName === 'daily_attendance') {
+          rows = rows.filter(r => {
+            const rBranch = String(r.branch || '').trim();
+            if (rBranch) {
+              return (activeBranchName && rBranch.toLowerCase() === activeBranchName.toLowerCase()) ||
+                     (activeBranchCode && rBranch.toUpperCase() === activeBranchCode.toUpperCase()) ||
+                     (rBranch === activeBranchId);
+            }
+            const empKey = String(r.empId || r.emp_id || r.employeeId || r.name || '').toLowerCase().trim();
+            return branchEmpKeys.has(empKey);
+          });
+        } else if (tableName === 'payroll_process') {
+          rows = rows.filter(r => {
+            const rBranch = String(r.branch || '').trim();
+            if (rBranch) {
+              return (activeBranchName && rBranch.toLowerCase() === activeBranchName.toLowerCase()) ||
+                     (activeBranchCode && rBranch.toUpperCase() === activeBranchCode.toUpperCase()) ||
+                     (rBranch === activeBranchId);
+            }
+            const empKey = String(r.employeeCode || r.emp_code || r.employee || '').toLowerCase().trim();
+            return branchEmpKeys.has(empKey);
+          });
+        } else {
+          rows = rows.filter(r => {
+            const rBranch = String(r.branch || r.branch_name || r.branchName || r.branch_id || '').trim();
+            if (rBranch) {
+              return (activeBranchName && rBranch.toLowerCase() === activeBranchName.toLowerCase()) ||
+                     (activeBranchCode && rBranch.toUpperCase() === activeBranchCode.toUpperCase()) ||
+                     (rBranch === activeBranchId);
+            }
+            const candidateKeys = [
+              r.employee_id,
+              r.employeeId,
+              r.emp_id,
+              r.empId,
+              r.employeeCode,
+              r.emp_code,
+              r.emp_name,
+              r.employee_name,
+              r.employeeName,
+              r.empName,
+              r.employee,
+              r.email,
+              r.created_by
+            ].filter(Boolean).map(k => String(k).toLowerCase().trim());
+
+            return candidateKeys.some(k => branchEmpKeys.has(k));
+          });
+        }
+      }
+    }
+  }
+
   if (tableName === 'employees' || tableName === 'employee_profile') {
     const userRoleStr = String(typeof req.user.role === 'object' ? req.user.role?.name : req.user.role || '').toLowerCase().trim();
     if (userRoleStr === 'employee') {
@@ -1827,16 +2257,29 @@ const getTableData = asyncHandler(async (req, res) => {
     const userRoleStr = String(typeof req.user.role === 'object' ? req.user.role?.name : req.user.role || '').toLowerCase().trim();
     if (userRoleStr === 'employee' && req.query.all !== 'true' && req.query.scope !== 'all') {
       const [empRecord] = await req.tenantDb.query(
-        "SELECT employeeCode FROM employees WHERE LOWER(email) = ? OR LOWER(officialEmail) = ? LIMIT 1",
+        "SELECT id, employeeCode FROM employees WHERE LOWER(email) = ? OR LOWER(officialEmail) = ? LIMIT 1",
         { replacements: [req.user.email.toLowerCase().trim(), req.user.email.toLowerCase().trim()], type: require('sequelize').QueryTypes.SELECT }
       ).catch(() => [null]);
       
       const empCode = empRecord ? empRecord.employeeCode : (req.user.username || null);
-      if (empCode) {
-        const empCodeCol = tableName === 'salary_structure' ? 'employeeId' : (tableName === 'asset_allocation' ? 'empId' : 'employeeCode');
-        rows = rows.filter(r => 
-          String(r[empCodeCol] || '').toLowerCase().trim() === String(empCode).toLowerCase().trim()
-        );
+      const empDbId = empRecord ? empRecord.id : null;
+      if (empCode || empDbId) {
+        if (tableName === 'daily_attendance' || tableName === 'attendance_regularization' || tableName === 'biometric_logs') {
+          rows = rows.filter(r => {
+            const rowEmpCode = String(r.empId || r.emp_id || r.employeeCode || r.employee_code || '').toLowerCase().trim();
+            const rowEmpId = String(r.employeeId || r.employee_id || '').toLowerCase().trim();
+            const targetCode = String(empCode || '').toLowerCase().trim();
+            const targetId = String(empDbId || '').toLowerCase().trim();
+            return (targetCode && rowEmpCode === targetCode) || 
+                   (targetId && rowEmpId === targetId) ||
+                   (targetCode && rowEmpId === targetCode);
+          });
+        } else {
+          const empCodeCol = tableName === 'salary_structure' ? 'employeeId' : (tableName === 'asset_allocation' ? 'empId' : 'employeeCode');
+          rows = rows.filter(r => 
+            String(r[empCodeCol] || '').toLowerCase().trim() === String(empCode).toLowerCase().trim()
+          );
+        }
       } else {
         rows = [];
       }
@@ -2021,6 +2464,19 @@ const getTableData = asyncHandler(async (req, res) => {
     });
   }
 
+  if (tableName === 'employees' || tableName === 'employee_profile') {
+    rows = rows.map(r => {
+      const br = r.branch || r.branchName || r.branch_name || '';
+      return {
+        ...r,
+        branch: br,
+        branchName: r.branchName || br,
+        branch_name: r.branch_name || br,
+        branch_id: r.branch_id || r.branchId || ''
+      };
+    });
+  }
+
   if (tableName === 'joining_records') {
     try {
       const fs = require('fs');
@@ -2144,6 +2600,10 @@ const sanitizeDataForTable = async (tenantDb, tableName, inputData) => {
     parent_dept: 'parent_dept_id',
     parentDepartment: 'parent_dept_id',
     branchId: 'branch_id',
+    branch_id: 'branch_id',
+    branchName: 'branchName',
+    branch_name: 'branchName',
+    branch: 'branch',
     companyId: 'company_id',
     hrEmail: 'hr_email',
     hrPassword: 'hr_password',
@@ -2346,30 +2806,28 @@ const sanitizeDataForTable = async (tenantDb, tableName, inputData) => {
 
     const isUUID = (str) => /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/.test(String(str || '').trim());
 
-    // 1. Branch ID Resolution (Ensure it is ALWAYS a valid UUID)
-    if (validColumns.includes('branch_id') && !isUUID(sanitized.branch_id)) {
-      const textBranch = inputData.branch_office_location || inputData.branch || inputData.branchId || inputData.branch_id || '';
-      try {
-        const [branchRows] = await tenantDb.query(
-          "SELECT id FROM branches WHERE branch_name LIKE ? OR branch_code LIKE ? LIMIT 1",
-          { replacements: [`%${textBranch}%`, `%${textBranch}%`] }
-        );
-        if (branchRows && branchRows.length > 0 && isUUID(branchRows[0].id)) {
-          sanitized.branch_id = branchRows[0].id;
-        } else {
-          const [anyBranch] = await tenantDb.query("SELECT id FROM branches LIMIT 1");
-          sanitized.branch_id = (anyBranch && anyBranch[0] && isUUID(anyBranch[0].id)) ? anyBranch[0].id : null;
-          if (!sanitized.branch_id) {
-            const fallbackBranchId = require('crypto').randomUUID();
-            await tenantDb.query(
-              "INSERT INTO branches (id, branch_code, branch_name, status, created_at, updated_at) VALUES (?, 'HO-01', 'Head Office', 'Active', NOW(), NOW())",
-              { replacements: [fallbackBranchId] }
-            ).catch(() => {});
-            sanitized.branch_id = fallbackBranchId;
-          }
+    // 1. Branch ID Resolution (Preserves genuine branch or allows NULL for single-location / empty-branch setup)
+    if (validColumns.includes('branch_id')) {
+      const explicitBranchId = inputData.branch_id || inputData.branchId;
+      if (explicitBranchId && isUUID(explicitBranchId)) {
+        sanitized.branch_id = explicitBranchId;
+      } else {
+        const textBranch = inputData.branch_office_location || inputData.branch || inputData.branchName || inputData.branch_name || '';
+        if (textBranch) {
+          try {
+            const [branchRows] = await tenantDb.query(
+              "SELECT id, branch_name FROM branches WHERE (branch_name LIKE ? OR branch_code LIKE ? OR id = ?) AND deleted_at IS NULL LIMIT 1",
+              { replacements: [`%${textBranch}%`, `%${textBranch}%`, textBranch] }
+            );
+            if (branchRows && branchRows.length > 0) {
+              sanitized.branch_id = branchRows[0].id;
+              if (validColumns.includes('branchName')) sanitized.branchName = branchRows[0].branch_name;
+            }
+          } catch (e) {}
         }
-      } catch (e) {
-        sanitized.branch_id = require('crypto').randomUUID();
+      }
+      if (!isUUID(sanitized.branch_id)) {
+        sanitized.branch_id = null;
       }
     }
 
@@ -2801,6 +3259,16 @@ const createTableRecord = asyncHandler(async (req, res) => {
     await provisionLearningTables(req.tenantDb);
   }
 
+  const shiftTables = ['shift_master', 'shifts', 'shift', 'shift_assignments', 'shift_assignment', 'shift_assignment_history', 'shift_history'];
+  if (shiftTables.includes(tableName)) {
+    await provisionShiftTables(req.tenantDb);
+  }
+
+  const overtimeTables = ['overtime_masters', 'overtime_master', 'overtime', 'overtime_requests', 'overtime_request', 'overtime_records'];
+  if (overtimeTables.includes(tableName)) {
+    await provisionOvertimeTables(req.tenantDb);
+  }
+
   const documentTables = ['document_types', 'document_templates', 'documents', 'document_versions', 'document_approvals', 'document_assignments', 'document_acknowledgements', 'document_signatures', 'document_verifications', 'document_access_logs', 'document_expiry_reminders', 'document_field_values'];
   if (documentTables.includes(tableName)) {
     const { provisionDocumentTables } = require('../../services/core/document.provisioner');
@@ -2901,6 +3369,21 @@ const createTableRecord = asyncHandler(async (req, res) => {
     }
   }
 
+  const branchCandidate = rawData.branch_id || rawData.branchId || rawData.branchName || rawData.branch || req.branchId || req.headers['x-branch-id'];
+  const branchInfo = await resolveBranchInfo(req.tenantDb, branchCandidate, req.branchId, req.branchName, req.branchCode);
+  if (branchInfo) {
+    if (tableName === 'employees' || tableName === 'employee_profile') {
+      rawData.branch_id = branchInfo.id;
+      rawData.branchName = branchInfo.name;
+      rawData.branch = branchInfo.name;
+    } else if (tableName === 'departments') {
+      rawData.branch_id = branchInfo.id;
+      rawData.branch = branchInfo.name;
+    } else if (tableName === 'daily_attendance' || tableName === 'payroll_process' || tableName === 'leave_requests' || tableName === 'holidays') {
+      rawData.branch = branchInfo.name;
+    }
+  }
+
   const formattedData = await sanitizeDataForTable(req.tenantDb, tableName, rawData);
   
   // Ensure created_at / updated_at are properly handled if columns exist in MySQL table
@@ -2976,6 +3459,88 @@ const createTableRecord = asyncHandler(async (req, res) => {
           "UPDATE employee_profile SET manager_id = ? WHERE id = ?",
           { replacements: [managerId || null, empId] }
         ).catch(() => {});
+      }
+    }
+
+    if (tableName === 'shift_master') {
+      try {
+        const shiftName = formattedData.shiftName || rawData.shiftName || 'Standard Shift';
+        const startTime = formattedData.startTime || rawData.startTime || '09:00 AM';
+        const endTime = formattedData.endTime || rawData.endTime || '06:00 PM';
+        const shiftLabel = `${shiftName} (${startTime} - ${endTime})`;
+        const targetDept = formattedData.department || rawData.department;
+        const targetEmp = formattedData.employee || rawData.employee;
+        const assignedBy = req.user?.email || req.user?.employeeName || 'Admin';
+
+        if (targetEmp && targetEmp !== 'All Employees' && !targetEmp.startsWith('All Employees') && targetEmp !== '-- Select Employee --') {
+          const cleanEmpName = targetEmp.replace(/\s*\([^)]*\)/g, '').trim();
+          const [empRows] = await req.tenantDb.query(
+            "SELECT id, employeeCode, firstName, lastName, department, shift FROM employees WHERE (CONCAT(firstName, ' ', lastName) LIKE :emp OR employeeName = :emp OR employeeCode = :emp OR id = :emp) LIMIT 1",
+            { replacements: { emp: `%${cleanEmpName}%` }, type: QueryTypes.SELECT }
+          ).catch(() => [null]);
+
+          if (empRows) {
+            const prevShift = empRows.shift || 'General Shift';
+            await req.tenantDb.query(
+              "UPDATE employees SET shift = :shift WHERE id = :id",
+              { replacements: { shift: shiftLabel, id: empRows.id } }
+            ).catch(() => {});
+
+            const histId = require('crypto').randomUUID ? require('crypto').randomUUID() : Math.random().toString(36).substring(2, 15);
+            await req.tenantDb.query(`
+              INSERT INTO shift_assignment_history (id, employee_id, employee_code, employee_name, department, previous_shift, new_shift, effective_from, effective_to, assignment_type, assigned_by, remarks, created_at)
+              VALUES (:id, :empId, :empCode, :empName, :dept, :prevShift, :newShift, :effFrom, :effTo, 'Individual', :assignedBy, :remarks, NOW())
+            `, {
+              replacements: {
+                id: histId,
+                empId: empRows.id,
+                empCode: empRows.employeeCode || '',
+                empName: `${empRows.firstName || ''} ${empRows.lastName || ''}`.trim(),
+                dept: empRows.department || targetDept || '',
+                prevShift: prevShift,
+                newShift: shiftLabel,
+                effFrom: formattedData.effectiveFrom || null,
+                effTo: formattedData.effectiveTo || null,
+                assignedBy: assignedBy,
+                remarks: formattedData.remarks || 'Individual shift assignment via Shift Master'
+              }
+            }).catch(() => {});
+          }
+        } else if (targetDept && targetDept !== 'All Departments') {
+          const empsInDept = await req.tenantDb.query(
+            "SELECT id, employeeCode, firstName, lastName, department, shift FROM employees WHERE department = :dept",
+            { replacements: { dept: targetDept }, type: QueryTypes.SELECT }
+          ).catch(() => []);
+
+          for (const e of empsInDept) {
+            const histId = require('crypto').randomUUID ? require('crypto').randomUUID() : Math.random().toString(36).substring(2, 15);
+            await req.tenantDb.query(`
+              INSERT INTO shift_assignment_history (id, employee_id, employee_code, employee_name, department, previous_shift, new_shift, effective_from, effective_to, assignment_type, assigned_by, remarks, created_at)
+              VALUES (:id, :empId, :empCode, :empName, :dept, :prevShift, :newShift, :effFrom, :effTo, 'Department', :assignedBy, :remarks, NOW())
+            `, {
+              replacements: {
+                id: histId,
+                empId: e.id,
+                empCode: e.employeeCode || '',
+                empName: `${e.firstName || ''} ${e.lastName || ''}`.trim(),
+                dept: targetDept,
+                prevShift: e.shift || 'General Shift',
+                newShift: shiftLabel,
+                effFrom: formattedData.effectiveFrom || null,
+                effTo: formattedData.effectiveTo || null,
+                assignedBy: assignedBy,
+                remarks: formattedData.remarks || `Department-wide shift assignment for ${targetDept}`
+              }
+            }).catch(() => {});
+          }
+
+          await req.tenantDb.query(
+            "UPDATE employees SET shift = :shift WHERE department = :dept",
+            { replacements: { shift: shiftLabel, dept: targetDept } }
+          ).catch(() => {});
+        }
+      } catch (shiftErr) {
+        console.warn('[Shift Assignment Post-Process Notice]', shiftErr.message);
       }
     }
   } catch (insertErr) {
@@ -3199,6 +3764,16 @@ const updateTableRecord = asyncHandler(async (req, res) => {
     await provisionLearningTables(req.tenantDb);
   }
 
+  const shiftTables = ['shift_master', 'shifts', 'shift', 'shift_assignments', 'shift_assignment', 'shift_assignment_history', 'shift_history'];
+  if (shiftTables.includes(tableName)) {
+    await provisionShiftTables(req.tenantDb);
+  }
+
+  const overtimeTables = ['overtime_masters', 'overtime_master', 'overtime', 'overtime_requests', 'overtime_request', 'overtime_records'];
+  if (overtimeTables.includes(tableName)) {
+    await provisionOvertimeTables(req.tenantDb);
+  }
+
   if (tableName === 'employees' || tableName === 'employee_profile') {
     const [existingEmp] = await req.tenantDb.query(
       `SELECT id, email, user_id, profileStatus, profileCompletion FROM \`${tableName}\` WHERE id = ? LIMIT 1`,
@@ -3357,6 +3932,23 @@ const updateTableRecord = asyncHandler(async (req, res) => {
   // Check duplicate record (email or employee code) from database before update
   await checkDuplicateRecordInTable(req, tableName, rawData, id);
 
+  const updateBranchCandidate = rawData.branch_id || rawData.branchId || rawData.branchName || rawData.branch;
+  if (updateBranchCandidate) {
+    const branchInfo = await resolveBranchInfo(req.tenantDb, updateBranchCandidate, req.branchId, req.branchName, req.branchCode);
+    if (branchInfo) {
+      if (tableName === 'employees' || tableName === 'employee_profile') {
+        rawData.branch_id = branchInfo.id;
+        rawData.branchName = branchInfo.name;
+        rawData.branch = branchInfo.name;
+      } else if (tableName === 'departments') {
+        rawData.branch_id = branchInfo.id;
+        rawData.branch = branchInfo.name;
+      } else if (tableName === 'daily_attendance' || tableName === 'payroll_process' || tableName === 'leave_requests' || tableName === 'holidays') {
+        rawData.branch = branchInfo.name;
+      }
+    }
+  }
+
   const formattedData = await sanitizeDataForTable(req.tenantDb, tableName, rawData);
   delete formattedData.id;
   delete formattedData.created_at;
@@ -3506,6 +4098,88 @@ const updateTableRecord = asyncHandler(async (req, res) => {
         }
       }
     } catch (e) {}
+  }
+
+  if (tableName === 'shift_master') {
+    try {
+      const shiftName = formattedData.shiftName || rawData.shiftName || 'Standard Shift';
+      const startTime = formattedData.startTime || rawData.startTime || '09:00 AM';
+      const endTime = formattedData.endTime || rawData.endTime || '06:00 PM';
+      const shiftLabel = `${shiftName} (${startTime} - ${endTime})`;
+      const targetDept = formattedData.department || rawData.department;
+      const targetEmp = formattedData.employee || rawData.employee;
+      const assignedBy = req.user?.email || req.user?.employeeName || 'Admin';
+
+      if (targetEmp && targetEmp !== 'All Employees' && !targetEmp.startsWith('All Employees') && targetEmp !== '-- Select Employee --') {
+        const cleanEmpName = targetEmp.replace(/\s*\([^)]*\)/g, '').trim();
+        const [empRows] = await req.tenantDb.query(
+          "SELECT id, employeeCode, firstName, lastName, department, shift FROM employees WHERE (CONCAT(firstName, ' ', lastName) LIKE :emp OR employeeName = :emp OR employeeCode = :emp OR id = :emp) LIMIT 1",
+          { replacements: { emp: `%${cleanEmpName}%` }, type: QueryTypes.SELECT }
+        ).catch(() => [null]);
+
+        if (empRows) {
+          const prevShift = empRows.shift || 'General Shift';
+          await req.tenantDb.query(
+            "UPDATE employees SET shift = :shift WHERE id = :id",
+            { replacements: { shift: shiftLabel, id: empRows.id } }
+          ).catch(() => {});
+
+          const histId = require('crypto').randomUUID ? require('crypto').randomUUID() : Math.random().toString(36).substring(2, 15);
+          await req.tenantDb.query(`
+            INSERT INTO shift_assignment_history (id, employee_id, employee_code, employee_name, department, previous_shift, new_shift, effective_from, effective_to, assignment_type, assigned_by, remarks, created_at)
+            VALUES (:id, :empId, :empCode, :empName, :dept, :prevShift, :newShift, :effFrom, :effTo, 'Individual', :assignedBy, :remarks, NOW())
+          `, {
+            replacements: {
+              id: histId,
+              empId: empRows.id,
+              empCode: empRows.employeeCode || '',
+              empName: `${empRows.firstName || ''} ${empRows.lastName || ''}`.trim(),
+              dept: empRows.department || targetDept || '',
+              prevShift: prevShift,
+              newShift: shiftLabel,
+              effFrom: formattedData.effectiveFrom || null,
+              effTo: formattedData.effectiveTo || null,
+              assignedBy: assignedBy,
+              remarks: formattedData.remarks || 'Individual shift assignment via Shift Master'
+            }
+          }).catch(() => {});
+        }
+      } else if (targetDept && targetDept !== 'All Departments') {
+        const empsInDept = await req.tenantDb.query(
+          "SELECT id, employeeCode, firstName, lastName, department, shift FROM employees WHERE department = :dept",
+          { replacements: { dept: targetDept }, type: QueryTypes.SELECT }
+        ).catch(() => []);
+
+        for (const e of empsInDept) {
+          const histId = require('crypto').randomUUID ? require('crypto').randomUUID() : Math.random().toString(36).substring(2, 15);
+          await req.tenantDb.query(`
+            INSERT INTO shift_assignment_history (id, employee_id, employee_code, employee_name, department, previous_shift, new_shift, effective_from, effective_to, assignment_type, assigned_by, remarks, created_at)
+            VALUES (:id, :empId, :empCode, :empName, :dept, :prevShift, :newShift, :effFrom, :effTo, 'Department', :assignedBy, :remarks, NOW())
+          `, {
+            replacements: {
+              id: histId,
+              empId: e.id,
+              empCode: e.employeeCode || '',
+              empName: `${e.firstName || ''} ${e.lastName || ''}`.trim(),
+              dept: targetDept,
+              prevShift: e.shift || 'General Shift',
+              newShift: shiftLabel,
+              effFrom: formattedData.effectiveFrom || null,
+              effTo: formattedData.effectiveTo || null,
+              assignedBy: assignedBy,
+              remarks: formattedData.remarks || `Department-wide shift assignment for ${targetDept}`
+            }
+          }).catch(() => {});
+        }
+
+        await req.tenantDb.query(
+          "UPDATE employees SET shift = :shift WHERE department = :dept",
+          { replacements: { shift: shiftLabel, dept: targetDept } }
+        ).catch(() => {});
+      }
+    } catch (shiftErr) {
+      console.warn('[Shift Assignment Post-Update Notice]', shiftErr.message);
+    }
   }
 
   res.status(200).json(new ApiResponse(200, { id, ...formattedData }, `Successfully updated record in table: ${tableName}`));

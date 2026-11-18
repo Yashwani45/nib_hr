@@ -1,0 +1,13 @@
+{
+  "name": "nib-hr-portal",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Multi-Tenant Enterprise HR Portal with Branch Management",
+  "scripts": {
+    "dev": "npm --prefix Frontend run dev",
+    "frontend": "npm --prefix Frontend run dev",
+    "backend": "npm --prefix backend start",
+    "build": "npm --prefix Frontend run build",
+    "start": "npm --prefix backend start"
+  }
+}
