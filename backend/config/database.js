@@ -47,6 +47,12 @@ const sequelizeProxy = new Proxy(masterSequelize, {
   }
 });
 
+// masterSequelize MUST ALWAYS execute against system_master_db.
+// Dynamic tenant routing is handled by sequelizeProxy for all models and tenant queries.
+const originalMasterQuery = masterSequelize.query.bind(masterSequelize);
+masterSequelize.query = originalMasterQuery;
+masterSequelize.rawQuery = originalMasterQuery;
+
 const connectDB = async () => {
   try {
     await masterSequelize.authenticate();

@@ -22,7 +22,7 @@ const getLoanDetails = asyncHandler(async (req, res) => {
 const approveLoan = asyncHandler(async (req, res) => {
   const { id } = req.params;
   const loan = await loanService.approveLoan(id, req.body, req.user?.id);
-  res.status(200).json(new ApiResponse(200, loan, 'Loan approved and EMI schedule generated.'));
+  res.status(200).json(new ApiResponse(200, loan, 'Loan approved and EMI amortization schedule generated.'));
 });
 
 const rejectLoan = asyncHandler(async (req, res) => {
@@ -31,10 +31,16 @@ const rejectLoan = asyncHandler(async (req, res) => {
   res.status(200).json(new ApiResponse(200, loan, 'Loan request rejected.'));
 });
 
+const recordRepayment = asyncHandler(async (req, res) => {
+  const { id } = req.params;
+  const result = await loanService.recordRepayment(id, req.body, req.user?.id);
+  res.status(200).json(new ApiResponse(200, result, 'Repayment recorded and outstanding balance updated.'));
+});
+
 const getLoanRepayments = asyncHandler(async (req, res) => {
   const { id } = req.params;
   const repayments = await loanService.getRepayments(id, req.user);
-  res.status(200).json(new ApiResponse(200, repayments, 'Loan repayment history retrieved.'));
+  res.status(200).json(new ApiResponse(200, repayments, 'Loan repayment ledger retrieved.'));
 });
 
 const closeLoan = asyncHandler(async (req, res) => {
@@ -49,6 +55,7 @@ module.exports = {
   getLoanDetails,
   approveLoan,
   rejectLoan,
+  recordRepayment,
   getLoanRepayments,
   closeLoan,
 };

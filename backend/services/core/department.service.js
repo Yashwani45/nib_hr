@@ -36,10 +36,7 @@ class DepartmentService {
     const { sequelize, tenantStorage } = require('../../config/database');
     const activeDb = tenantDb || tenantStorage.getStore() || sequelize;
 
-    // Purge legacy default department rows from database if present
-    try {
-      await activeDb.query("DELETE FROM departments WHERE dept_code = 'DEPT-GEN' OR dept_name = 'General Administration' OR dept_code = 'ADMIN' OR dept_name = 'Administration'");
-    } catch (e) {}
+    // Default legacy department rows filtered out via sqlWhere for optimal read performance
 
     const pageNum = Math.max(1, parseInt(queryParams.page, 10) || 1);
     const limitNum = Math.max(1, Math.min(100, parseInt(queryParams.limit, 10) || 10));
@@ -56,6 +53,12 @@ class DepartmentService {
     if (queryParams.status) {
       sqlWhere += " AND d.status = :status";
       replacements.status = queryParams.status;
+    }
+
+    const activeBranch = queryParams.branchId || currentUser?.branchId;
+    if (activeBranch && String(activeBranch).toUpperCase() !== 'ALL') {
+      sqlWhere += " AND (d.branch_id = :branchId OR d.branch_id IS NULL)";
+      replacements.branchId = activeBranch;
     }
 
     // Query total count

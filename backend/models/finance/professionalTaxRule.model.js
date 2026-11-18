@@ -32,6 +32,11 @@ const ProfessionalTaxRule = sequelize.define('ProfessionalTaxRule', {
     allowNull: false,
     field: 'effective_from',
   },
+  effectiveTo: {
+    type: DataTypes.DATEONLY,
+    allowNull: true,
+    field: 'effective_to',
+  },
 }, {
   tableName: 'professional_tax_rules',
   timestamps: true,

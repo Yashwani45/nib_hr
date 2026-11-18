@@ -77,8 +77,23 @@ const PayrollItem = sequelize.define('PayrollItem', {
     defaultValue: 0.00,
     field: 'net_salary',
   },
+  employerPf: {
+    type: DataTypes.DECIMAL(12, 2),
+    defaultValue: 0.00,
+    field: 'employer_pf',
+  },
+  employerEsi: {
+    type: DataTypes.DECIMAL(12, 2),
+    defaultValue: 0.00,
+    field: 'employer_esi',
+  },
+  totalCtc: {
+    type: DataTypes.DECIMAL(12, 2),
+    defaultValue: 0.00,
+    field: 'total_ctc',
+  },
   status: {
-    type: DataTypes.ENUM('Draft', 'Pending_Approval', 'Approved', 'Processed', 'Locked', 'Cancelled'),
+    type: DataTypes.STRING(50),
     defaultValue: 'Draft',
     allowNull: false,
   },

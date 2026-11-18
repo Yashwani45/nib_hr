@@ -12,7 +12,13 @@ import {
   ArrowPathIcon,
   DocumentDuplicateIcon,
   ExclamationTriangleIcon,
-  UserGroupIcon
+  UserGroupIcon,
+  UserIcon,
+  CheckIcon,
+  SparklesIcon,
+  BuildingOfficeIcon,
+  UserPlusIcon,
+  ArrowsRightLeftIcon
 } from "@heroicons/react/24/outline";
 import { createTableRecord, updateTableRecord, deleteTableRecord, getTableData } from "../../services/hrApi";
 import { useAuth } from "../../auth/AuthProvider";
@@ -35,10 +41,11 @@ const JOB_CATEGORIES = ["Technical", "Administrative", "Executive", "Management"
 const Designation = ({ records = [], dbData = {}, onRefreshData }) => {
   const { user } = useAuth();
   const [liveDepartments, setLiveDepartments] = useState([]);
+  const [liveEmployees, setLiveEmployees] = useState([]);
 
   useEffect(() => {
     let isMounted = true;
-    const fetchDepartments = async () => {
+    const fetchDepartmentsAndEmployees = async () => {
       try {
         const res = await getTableData("department");
         const list = Array.isArray(res) ? res : (res?.data && Array.isArray(res.data) ? res.data : []);
@@ -48,8 +55,18 @@ const Designation = ({ records = [], dbData = {}, onRefreshData }) => {
       } catch (err) {
         console.warn("[Designation] Error fetching departments:", err);
       }
+
+      try {
+        const resEmp = await getTableData("employee_profile");
+        const listEmp = Array.isArray(resEmp) ? resEmp : (resEmp?.data && Array.isArray(resEmp.data) ? resEmp.data : []);
+        if (isMounted && listEmp.length > 0) {
+          setLiveEmployees(listEmp);
+        }
+      } catch (err) {
+        console.warn("[Designation] Error fetching employees:", err);
+      }
     };
-    fetchDepartments();
+    fetchDepartmentsAndEmployees();
     return () => { isMounted = false; };
   }, []);
 
@@ -60,7 +77,90 @@ const Designation = ({ records = [], dbData = {}, onRefreshData }) => {
     return Array.isArray(fromDb) ? fromDb : [];
   }, [liveDepartments, dbData]);
 
-  const employeesList = useMemo(() => dbData["Employee Profile"] || dbData["employee_profile"] || dbData["employees"] || [], [dbData]);
+  const employeesList = useMemo(() => {
+    if (liveEmployees.length > 0) return liveEmployees;
+    const fromDb = dbData["Employee Profile"] || dbData["employee_profile"] || dbData["employees"] || [];
+    return Array.isArray(fromDb) ? fromDb : [];
+  }, [liveEmployees, dbData]);
+
+  // Employee parsing helper utilities
+  const getEmployeeName = (emp) => {
+    if (!emp) return "Unknown";
+    if (emp.employeeName && String(emp.employeeName).trim()) return String(emp.employeeName).trim();
+    if (emp.employee_name && String(emp.employee_name).trim()) return String(emp.employee_name).trim();
+    if (emp.firstName || emp.lastName) return `${emp.firstName || ""} ${emp.lastName || ""}`.trim();
+    try {
+      if (emp.profile_data) {
+        const parsed = typeof emp.profile_data === "string" ? JSON.parse(emp.profile_data) : emp.profile_data;
+        if (parsed.employeeName && String(parsed.employeeName).trim()) return String(parsed.employeeName).trim();
+        if (parsed.firstName || parsed.lastName) return `${parsed.firstName || ""} ${parsed.lastName || ""}`.trim();
+      }
+    } catch (e) {}
+    return emp.name || "Employee";
+  };
+
+  const getEmployeeCode = (emp) => {
+    if (!emp) return "";
+    return emp.employeeCode || emp.empCode || emp.emp_code || emp.employeeId || "";
+  };
+
+  const getEmployeeReportingManager = (emp) => {
+    if (!emp) return "";
+    if (emp.reportingManager && String(emp.reportingManager).trim()) return String(emp.reportingManager).trim();
+    if (emp.reporting_manager && String(emp.reporting_manager).trim()) return String(emp.reporting_manager).trim();
+    try {
+      if (emp.profile_data) {
+        const parsed = typeof emp.profile_data === "string" ? JSON.parse(emp.profile_data) : emp.profile_data;
+        if (parsed.reportingManager && String(parsed.reportingManager).trim()) return String(parsed.reportingManager).trim();
+        if (parsed.reporting_manager && String(parsed.reporting_manager).trim()) return String(parsed.reporting_manager).trim();
+      }
+    } catch (e) {}
+    return "";
+  };
+
+  const getEmployeeDepartment = (emp) => {
+    if (!emp) return "";
+    if (emp.department && String(emp.department).trim()) return String(emp.department).trim();
+    try {
+      if (emp.profile_data) {
+        const parsed = typeof emp.profile_data === "string" ? JSON.parse(emp.profile_data) : emp.profile_data;
+        if (parsed.department && String(parsed.department).trim()) return String(parsed.department).trim();
+      }
+    } catch (e) {}
+    return "";
+  };
+
+  const getMappedEmployees = (desigRecord) => {
+    if (!desigRecord) return [];
+    return employeesList.filter(emp => 
+      String(emp.designationId || emp.designation_id || "") === String(desigRecord.id) ||
+      (emp.designation && desigRecord.desigName && String(emp.designation).toLowerCase().trim() === String(desigRecord.desigName).toLowerCase().trim()) ||
+      (emp.designation && desigRecord.desig_name && String(emp.designation).toLowerCase().trim() === String(desigRecord.desig_name).toLowerCase().trim())
+    );
+  };
+
+  const getAvailableManagers = (currentEmp, desigRecord) => {
+    const reportingDesigTitle = desigRecord?.reportingTo ? String(desigRecord.reportingTo).toLowerCase().trim() : "";
+    return employeesList
+      .filter(e => String(e.id) !== String(currentEmp?.id))
+      .map(e => {
+        const desig = String(e.designation || "").toLowerCase().trim();
+        const isRecommended = reportingDesigTitle ? desig === reportingDesigTitle : false;
+        return {
+          id: e.id,
+          name: getEmployeeName(e),
+          code: getEmployeeCode(e),
+          designation: e.designation || "",
+          department: getEmployeeDepartment(e),
+          isRecommended
+        };
+      })
+      .sort((a, b) => {
+        if (a.isRecommended && !b.isRecommended) return -1;
+        if (!a.isRecommended && b.isRecommended) return 1;
+        return a.name.localeCompare(b.name);
+      });
+  };
 
   // Sync state with records from backend
   const dataList = useMemo(() => {
@@ -116,6 +216,13 @@ const Designation = ({ records = [], dbData = {}, onRefreshData }) => {
   const [deletingRecord, setDeletingRecord] = useState(null);
   const [statusConfirmRecord, setStatusConfirmRecord] = useState(null);
 
+  // Dedicated Reporting Manager Management State
+  const [managingEmployeesRecord, setManagingEmployeesRecord] = useState(null);
+  const [updatingEmpId, setUpdatingEmpId] = useState(null);
+  const [empManagerSelections, setEmpManagerSelections] = useState({});
+  const [bulkManagerSelection, setBulkManagerSelection] = useState("");
+  const [successToast, setSuccessToast] = useState("");
+
   // Form State
   const initialForm = {
     desigCode: "",
@@ -129,7 +236,8 @@ const Designation = ({ records = [], dbData = {}, onRefreshData }) => {
     jobCategory: "Technical",
     employmentType: "Full Time",
     description: "",
-    status: "Active"
+    status: "Active",
+    employeeManagers: {}
   };
   const [formData, setFormData] = useState(initialForm);
   const [formErrors, setFormErrors] = useState({});
@@ -187,6 +295,112 @@ const Designation = ({ records = [], dbData = {}, onRefreshData }) => {
     });
   }, [dataList, formData.jobLevel, editingRecord]);
 
+  // Open Manage Reporting Manager Modal
+  const handleOpenManageEmployees = (item) => {
+    setManagingEmployeesRecord(item);
+    setBulkManagerSelection("");
+    const mapped = getMappedEmployees(item);
+    const initialSelections = {};
+    mapped.forEach(e => {
+      initialSelections[e.id] = getEmployeeReportingManager(e);
+    });
+    setEmpManagerSelections(initialSelections);
+  };
+
+  // Update employee's reporting manager in DB
+  const handleUpdateEmployeeReportingManager = async (employeeId, managerName, managerId = null, silent = false) => {
+    if (!silent) setUpdatingEmpId(employeeId);
+    try {
+      const emp = employeesList.find(e => String(e.id) === String(employeeId));
+      let existingProfile = {};
+      try {
+        if (emp?.profile_data) {
+          existingProfile = typeof emp.profile_data === "string" ? JSON.parse(emp.profile_data) : emp.profile_data;
+        }
+      } catch (e) {}
+
+      // Find manager ID if not provided
+      let effectiveManagerId = managerId;
+      if (!effectiveManagerId && managerName) {
+        const mgrObj = employeesList.find(e => getEmployeeName(e).toLowerCase().trim() === managerName.toLowerCase().trim());
+        if (mgrObj) effectiveManagerId = mgrObj.id;
+      }
+
+      const updatedProfile = {
+        ...existingProfile,
+        ...(emp || {}),
+        reportingManager: managerName || "",
+        reporting_manager: managerName || "",
+        managerId: effectiveManagerId || null,
+        manager_id: effectiveManagerId || null
+      };
+
+      const payload = {
+        reportingManager: managerName || "",
+        reporting_manager: managerName || "",
+        manager_id: effectiveManagerId || null,
+        managerId: effectiveManagerId || null,
+        profile_data: JSON.stringify(updatedProfile)
+      };
+
+      await updateTableRecord("employees", employeeId, payload);
+
+      // Update local state immediately for instant responsive feedback
+      setLiveEmployees(prev => prev.map(e => {
+        if (String(e.id) === String(employeeId)) {
+          return {
+            ...e,
+            reportingManager: managerName || "",
+            reporting_manager: managerName || "",
+            manager_id: effectiveManagerId || null,
+            managerId: effectiveManagerId || null,
+            profile_data: JSON.stringify(updatedProfile)
+          };
+        }
+        return e;
+      }));
+
+      setEmpManagerSelections(prev => ({
+        ...prev,
+        [employeeId]: managerName || ""
+      }));
+
+      if (!silent) {
+        const empDisplayName = getEmployeeName(emp);
+        setSuccessToast(`Reporting manager for ${empDisplayName} set to "${managerName || 'None'}" successfully!`);
+        setTimeout(() => setSuccessToast(""), 4000);
+      }
+
+      if (onRefreshData) onRefreshData();
+    } catch (err) {
+      console.error("Failed to update reporting manager:", err);
+      if (!silent) alert("Failed to update reporting manager: " + (err.message || "Unknown error"));
+    } finally {
+      if (!silent) setUpdatingEmpId(null);
+    }
+  };
+
+  // Bulk apply reporting manager to all mapped employees
+  const handleBulkApplyReportingManager = async (managerName) => {
+    if (!managingEmployeesRecord) return;
+    const mapped = getMappedEmployees(managingEmployeesRecord);
+    if (mapped.length === 0) return;
+
+    setUpdatingEmpId("bulk");
+    try {
+      for (const emp of mapped) {
+        await handleUpdateEmployeeReportingManager(emp.id, managerName, null, true);
+      }
+      setSuccessToast(`Applied reporting manager "${managerName || 'None'}" to all ${mapped.length} employee(s)!`);
+      setTimeout(() => setSuccessToast(""), 4000);
+      if (onRefreshData) onRefreshData();
+    } catch (err) {
+      alert("Error applying manager to all employees: " + (err.message || "Unknown error"));
+    } finally {
+      setUpdatingEmpId(null);
+    }
+  };
+
   // Open Form Handlers
   const handleOpenAdd = () => {
     setEditingRecord(null);
@@ -210,7 +424,8 @@ const Designation = ({ records = [], dbData = {}, onRefreshData }) => {
     setFormData({
       ...initialForm,
       departmentId: defaultDeptId,
-      desigCode: `DES-${Math.floor(100 + Math.random() * 900)}`
+      desigCode: `DES-${Math.floor(100 + Math.random() * 900)}`,
+      employeeManagers: {}
     });
     setShowAddModal(true);
   };
@@ -245,6 +460,12 @@ const Designation = ({ records = [], dbData = {}, onRefreshData }) => {
       if (match) itemDeptId = match.id;
     }
 
+    const mapped = getMappedEmployees(item);
+    const initialEmpMgrs = {};
+    mapped.forEach(e => {
+      initialEmpMgrs[e.id] = getEmployeeReportingManager(e);
+    });
+
     setFormData({
       desigCode: item.desigCode,
       desigName: item.desigName,
@@ -257,7 +478,8 @@ const Designation = ({ records = [], dbData = {}, onRefreshData }) => {
       jobCategory: item.jobCategory || "Technical",
       employmentType: item.employmentType || "Full Time",
       description: item.description,
-      status: item.status
+      status: item.status,
+      employeeManagers: initialEmpMgrs
     });
     setShowAddModal(true);
   };
@@ -334,7 +556,21 @@ const Designation = ({ records = [], dbData = {}, onRefreshData }) => {
       } else {
         await createTableRecord("designation", payload);
       }
+
+      // If any employee reporting manager was updated directly in the form, persist it
+      if (formData.employeeManagers && Object.keys(formData.employeeManagers).length > 0) {
+        for (const [empId, mgrName] of Object.entries(formData.employeeManagers)) {
+          const emp = employeesList.find(e => String(e.id) === String(empId));
+          const currentMgr = getEmployeeReportingManager(emp);
+          if (emp && mgrName !== currentMgr) {
+            await handleUpdateEmployeeReportingManager(empId, mgrName, null, true);
+          }
+        }
+      }
+
       setShowAddModal(false);
+      setSuccessToast(`Designation "${formData.desigName}" saved successfully!`);
+      setTimeout(() => setSuccessToast(""), 4000);
       if (onRefreshData) onRefreshData();
     } catch (err) {
       setFormErrors({ submit: err.message || "Failed to save designation record." });
@@ -575,11 +811,31 @@ const Designation = ({ records = [], dbData = {}, onRefreshData }) => {
                     </span>
                   </td>
                   <td className="px-6 py-4 text-center font-mono">{item.grade}</td>
-                  <td className="px-6 py-4 text-slate-500 font-medium">{item.reportingTo || "--"}</td>
+                  <td className="px-6 py-4">
+                    <div className="text-slate-850 font-bold">{item.reportingTo || "--"}</div>
+                    {(() => {
+                      const mapped = getMappedEmployees(item);
+                      const managers = Array.from(new Set(mapped.map(e => getEmployeeReportingManager(e)).filter(Boolean)));
+                      if (managers.length > 0) {
+                        return (
+                          <div className="text-[10px] text-indigo-600 font-semibold mt-0.5 flex items-center gap-1" title={`Assigned Reporting Manager: ${managers.join(", ")}`}>
+                            <span className="text-slate-400 font-bold uppercase tracking-wider text-[9px]">Mgr:</span>
+                            <span className="truncate max-w-[130px]">{managers.join(", ")}</span>
+                          </div>
+                        );
+                      }
+                      return null;
+                    })()}
+                  </td>
                   <td className="px-6 py-4 text-center">
-                    <span className="px-2 py-0.5 bg-indigo-50 text-indigo-700 font-black rounded-md border border-indigo-150">
-                      {item.assignedEmployeesCount}
-                    </span>
+                    <button
+                      onClick={() => handleOpenManageEmployees(item)}
+                      className="group inline-flex items-center gap-1.5 px-2.5 py-1 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-black rounded-lg border border-indigo-200 shadow-2xs transition-all hover:scale-105 cursor-pointer text-xs"
+                      title={`Click to view employees & assign reporting manager for ${item.desigName}`}
+                    >
+                      <UserGroupIcon className="w-3.5 h-3.5 text-indigo-500 group-hover:text-indigo-700" />
+                      <span>{item.assignedEmployeesCount}</span>
+                    </button>
                   </td>
                   <td className="px-6 py-4 text-center">
                     <button
@@ -595,6 +851,13 @@ const Designation = ({ records = [], dbData = {}, onRefreshData }) => {
                   </td>
                   <td className="px-6 py-4 text-right">
                     <div className="flex items-center justify-end gap-1.5">
+                      <button
+                        onClick={() => handleOpenManageEmployees(item)}
+                        className="p-1.5 text-slate-400 hover:text-indigo-600 rounded-lg hover:bg-indigo-50 transition"
+                        title="Manage Employees & Reporting Manager"
+                      >
+                        <UserGroupIcon className="h-4 w-4" />
+                      </button>
                       <button
                         onClick={() => setViewingRecord(item)}
                         className="p-1.5 text-slate-400 hover:text-blue-600 rounded-lg hover:bg-blue-50 transition"
@@ -796,6 +1059,78 @@ const Designation = ({ records = [], dbData = {}, onRefreshData }) => {
                 </div>
               </div>
 
+              {/* Mapped Employee(s) Reporting Manager Section in Form */}
+              {editingRecord && (() => {
+                const mapped = getMappedEmployees(editingRecord);
+                if (mapped.length === 0) return null;
+                const managers = getAvailableManagers(null, { ...editingRecord, reportingTo: formData.reportingTo });
+                return (
+                  <div className="bg-indigo-50/70 border border-indigo-150 rounded-2xl p-4 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <UserGroupIcon className="w-4 h-4 text-indigo-600" />
+                        <h4 className="text-xs font-bold text-slate-800 uppercase tracking-wider">
+                          Mapped Employee(s) Reporting Manager
+                        </h4>
+                      </div>
+                      <span className="text-[10px] font-black text-indigo-700 bg-white px-2 py-0.5 rounded-full border border-indigo-200">
+                        {mapped.length} Employee{mapped.length > 1 ? "s" : ""}
+                      </span>
+                    </div>
+                    <p className="text-[11px] text-slate-500">
+                      Configure or update the reporting manager for particular employees under this designation:
+                    </p>
+                    <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
+                      {mapped.map(emp => {
+                        const currentVal = formData.employeeManagers?.[emp.id] ?? getEmployeeReportingManager(emp);
+                        return (
+                          <div key={emp.id} className="bg-white p-3 rounded-xl border border-indigo-100 flex flex-col sm:flex-row sm:items-center justify-between gap-2 shadow-2xs">
+                            <div>
+                              <div className="text-xs font-extrabold text-slate-900">{getEmployeeName(emp)}</div>
+                              <div className="text-[10px] text-slate-450 font-mono">{getEmployeeCode(emp)} • {getEmployeeDepartment(emp) || "General"}</div>
+                            </div>
+                            <div className="w-full sm:w-60">
+                              <select
+                                value={currentVal}
+                                onChange={(e) => {
+                                  const val = e.target.value;
+                                  setFormData(prev => ({
+                                    ...prev,
+                                    employeeManagers: {
+                                      ...prev.employeeManagers,
+                                      [emp.id]: val
+                                    }
+                                  }));
+                                }}
+                                className="w-full px-2.5 py-1.5 border border-slate-200 rounded-lg text-xs font-bold text-slate-700 bg-slate-50 focus:ring-1 focus:ring-indigo-500 focus:bg-white focus:outline-none"
+                              >
+                                <option value="">-- No Reporting Manager --</option>
+                                {managers.some(m => m.isRecommended) && (
+                                  <optgroup label={`⭐ Recommended (${formData.reportingTo}):`}>
+                                    {managers.filter(m => m.isRecommended).map(m => (
+                                      <option key={m.id} value={m.name}>
+                                        {m.name} ({m.designation || m.code})
+                                      </option>
+                                    ))}
+                                  </optgroup>
+                                )}
+                                <optgroup label="All Active Employees &amp; Managers:">
+                                  {managers.filter(m => !m.isRecommended).map(m => (
+                                    <option key={m.id} value={m.name}>
+                                      {m.name} {m.designation ? `(${m.designation})` : ""}
+                                    </option>
+                                  ))}
+                                </optgroup>
+                              </select>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                );
+              })()}
+
               <div className="grid grid-cols-2 gap-4">
                 {/* Min Experience */}
                 <div>
@@ -985,6 +1320,61 @@ const Designation = ({ records = [], dbData = {}, onRefreshData }) => {
                     </span>
                   </div>
                 </div>
+
+                {/* Mapped Employees & Reporting Structure in View Details */}
+                <div className="col-span-2 space-y-2 pt-3 border-t border-slate-150">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-widest flex items-center gap-1.5">
+                      <UserGroupIcon className="w-3.5 h-3.5 text-indigo-600" />
+                      Mapped Employees &amp; Reporting Structure
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const target = viewingRecord;
+                        setViewingRecord(null);
+                        handleOpenManageEmployees(target);
+                      }}
+                      className="text-[11px] font-black text-indigo-600 hover:text-indigo-800 flex items-center gap-1 cursor-pointer bg-indigo-50 px-2.5 py-1 rounded-lg border border-indigo-150"
+                    >
+                      <PencilSquareIcon className="w-3.5 h-3.5" />
+                      <span>Manage Managers</span>
+                    </button>
+                  </div>
+                  {(() => {
+                    const mapped = getMappedEmployees(viewingRecord);
+                    if (mapped.length === 0) {
+                      return <p className="text-xs text-slate-400 italic py-1">No employees assigned to this designation.</p>;
+                    }
+                    return (
+                      <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
+                        {mapped.map(emp => {
+                          const mgr = getEmployeeReportingManager(emp);
+                          return (
+                            <div key={emp.id} className="p-2.5 bg-slate-50 border border-slate-200/80 rounded-xl flex items-center justify-between shadow-2xs">
+                              <div>
+                                <span className="font-extrabold text-slate-900 text-xs">{getEmployeeName(emp)}</span>
+                                <span className="text-[10px] text-slate-450 font-mono ml-2">({getEmployeeCode(emp)})</span>
+                              </div>
+                              <div>
+                                {mgr ? (
+                                  <span className="px-2.5 py-0.5 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-md text-[10px] font-black flex items-center gap-1">
+                                    <CheckIcon className="w-3 h-3 text-emerald-600" />
+                                    <span>Mgr: {mgr}</span>
+                                  </span>
+                                ) : (
+                                  <span className="px-2 py-0.5 bg-amber-50 text-amber-700 border border-amber-200 rounded-md text-[10px] font-black">
+                                    ⚠️ No Manager
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    );
+                  })()}
+                </div>
               </div>
             </div>
 
@@ -992,12 +1382,263 @@ const Designation = ({ records = [], dbData = {}, onRefreshData }) => {
             <div className="px-6 py-4 bg-slate-50 border-t border-slate-150 flex justify-end">
               <button
                 onClick={() => setViewingRecord(null)}
-                className="px-5 py-2.5 bg-slate-200 hover:bg-slate-300 text-slate-700 rounded-xl text-xs font-black transition"
+                className="px-5 py-2.5 bg-slate-200 hover:bg-slate-300 text-slate-700 rounded-xl text-xs font-black transition cursor-pointer"
               >
                 Close details
               </button>
             </div>
           </div>
+        </div>
+      )}
+
+      {/* 6.5 Dedicated Mapped Employees & Reporting Manager Modal */}
+      {managingEmployeesRecord && (
+        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl max-w-2xl w-full p-6 shadow-2xl space-y-5 animate-in fade-in zoom-in-95 duration-200 overflow-y-auto max-h-[90vh]">
+            {/* Modal Header */}
+            <div className="flex items-start justify-between border-b border-slate-150 pb-4">
+              <div className="space-y-1">
+                <div className="flex items-center gap-2">
+                  <span className="px-2 py-0.5 bg-indigo-50 text-indigo-700 rounded-md text-[10px] font-black border border-indigo-200">
+                    {managingEmployeesRecord.desigCode}
+                  </span>
+                  <span className="px-2 py-0.5 bg-slate-100 text-slate-700 rounded-md text-[10px] font-extrabold border border-slate-200">
+                    {managingEmployeesRecord.jobLevel}
+                  </span>
+                  {managingEmployeesRecord.department && (
+                    <span className="text-[11px] font-bold text-slate-400">
+                      • {managingEmployeesRecord.department}
+                    </span>
+                  )}
+                </div>
+                <h3 className="text-base font-black text-slate-900 flex items-center gap-2">
+                  <UserGroupIcon className="w-5 h-5 text-indigo-600" />
+                  <span>Mapped Employees &amp; Reporting Manager</span>
+                </h3>
+                <p className="text-xs text-slate-500 font-medium">
+                  Configure reporting managers for particular employees holding{" "}
+                  <strong className="text-slate-800">{managingEmployeesRecord.desigName}</strong>
+                </p>
+              </div>
+              <button
+                onClick={() => setManagingEmployeesRecord(null)}
+                className="p-1.5 text-slate-400 hover:text-slate-700 rounded-lg hover:bg-slate-100 transition cursor-pointer"
+              >
+                <XMarkIcon className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Reporting Context Callout */}
+            <div className="bg-indigo-50/70 border border-indigo-150 rounded-2xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div>
+                <span className="text-[10px] font-extrabold uppercase tracking-wider text-indigo-700 block">
+                  Designation Reporting Target
+                </span>
+                <p className="text-xs font-bold text-slate-800 mt-0.5">
+                  {managingEmployeesRecord.reportingTo ? (
+                    <>
+                      Reports to Designation: <strong className="text-indigo-900 font-black">{managingEmployeesRecord.reportingTo}</strong>
+                    </>
+                  ) : (
+                    <span className="text-slate-500 italic">No parent designation (Top Level Executive)</span>
+                  )}
+                </p>
+              </div>
+              {managingEmployeesRecord.reportingTo && (
+                <div className="text-[11px] text-indigo-700 bg-white px-3 py-1.5 rounded-xl border border-indigo-200 font-bold shadow-2xs">
+                  ⭐ Recommended: Employees holding "{managingEmployeesRecord.reportingTo}"
+                </div>
+              )}
+            </div>
+
+            {/* Mapped Employees List */}
+            {(() => {
+              const mapped = getMappedEmployees(managingEmployeesRecord);
+              if (mapped.length === 0) {
+                return (
+                  <div className="py-12 text-center bg-slate-50 border border-dashed border-slate-200 rounded-2xl p-6">
+                    <UserGroupIcon className="w-10 h-10 text-slate-300 mx-auto mb-2" />
+                    <h4 className="text-xs font-bold text-slate-800">No Employees Currently Mapped</h4>
+                    <p className="text-xs text-slate-400 mt-1 max-w-sm mx-auto">
+                      There are no active employees assigned to "{managingEmployeesRecord.desigName}". Once employees are assigned to this designation in Employee Profile, you can configure their reporting manager here.
+                    </p>
+                  </div>
+                );
+              }
+
+              const allManagers = getAvailableManagers(null, managingEmployeesRecord);
+
+              return (
+                <div className="space-y-4">
+                  {/* Bulk toolbar if > 1 employees */}
+                  {mapped.length > 1 && (
+                    <div className="bg-slate-50 border border-slate-200 rounded-2xl p-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                      <span className="text-xs font-bold text-slate-700">
+                        ⚡ Quick Apply to All {mapped.length} Employees:
+                      </span>
+                      <div className="flex items-center gap-2">
+                        <select
+                          value={bulkManagerSelection}
+                          onChange={(e) => setBulkManagerSelection(e.target.value)}
+                          className="px-3 py-1.5 border border-slate-200 rounded-xl text-xs font-bold bg-white text-slate-800 focus:ring-1 focus:ring-indigo-500"
+                        >
+                          <option value="">-- Choose Manager --</option>
+                          <option value="">None / Unassigned</option>
+                          {allManagers.some(m => m.isRecommended) && (
+                            <optgroup label={`⭐ Recommended (${managingEmployeesRecord.reportingTo}):`}>
+                              {allManagers.filter(m => m.isRecommended).map(m => (
+                                <option key={m.id} value={m.name}>{m.name} ({m.designation || m.code})</option>
+                              ))}
+                            </optgroup>
+                          )}
+                          <optgroup label="All Available Employees:">
+                            {allManagers.filter(m => !m.isRecommended).map(m => (
+                              <option key={m.id} value={m.name}>{m.name} {m.designation ? `(${m.designation})` : ""}</option>
+                            ))}
+                          </optgroup>
+                        </select>
+                        <button
+                          disabled={!bulkManagerSelection || updatingEmpId === "bulk"}
+                          onClick={() => handleBulkApplyReportingManager(bulkManagerSelection)}
+                          className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white rounded-xl text-xs font-black shadow-xs transition cursor-pointer"
+                        >
+                          {updatingEmpId === "bulk" ? "Applying..." : "Apply to All"}
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* List of Particular Employees */}
+                  <div className="space-y-3">
+                    {mapped.map(emp => {
+                      const empMgr = empManagerSelections[emp.id] ?? getEmployeeReportingManager(emp);
+                      const isSaving = updatingEmpId === emp.id;
+                      const hasChanged = empMgr !== getEmployeeReportingManager(emp);
+                      const currentMgr = getEmployeeReportingManager(emp);
+
+                      return (
+                        <div
+                          key={emp.id}
+                          className="bg-white border border-slate-200 hover:border-indigo-300 rounded-2xl p-4 shadow-2xs transition-all space-y-3"
+                        >
+                          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                            {/* Employee Identity */}
+                            <div className="flex items-center gap-3">
+                              <div className="w-10 h-10 rounded-xl bg-indigo-100 text-indigo-700 flex items-center justify-center font-black text-sm shrink-0">
+                                {getEmployeeName(emp).substring(0, 2).toUpperCase()}
+                              </div>
+                              <div>
+                                <h4 className="text-xs font-black text-slate-900">{getEmployeeName(emp)}</h4>
+                                <div className="flex items-center gap-2 mt-0.5 text-[10px] text-slate-450 font-medium">
+                                  <span className="font-mono font-bold text-slate-500">{getEmployeeCode(emp)}</span>
+                                  <span>•</span>
+                                  <span>{getEmployeeDepartment(emp) || managingEmployeesRecord.department || "General"}</span>
+                                </div>
+                              </div>
+                            </div>
+
+                            {/* Current Manager Badge */}
+                            <div>
+                              {currentMgr ? (
+                                <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-full text-[10px] font-black">
+                                  <CheckIcon className="w-3 h-3 text-emerald-600" />
+                                  <span>Reports to: {currentMgr}</span>
+                                </span>
+                              ) : (
+                                <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-amber-50 text-amber-700 border border-amber-200 rounded-full text-[10px] font-black">
+                                  <span>⚠️ No Manager Assigned</span>
+                                </span>
+                              )}
+                            </div>
+                          </div>
+
+                          {/* Reporting Manager Assignment Field */}
+                          <div className="pt-2 border-t border-slate-100 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
+                            <div className="flex-1">
+                              <label className="block text-[10px] font-extrabold text-slate-450 uppercase tracking-wider mb-1">
+                                Assign Reporting Manager for this Employee
+                              </label>
+                              <select
+                                value={empMgr}
+                                onChange={(e) => {
+                                  const val = e.target.value;
+                                  setEmpManagerSelections(prev => ({
+                                    ...prev,
+                                    [emp.id]: val
+                                  }));
+                                }}
+                                className="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 bg-slate-50 focus:bg-white focus:ring-1 focus:ring-indigo-500 focus:outline-none"
+                              >
+                                <option value="">-- None / Unassigned --</option>
+                                {allManagers.some(m => m.isRecommended) && (
+                                  <optgroup label={`⭐ Recommended Managers (Matches ${managingEmployeesRecord.reportingTo}):`}>
+                                    {allManagers.filter(m => m.isRecommended).map(m => (
+                                      <option key={m.id} value={m.name}>
+                                        {m.name} ({m.designation || m.code})
+                                      </option>
+                                    ))}
+                                  </optgroup>
+                                )}
+                                <optgroup label="All Organizational Employees &amp; Managers:">
+                                  {allManagers.filter(m => !m.isRecommended).map(m => (
+                                    <option key={m.id} value={m.name}>
+                                      {m.name} {m.designation ? `(${m.designation})` : ""} • {m.code}
+                                    </option>
+                                  ))}
+                                </optgroup>
+                              </select>
+                            </div>
+
+                            <div className="self-end sm:self-auto sm:pt-4">
+                              <button
+                                disabled={isSaving || !hasChanged}
+                                onClick={() => handleUpdateEmployeeReportingManager(emp.id, empMgr)}
+                                className={`px-4 py-2 rounded-xl text-xs font-black shadow-xs transition flex items-center gap-1.5 ${
+                                  hasChanged
+                                    ? "bg-indigo-600 hover:bg-indigo-700 text-white cursor-pointer"
+                                    : "bg-slate-100 text-slate-400 cursor-not-allowed"
+                                }`}
+                              >
+                                {isSaving ? (
+                                  <>
+                                    <ArrowPathIcon className="w-3.5 h-3.5 animate-spin" />
+                                    <span>Saving...</span>
+                                  </>
+                                ) : (
+                                  <>
+                                    <CheckIcon className="w-3.5 h-3.5" />
+                                    <span>{hasChanged ? "Save Manager" : "Saved"}</span>
+                                  </>
+                                )}
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              );
+            })()}
+
+            {/* Modal Footer */}
+            <div className="pt-4 border-t border-slate-150 flex justify-end">
+              <button
+                onClick={() => setManagingEmployeesRecord(null)}
+                className="px-5 py-2.5 bg-slate-200 hover:bg-slate-300 text-slate-700 rounded-xl text-xs font-black transition cursor-pointer"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Floating Success Toast Notification */}
+      {successToast && (
+        <div className="fixed top-5 right-5 z-50 bg-emerald-600 text-white px-4 py-3 rounded-2xl shadow-xl flex items-center gap-2.5 text-xs font-bold animate-in fade-in slide-in-from-top-2 duration-200">
+          <CheckCircleIcon className="w-5 h-5 text-emerald-200 shrink-0" />
+          <span>{successToast}</span>
         </div>
       )}
 

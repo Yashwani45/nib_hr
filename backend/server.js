@@ -1,4 +1,4 @@
-// backend/server.js - Reload trigger 2026-09-17-public-uploads
+// backend/server.js - Reload trigger 2026-10-17-qr-attendance-all
 const app = require('./app');
 const { sequelize, connectDB } = require('./config/database');
 require('./utils/companyFolderScaffolder');
@@ -141,6 +141,44 @@ const startServer = async () => {
         created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
         deleted_at TIMESTAMP NULL
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;`,
+
+      `CREATE TABLE IF NOT EXISTS org_attendance_configs (
+        id CHAR(36) NOT NULL PRIMARY KEY,
+        company_id VARCHAR(100) NOT NULL,
+        company_code VARCHAR(50) NOT NULL,
+        company_name VARCHAR(255) NOT NULL,
+        is_active TINYINT(1) NOT NULL DEFAULT 1,
+        created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        deleted_at TIMESTAMP NULL,
+        INDEX idx_comp_id (company_id),
+        INDEX idx_comp_code (company_code)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;`,
+
+      `CREATE TABLE IF NOT EXISTS org_attendance_methods (
+        id CHAR(36) NOT NULL PRIMARY KEY,
+        config_id CHAR(36) NOT NULL,
+        method_type VARCHAR(50) NOT NULL,
+        is_enabled TINYINT(1) NOT NULL DEFAULT 1,
+        settings JSON NULL,
+        created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        deleted_at TIMESTAMP NULL,
+        UNIQUE KEY unique_org_method (config_id, method_type),
+        INDEX idx_config_id (config_id)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;`,
+
+      `CREATE TABLE IF NOT EXISTS employee_face_profiles (
+        id CHAR(36) NOT NULL PRIMARY KEY,
+        employee_id CHAR(36) NOT NULL,
+        organization_id VARCHAR(100) NULL,
+        face_embedding JSON NOT NULL,
+        status ENUM('ACTIVE', 'INACTIVE', 'REVOKED') NOT NULL DEFAULT 'ACTIVE',
+        enrolled_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        INDEX idx_face_emp (employee_id)
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;`
     ];
 
@@ -149,6 +187,7 @@ const startServer = async () => {
         logger.warn('[Self-Healing DDL Warning] ' + err.message);
       });
     }
+    await sequelize.query('ALTER TABLE org_attendance_methods MODIFY COLUMN method_type VARCHAR(50) NOT NULL').catch(() => {});
     logger.info('Self-healing DDL completed: All 7 Master tables provisioned in MySQL.');
 
     // Sync all models to MySQL tables
@@ -228,6 +267,41 @@ const startServer = async () => {
                 created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
                 updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
                 deleted_at TIMESTAMP NULL
+              ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;`,
+              `CREATE TABLE IF NOT EXISTS org_attendance_configs (
+                id CHAR(36) NOT NULL PRIMARY KEY,
+                company_id VARCHAR(100) NOT NULL,
+                company_code VARCHAR(50) NOT NULL,
+                company_name VARCHAR(255) NOT NULL,
+                is_active TINYINT(1) NOT NULL DEFAULT 1,
+                created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                deleted_at TIMESTAMP NULL,
+                INDEX idx_comp_id (company_id),
+                INDEX idx_comp_code (company_code)
+              ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;`,
+              `CREATE TABLE IF NOT EXISTS org_attendance_methods (
+                id CHAR(36) NOT NULL PRIMARY KEY,
+                config_id CHAR(36) NOT NULL,
+                method_type VARCHAR(50) NOT NULL,
+                is_enabled TINYINT(1) NOT NULL DEFAULT 1,
+                settings JSON NULL,
+                created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                deleted_at TIMESTAMP NULL,
+                UNIQUE KEY unique_org_method (config_id, method_type),
+                INDEX idx_config_id (config_id)
+              ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;`,
+              `CREATE TABLE IF NOT EXISTS employee_face_profiles (
+                id CHAR(36) NOT NULL PRIMARY KEY,
+                employee_id CHAR(36) NOT NULL,
+                organization_id VARCHAR(100) NULL,
+                face_embedding JSON NOT NULL,
+                status ENUM('ACTIVE', 'INACTIVE', 'REVOKED') NOT NULL DEFAULT 'ACTIVE',
+                enrolled_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                INDEX idx_face_emp (employee_id)
               ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;`
             ];
 
@@ -235,6 +309,7 @@ const startServer = async () => {
               await tenantSequelize.query(ddl).catch(() => {});
             }
 
+            await tenantSequelize.query('ALTER TABLE org_attendance_methods MODIFY COLUMN method_type VARCHAR(50) NOT NULL').catch(() => {});
             await tenantSequelize.query('SET FOREIGN_KEY_CHECKS = 1');
           } catch (syncErr) {
             logger.warn(`Failed to sync tables for database ${dbName}: ${syncErr.message}`);
@@ -248,6 +323,45 @@ const startServer = async () => {
           await sequelize.query(`ALTER TABLE \`${dbName}\`.\`employees\` ADD COLUMN employee_name VARCHAR(255) NULL`).catch(() => {});
           await sequelize.query(`ALTER TABLE \`${dbName}\`.\`employees\` ADD COLUMN email VARCHAR(255) NULL`).catch(() => {});
           await sequelize.query(`ALTER TABLE \`${dbName}\`.\`employees\` ADD COLUMN department VARCHAR(255) NULL`).catch(() => {});
+
+          // Ensure employee_qr_codes table exists
+          await sequelize.query(`
+            CREATE TABLE IF NOT EXISTS \`${dbName}\`.employee_qr_codes (
+              id VARCHAR(36) PRIMARY KEY,
+              employee_id VARCHAR(255) NOT NULL,
+              employee_code VARCHAR(255) NULL,
+              company_code VARCHAR(100) NOT NULL,
+              qr_token TEXT NOT NULL,
+              qr_data_url LONGTEXT NULL,
+              status ENUM('ACTIVE', 'REVOKED', 'INACTIVE') DEFAULT 'ACTIVE',
+              revoked_at DATETIME NULL,
+              revoked_by VARCHAR(255) NULL,
+              generated_at DATETIME NOT NULL,
+              created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+              updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+              INDEX idx_emp_id (employee_id),
+              INDEX idx_emp_code (employee_code),
+              INDEX idx_company (company_code),
+              INDEX idx_status (status)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+          `).catch(() => {});
+          await sequelize.query(`ALTER TABLE \`${dbName}\`.\`employees\` ADD COLUMN qr_code_token TEXT NULL`).catch(() => {});
+          await sequelize.query(`ALTER TABLE \`${dbName}\`.\`employees\` ADD COLUMN qr_code_data_url LONGTEXT NULL`).catch(() => {});
+
+          // Ensure daily_attendance verification columns exist
+          await sequelize.query(`ALTER TABLE \`${dbName}\`.\`daily_attendance\` MODIFY COLUMN verification_method VARCHAR(50) DEFAULT 'MANUAL'`).catch(() => {});
+          await sequelize.query(`ALTER TABLE \`${dbName}\`.\`daily_attendance\` ADD COLUMN verification_status VARCHAR(50) DEFAULT 'VERIFIED'`).catch(() => {});
+          await sequelize.query(`ALTER TABLE \`${dbName}\`.\`daily_attendance\` ADD COLUMN latitude DECIMAL(10, 8) NULL`).catch(() => {});
+          await sequelize.query(`ALTER TABLE \`${dbName}\`.\`daily_attendance\` ADD COLUMN longitude DECIMAL(11, 8) NULL`).catch(() => {});
+          await sequelize.query(`ALTER TABLE \`${dbName}\`.\`daily_attendance\` ADD COLUMN accuracy DECIMAL(8, 2) NULL`).catch(() => {});
+          await sequelize.query(`ALTER TABLE \`${dbName}\`.\`daily_attendance\` ADD COLUMN attendance_location VARCHAR(255) NULL`).catch(() => {});
+          await sequelize.query(`ALTER TABLE \`${dbName}\`.\`daily_attendance\` ADD COLUMN device_id VARCHAR(100) NULL`).catch(() => {});
+          await sequelize.query(`ALTER TABLE \`${dbName}\`.\`daily_attendance\` ADD COLUMN emp_id VARCHAR(255) NULL`).catch(() => {});
+          await sequelize.query(`ALTER TABLE \`${dbName}\`.\`daily_attendance\` ADD COLUMN check_in VARCHAR(255) NULL`).catch(() => {});
+          await sequelize.query(`ALTER TABLE \`${dbName}\`.\`daily_attendance\` ADD COLUMN check_out VARCHAR(255) NULL`).catch(() => {});
+          await sequelize.query(`ALTER TABLE \`${dbName}\`.\`daily_attendance\` ADD COLUMN working_hours DECIMAL(12,2) NULL`).catch(() => {});
+          await sequelize.query(`ALTER TABLE \`${dbName}\`.\`daily_attendance\` ADD COLUMN day VARCHAR(50) NULL`).catch(() => {});
+          await sequelize.query(`ALTER TABLE \`${dbName}\`.\`daily_attendance\` MODIFY COLUMN employeeId VARCHAR(255) NULL`).catch(() => {});
 
           const columnsToAdd = [
             // Hero Card
@@ -378,4 +492,4 @@ const startDatabaseVSCodeSync = () => {
 };
 
 startServer();
-// Trigger restart
+// Trigger restart now

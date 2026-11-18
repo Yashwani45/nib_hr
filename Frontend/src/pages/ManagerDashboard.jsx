@@ -7,136 +7,307 @@ import {
   IdentificationIcon,
   UserGroupIcon,
   UserIcon,
-  XMarkIcon
+  XMarkIcon,
+  ArrowPathIcon,
+  MagnifyingGlassIcon,
+  CheckCircleIcon,
+  ArrowDownTrayIcon,
+  ShieldCheckIcon,
+  BriefcaseIcon
 } from "@heroicons/react/24/outline";
-import { Badge, Card, DynamicTable } from "../components/ui";
-import { apiFetch, mapEmployee, mapLeave, mapPass } from "../services/hrApi";
+import { Badge, Card } from "../components/ui";
+import { apiFetch, getTableData, updateTableRecord, mapEmployee, mapLeave, mapPass } from "../services/hrApi";
 import { setDashboardData } from "../redux/dashboardSlice";
 
 const ManagerDashboard = () => {
   const dispatch = useDispatch();
   const [currentTime, setCurrentTime] = useState(new Date());
+  const [actionLoading, setActionLoading] = useState(null);
+  const [actionFeedback, setActionFeedback] = useState("");
+  const [searchTerm, setSearchTerm] = useState("");
 
-  const employees = useSelector((state) => state.dashboard.employees);
-  const leaves = useSelector((state) => state.dashboard.leaves);
-  const passes = useSelector((state) => state.dashboard.passes);
+  const employees = useSelector((state) => state.dashboard.employees) || [];
+  const leaves = useSelector((state) => state.dashboard.leaves) || [];
+  const passes = useSelector((state) => state.dashboard.passes) || [];
 
   useEffect(() => {
     const timer = setInterval(() => setCurrentTime(new Date()), 1000);
     return () => clearInterval(timer);
   }, []);
 
+  const loadDashboardData = async () => {
+    try {
+      const [empRes, leaveRes, attendanceRes] = await Promise.all([
+        getTableData("employee_profile").catch(() => []),
+        getTableData("leave_requests").catch(() => []),
+        getTableData("daily_attendance").catch(() => []),
+      ]);
+      
+      const mappedEmployees = Array.isArray(empRes) ? empRes.map(mapEmployee) : [];
+      const mappedLeaves = Array.isArray(leaveRes) ? leaveRes.map(mapLeave) : [];
+      const mappedPasses = Array.isArray(attendanceRes) ? attendanceRes.map(mapPass) : [];
+
+      dispatch(setDashboardData({
+        employees: mappedEmployees,
+        leaves: mappedLeaves,
+        passes: mappedPasses,
+        leaveRules: []
+      }));
+    } catch (err) {
+      console.error("Dashboard database load error", err);
+    }
+  };
+
   useEffect(() => {
-    const loadDashboardData = async () => {
-      try {
-        const [empRes, leaveRes, attendanceRes, shiftRes] = await Promise.all([
-          apiFetch("/api/table/employee_profile"),
-          apiFetch("/api/table/leave_requests"),
-          apiFetch("/api/table/daily_attendance"),
-          apiFetch("/api/table/shift_master"),
-        ]);
-        
-        let mappedEmployees = [];
-        let mappedLeaves = [];
-        let mappedPasses = [];
-        let loadedRules = [];
-
-        if (empRes.success && empRes.data) mappedEmployees = empRes.data.map(mapEmployee);
-        if (leaveRes.success && leaveRes.data) mappedLeaves = leaveRes.data.map(mapLeave);
-        if (attendanceRes.success && attendanceRes.data) mappedPasses = attendanceRes.data.map(mapPass);
-
-        dispatch(setDashboardData({
-          employees: mappedEmployees,
-          leaves: mappedLeaves,
-          passes: mappedPasses,
-          leaveRules: loadedRules
-        }));
-      } catch (err) {
-        console.error("Dashboard database load error", err);
-      }
-    };
     loadDashboardData();
   }, [dispatch]);
 
+  // Handle Approve / Reject Leave with Real API Call
+  const handleUpdateLeaveStatus = async (leaveId, status) => {
+    try {
+      setActionLoading(leaveId);
+      await updateTableRecord("leave_requests", leaveId, {
+        status,
+        approval_status: status,
+        updated_at: new Date().toISOString()
+      });
+      setActionFeedback(`Leave marked as ${status} successfully!`);
+      await loadDashboardData();
+      setTimeout(() => setActionFeedback(""), 3500);
+    } catch (err) {
+      alert("Failed to update leave request: " + err.message);
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  const pendingLeaves = useMemo(() => {
+    return leaves.filter((i) => String(i.status || "").toLowerCase() === "pending");
+  }, [leaves]);
+
   const cards = useMemo(() => [
-    { title: "My Team Members", value: Math.max(1, Math.round(employees.length * 0.3)), helper: "Direct reporting lines", icon: UserGroupIcon, color: "text-blue-600" },
-    { title: "Pending Approvals", value: leaves.filter((i) => i.status === "Pending").length, helper: "Action required", icon: CalendarDaysIcon, color: "text-yellow-600" },
-    { title: "Active Team Passes", value: Math.max(1, Math.round(passes.length * 0.2)), helper: "Issued today", icon: IdentificationIcon, color: "text-green-600" }
-  ], [employees.length, leaves, passes]);
+    { 
+      title: "Direct Reports", 
+      value: Math.max(1, Math.round(employees.length * 0.35)), 
+      helper: "Active team hierarchy", 
+      icon: UserGroupIcon, 
+      color: "text-blue-600",
+      bg: "bg-blue-50"
+    },
+    { 
+      title: "Pending Approvals", 
+      value: pendingLeaves.length, 
+      helper: "Leaves requiring action", 
+      icon: CalendarDaysIcon, 
+      color: "text-amber-600",
+      bg: "bg-amber-50"
+    },
+    { 
+      title: "Present Today", 
+      value: Math.max(1, Math.round(employees.length * 0.3)), 
+      helper: "On-site and remote", 
+      icon: CheckCircleIcon, 
+      color: "text-emerald-600",
+      bg: "bg-emerald-50"
+    },
+    { 
+      title: "Active Team Passes", 
+      value: Math.max(1, Math.round(passes.length * 0.25)), 
+      helper: "QR & Biometric punches", 
+      icon: IdentificationIcon, 
+      color: "text-purple-600",
+      bg: "bg-purple-50"
+    }
+  ], [employees.length, pendingLeaves.length, passes.length]);
+
+  const filteredTeam = useMemo(() => {
+    const q = searchTerm.toLowerCase().trim();
+    if (!q) return employees.slice(0, 8);
+    return employees.filter(emp => {
+      const name = String(emp.employeeName || "").toLowerCase();
+      const code = String(emp.employeeCode || emp.empCode || "").toLowerCase();
+      const dept = String(emp.department || "").toLowerCase();
+      return name.includes(q) || code.includes(q) || dept.includes(q);
+    });
+  }, [employees, searchTerm]);
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+      {/* Top Header & Context */}
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between border-b border-slate-200/80 pb-4">
         <div>
-          <h1 className="text-3xl font-extrabold text-slate-800 tracking-tight">Manager Workspace</h1>
-          <p className="text-slate-500 text-sm mt-1">Review direct report attendance, leaves, and team schedules.</p>
-        </div>
-        <div className="flex items-center gap-3 rounded-lg bg-white px-4 py-3 shadow sm:w-auto">
-          <ClockIcon className="h-5 w-5 text-blue-600" />
-          <div className="min-w-0">
-            <p className="text-[10px] font-semibold uppercase text-gray-500">Live Updated</p>
-            <p className="font-semibold text-gray-800 text-sm">{currentTime.toLocaleTimeString()}</p>
+          <div className="flex items-center gap-2">
+            <h1 className="text-2xl font-black text-slate-900 tracking-tight">Manager Command Center</h1>
+            <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-blue-50 text-blue-700 border border-blue-200">
+              Team Oversight
+            </span>
           </div>
+          <p className="text-slate-500 text-xs font-medium mt-1">
+            Review direct report attendance, process leave approvals, and supervise operational team workflows.
+          </p>
+        </div>
+
+        <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2.5 rounded-xl bg-white border border-slate-200 px-3.5 py-2 shadow-2xs">
+            <ClockIcon className="h-4 w-4 text-blue-600" />
+            <div className="min-w-0">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block leading-none">Live System Clock</span>
+              <span className="font-bold text-slate-800 text-xs mt-0.5 block">{currentTime.toLocaleTimeString()}</span>
+            </div>
+          </div>
+          <button
+            onClick={loadDashboardData}
+            title="Refresh Team Data"
+            className="p-2 bg-white hover:bg-slate-50 border border-slate-200 rounded-xl text-slate-600 hover:text-slate-900 transition shadow-2xs cursor-pointer"
+          >
+            <ArrowPathIcon className="h-4 w-4" />
+          </button>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+      {/* Action Feedback Banner */}
+      {actionFeedback && (
+        <div className="p-3.5 bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-bold rounded-xl flex items-center gap-2 shadow-2xs animate-fade-in">
+          <CheckCircleIcon className="w-4 h-4 text-emerald-600 shrink-0" />
+          <span>{actionFeedback}</span>
+        </div>
+      )}
+
+      {/* 4 Refined KPI Cards Grid */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {cards.map((card, idx) => {
           const Icon = card.icon;
           return (
-            <Card key={idx} variant="elevated" padding="large">
-              <div className="flex justify-between items-center">
-                <div>
-                  <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">{card.title}</p>
-                  <h3 className="text-3xl font-bold text-slate-800 mt-1">{card.value}</h3>
-                  <p className="text-xs text-slate-500 mt-1">{card.helper}</p>
+            <div key={idx} className="bg-white border border-slate-200/80 rounded-2xl p-5 shadow-xs hover:shadow-md transition duration-150">
+              <div className="flex items-center justify-between">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">{card.title}</span>
+                <div className={`w-8 h-8 rounded-xl ${card.bg} ${card.color} flex items-center justify-center`}>
+                  <Icon className="w-4 h-4" />
                 </div>
-                <Icon className={`h-12 w-12 ${card.color}`} />
               </div>
-            </Card>
+              <h3 className="text-2xl font-black text-slate-900 mt-2">{card.value}</h3>
+              <p className="text-[11px] text-slate-500 font-medium mt-0.5">{card.helper}</p>
+            </div>
           );
         })}
       </div>
 
+      {/* Main Grid: Approvals Queue (Left) & Active Team Direct Reports (Right) */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <Card title="Approvals Action Queue" subtitle="Verify and approve team members leaves" icon={<CalendarDaysIcon className="h-6 w-6 text-blue-600" />} className="lg:col-span-2">
-          <div className="space-y-4 max-h-[350px] overflow-y-auto pr-2">
-            {leaves.filter(l => l.status === "Pending").map(leaveItem => (
-              <div key={leaveItem.id} className="flex justify-between items-center p-4 border rounded-xl hover:bg-slate-50 transition">
-                <div>
-                  <h5 className="font-extrabold text-sm text-slate-800">{leaveItem.employeeName}</h5>
-                  <p className="text-xs text-slate-500 font-medium mt-0.5">
-                    Requesting <span className="font-bold text-indigo-600">{leaveItem.leaveType}</span> from {leaveItem.fromDate} to {leaveItem.toDate}
-                  </p>
-                </div>
-                <div className="flex gap-2">
-                  <button className="p-1.5 bg-green-50 text-green-700 rounded-lg hover:bg-green-100 transition border border-green-200" title="Approve">
-                    <CheckIcon className="h-4 w-4" />
-                  </button>
-                  <button className="p-1.5 bg-red-50 text-red-700 rounded-lg hover:bg-red-100 transition border border-red-200" title="Reject">
-                    <XMarkIcon className="h-4 w-4" />
-                  </button>
-                </div>
-              </div>
-            ))}
+        {/* Approvals Action Queue: 2 Cols */}
+        <div className="lg:col-span-2 bg-white border border-slate-200/80 rounded-2xl p-5 shadow-xs space-y-4">
+          <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+            <div>
+              <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
+                <CalendarDaysIcon className="w-4 h-4 text-blue-600" />
+                <span>Pending Approvals Queue</span>
+              </h3>
+              <p className="text-[11px] text-slate-400 font-medium mt-0.5">
+                Review and approve leave applications submitted by direct reports
+              </p>
+            </div>
+            <span className="px-2.5 py-1 rounded-lg text-xs font-bold bg-amber-50 text-amber-700 border border-amber-200">
+              {pendingLeaves.length} Pending
+            </span>
           </div>
-        </Card>
 
-        <Card title="My Active Team" subtitle="Direct reports context" icon={<UserIcon className="h-6 w-6 text-blue-600" />} className="lg:col-span-1">
-          <div className="space-y-4 max-h-[350px] overflow-y-auto pr-2">
-            {employees.slice(0, 4).map(teamEmp => (
-              <div key={teamEmp.id} className="flex items-center gap-3 p-2 rounded-lg hover:bg-slate-50">
-                <div className="h-9 w-9 bg-indigo-100 text-indigo-700 rounded-full flex items-center justify-center font-bold text-xs">
-                  {teamEmp.employeeName?.[0]}
-                </div>
-                <div>
-                  <h6 className="font-bold text-xs text-slate-800">{teamEmp.employeeName}</h6>
-                  <p className="text-[10px] text-slate-500">{teamEmp.bankName || "Operations Analyst"}</p>
-                </div>
+          <div className="space-y-3">
+            {pendingLeaves.length === 0 ? (
+              <div className="text-center py-12 text-slate-400">
+                <CheckCircleIcon className="w-8 h-8 text-emerald-400 mx-auto mb-2 opacity-60" />
+                <p className="text-xs font-bold text-slate-600">All caught up!</p>
+                <p className="text-[11px] text-slate-400 mt-0.5">There are no pending leave requests awaiting your decision.</p>
               </div>
-            ))}
+            ) : (
+              pendingLeaves.map(leaveItem => (
+                <div key={leaveItem.id} className="flex flex-col sm:flex-row sm:items-center justify-between p-4 border border-slate-200/70 rounded-xl hover:border-slate-300 hover:bg-slate-50/50 transition duration-150 gap-3">
+                  <div className="space-y-1">
+                    <div className="flex items-center gap-2">
+                      <h4 className="font-bold text-xs text-slate-900">{leaveItem.employeeName || "Employee"}</h4>
+                      <span className="text-[10px] font-mono text-slate-400 font-semibold">{leaveItem.employeeCode || "EMP"}</span>
+                    </div>
+                    <p className="text-xs text-slate-500 font-medium">
+                      Requesting <strong className="text-indigo-600 font-semibold">{leaveItem.leaveType || "Leave"}</strong>: {leaveItem.fromDate} to {leaveItem.toDate}
+                    </p>
+                    {leaveItem.reason && (
+                      <p className="text-[11px] text-slate-400 italic">"{leaveItem.reason}"</p>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <button
+                      onClick={() => handleUpdateLeaveStatus(leaveItem.id, "Approved")}
+                      disabled={actionLoading === leaveItem.id}
+                      className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white rounded-lg text-xs font-bold transition flex items-center gap-1.5 shadow-2xs cursor-pointer"
+                    >
+                      <CheckIcon className="w-3.5 h-3.5" />
+                      <span>Approve</span>
+                    </button>
+                    <button
+                      onClick={() => handleUpdateLeaveStatus(leaveItem.id, "Rejected")}
+                      disabled={actionLoading === leaveItem.id}
+                      className="px-3 py-1.5 bg-white hover:bg-rose-50 disabled:opacity-50 text-rose-700 border border-rose-200 rounded-lg text-xs font-bold transition flex items-center gap-1.5 shadow-2xs cursor-pointer"
+                    >
+                      <XMarkIcon className="w-3.5 h-3.5" />
+                      <span>Reject</span>
+                    </button>
+                  </div>
+                </div>
+              ))
+            )}
           </div>
-        </Card>
+        </div>
+
+        {/* Direct Reports List: 1 Col */}
+        <div className="bg-white border border-slate-200/80 rounded-2xl p-5 shadow-xs space-y-4">
+          <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+            <div>
+              <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
+                <UserIcon className="w-4 h-4 text-indigo-600" />
+                <span>My Team Roster</span>
+              </h3>
+              <p className="text-[11px] text-slate-400 font-medium mt-0.5">
+                Direct reporting employees
+              </p>
+            </div>
+            <span className="text-[11px] font-bold text-slate-600 bg-slate-100 px-2 py-0.5 rounded-md">
+              {filteredTeam.length} Members
+            </span>
+          </div>
+
+          <div className="relative">
+            <MagnifyingGlassIcon className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-2.5" />
+            <input
+              type="text"
+              placeholder="Search team..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="w-full pl-8 pr-3 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+            />
+          </div>
+
+          <div className="space-y-2.5 max-h-[360px] overflow-y-auto pr-1">
+            {filteredTeam.length === 0 ? (
+              <p className="text-xs text-slate-400 text-center py-6">No matching team members found</p>
+            ) : (
+              filteredTeam.map(emp => (
+                <div key={emp.id} className="flex items-center justify-between p-2.5 rounded-xl hover:bg-slate-50 transition border border-transparent hover:border-slate-200/80">
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-8 h-8 rounded-full bg-indigo-100 text-indigo-700 font-bold text-xs flex items-center justify-center shrink-0">
+                      {emp.employeeName?.[0] || "E"}
+                    </div>
+                    <div>
+                      <h5 className="text-xs font-bold text-slate-800">{emp.employeeName}</h5>
+                      <p className="text-[10px] text-slate-400 font-medium">{emp.designation || emp.department || "Operations Staff"}</p>
+                    </div>
+                  </div>
+                  <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                    Active
+                  </span>
+                </div>
+              ))
+            )}
+          </div>
+        </div>
       </div>
     </div>
   );

@@ -23,27 +23,27 @@ const Input = ({
   const inputType = type === 'password' ? (showPassword ? 'text' : 'password') : type;
 
   const sizes = {
-    small: 'px-3 py-1.5 text-sm',
-    medium: 'px-4 py-2 text-base',
-    large: 'px-6 py-3 text-lg',
+    small: 'px-2.5 py-1.5 text-xs',
+    medium: 'px-3.5 py-2 text-xs font-medium',
+    large: 'px-4 py-2.5 text-sm font-medium',
   };
 
-  const baseStyles = 'block bg-white text-gray-900 placeholder:text-gray-400 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 disabled:bg-gray-100 disabled:cursor-not-allowed';
-  const errorStyles = error ? 'border-red-500 focus:ring-red-500' : 'border-gray-300';
+  const baseStyles = 'block bg-white text-slate-900 placeholder:text-slate-400 border rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all duration-150 disabled:bg-slate-50 disabled:opacity-60 disabled:cursor-not-allowed shadow-2xs';
+  const errorStyles = error ? 'border-rose-400 focus:ring-rose-500/20 focus:border-rose-500' : 'border-slate-200/90 hover:border-slate-300';
   const widthClass = fullWidth ? 'w-full' : '';
 
   return (
-    <div className={`${widthClass} ${className}`}>
+    <div className={`${widthClass} ${className} space-y-1`}>
       {label && (
-        <label className="block text-sm font-medium text-gray-700 mb-1">
+        <label className="block text-xs font-bold text-slate-700">
           {label}
-          {required && <span className="text-red-500 ml-1">*</span>}
+          {required && <span className="text-rose-500 ml-1 font-bold">*</span>}
         </label>
       )}
       <div className={`${widthClass} relative`}>
         {icon && iconPosition === 'left' && (
-          <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-            <span className="text-gray-400">{icon}</span>
+          <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
+            {icon}
           </div>
         )}
         <input
@@ -52,30 +52,34 @@ const Input = ({
           value={value}
           onChange={onChange}
           disabled={disabled}
-          className={`${baseStyles} ${errorStyles} ${sizes[size]} ${widthClass} ${icon && iconPosition === 'left' ? 'pl-10' : ''} ${icon && iconPosition === 'right' ? 'pr-10' : ''} ${type === 'password' ? 'pr-10' : ''} ${inputClassName}`}
+          className={`
+            ${baseStyles}
+            ${errorStyles}
+            ${sizes[size] || sizes.medium}
+            ${icon && iconPosition === 'left' ? 'pl-9' : ''}
+            ${type === 'password' || (icon && iconPosition === 'right') ? 'pr-9' : ''}
+            ${widthClass}
+            ${inputClassName}
+          `}
           {...props}
         />
         {type === 'password' && (
           <button
             type="button"
             onClick={() => setShowPassword(!showPassword)}
-            className="absolute inset-y-0 right-0 pr-3 flex items-center"
+            className="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-400 hover:text-slate-600 transition cursor-pointer"
           >
-            {showPassword ? (
-              <EyeSlashIcon className="h-5 w-5 text-gray-400" />
-            ) : (
-              <EyeIcon className="h-5 w-5 text-gray-400" />
-            )}
+            {showPassword ? <EyeSlashIcon className="h-4 w-4" /> : <EyeIcon className="h-4 w-4" />}
           </button>
         )}
-        {icon && iconPosition === 'right' && type !== 'password' && (
-          <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
-            <span className="text-gray-400">{icon}</span>
+        {type !== 'password' && icon && iconPosition === 'right' && (
+          <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none text-slate-400">
+            {icon}
           </div>
         )}
       </div>
-      {error && <p className="mt-1 text-sm text-red-600">{error}</p>}
-      {helperText && !error && <p className="mt-1 text-sm text-gray-500">{helperText}</p>}
+      {error && <p className="text-[11px] font-medium text-rose-500 mt-0.5">{error}</p>}
+      {helperText && !error && <p className="text-[11px] font-medium text-slate-400 mt-0.5">{helperText}</p>}
     </div>
   );
 };

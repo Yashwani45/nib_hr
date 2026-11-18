@@ -12,6 +12,7 @@ const AuditLog = require('./core/auditLog.model');
 const NavigationMenu = require('./core/navigationMenu.model');
 const DashboardWidget = require('./core/dashboardWidget.model');
 const Designation = require('./core/designation.model');
+const { OrgAttendanceConfig, OrgAttendanceMethod } = require('./core/attendanceConfig.model');
 
 const Recruitment = require('./talent/recruitment.model');
 const Candidate = require('./talent/candidate.model');
@@ -37,6 +38,9 @@ const Asset = require('./operations/asset.model');
 const Holiday = require('./operations/holiday.model');
 const LeaveType = require('./operations/leaveType.model');
 const Overtime = require('./operations/overtime.model');
+const BiometricDeviceUser = require('./operations/biometricDeviceUser.model');
+const BiometricAttendanceEvent = require('./operations/biometricAttendanceEvent.model');
+const BiometricDevice = require('./operations/biometricDevice.model');
 
 const Payroll = require('./finance/payroll.model');
 const Salary = require('./finance/salary.model');
@@ -57,6 +61,10 @@ const LoanEmiSchedule = require('./finance/loanEmiSchedule.model');
 const EsiContribution = require('./finance/esiContribution.model');
 const ProfessionalTaxRule = require('./finance/professionalTaxRule.model');
 const ProfessionalTaxContribution = require('./finance/professionalTaxContribution.model');
+const PayrollRecord = require('./finance/payrollRecord.model');
+const StatutoryConfiguration = require('./finance/statutoryConfiguration.model');
+const PayrollPayment = require('./finance/payrollPayment.model');
+const PayrollAuditLog = require('./finance/payrollAuditLog.model');
 
 const Ticket = require('./support/ticket.model');
 const Notification = require('./support/notification.model');
@@ -81,6 +89,8 @@ Department.belongsTo(Company, { foreignKey: 'companyId', as: 'companyDetails', c
 
 Branch.hasMany(Department, { foreignKey: 'branchId', as: 'departments', constraints: false });
 Department.belongsTo(Branch, { foreignKey: 'branchId', as: 'branchDetails', constraints: false });
+Branch.hasMany(Employee, { foreignKey: 'branchId', as: 'employees', constraints: false });
+Employee.belongsTo(Branch, { foreignKey: 'branchId', as: 'branchDetails', constraints: false });
 
 Department.belongsTo(Department, { foreignKey: 'parentDeptId', as: 'parentDeptDetails', constraints: false });
 Department.belongsTo(Employee, { foreignKey: 'headEmployeeId', as: 'headEmployeeDetails', constraints: false });
@@ -124,6 +134,8 @@ Salary.belongsTo(Employee, { foreignKey: 'employeeId', as: 'employee', constrain
 // Salary Structure Associations
 SalaryStructure.hasMany(SalaryComponent, { foreignKey: 'salaryStructureId', as: 'components', constraints: false });
 SalaryComponent.belongsTo(SalaryStructure, { foreignKey: 'salaryStructureId', as: 'structure', constraints: false });
+SalaryStructure.belongsTo(Department, { foreignKey: 'departmentId', as: 'departmentDetails', constraints: false });
+SalaryStructure.belongsTo(Designation, { foreignKey: 'designationId', as: 'designationDetails', constraints: false });
 
 Employee.hasMany(EmployeeSalaryAssignment, { foreignKey: 'employeeId', as: 'salaryAssignments', constraints: false });
 EmployeeSalaryAssignment.belongsTo(Employee, { foreignKey: 'employeeId', as: 'employee', constraints: false });
@@ -143,6 +155,33 @@ PayrollEarning.belongsTo(PayrollItem, { foreignKey: 'payrollItemId', as: 'item',
 
 PayrollItem.hasMany(PayrollDeduction, { foreignKey: 'payrollItemId', as: 'deductions', constraints: false });
 PayrollDeduction.belongsTo(PayrollItem, { foreignKey: 'payrollItemId', as: 'item', constraints: false });
+PayrollItem.hasOne(Payslip, { foreignKey: 'payrollItemId', as: 'payslip', constraints: false });
+Payslip.belongsTo(PayrollItem, { foreignKey: 'payrollItemId', as: 'payrollItem', constraints: false });
+
+// Payroll Records (Enterprise Model) Associations
+PayrollRun.hasMany(PayrollRecord, { foreignKey: 'payrollRunId', as: 'records', constraints: false });
+PayrollRecord.belongsTo(PayrollRun, { foreignKey: 'payrollRunId', as: 'run', constraints: false });
+
+Employee.hasMany(PayrollRecord, { foreignKey: 'employeeId', as: 'records', constraints: false });
+PayrollRecord.belongsTo(Employee, { foreignKey: 'employeeId', as: 'employeeDetails', constraints: false });
+
+PayrollRecord.hasMany(PayrollEarning, { foreignKey: 'payrollRecordId', as: 'recordEarnings', constraints: false });
+PayrollEarning.belongsTo(PayrollRecord, { foreignKey: 'payrollRecordId', as: 'record', constraints: false });
+
+PayrollRecord.hasMany(PayrollDeduction, { foreignKey: 'payrollRecordId', as: 'recordDeductions', constraints: false });
+PayrollDeduction.belongsTo(PayrollRecord, { foreignKey: 'payrollRecordId', as: 'record', constraints: false });
+
+PayrollRecord.hasOne(Payslip, { foreignKey: 'payrollRecordId', as: 'recordPayslip', constraints: false });
+Payslip.belongsTo(PayrollRecord, { foreignKey: 'payrollRecordId', as: 'recordDetails', constraints: false });
+
+PayrollRecord.hasMany(PayrollPayment, { foreignKey: 'payrollRecordId', as: 'payments', constraints: false });
+PayrollPayment.belongsTo(PayrollRecord, { foreignKey: 'payrollRecordId', as: 'record', constraints: false });
+
+PayrollRun.hasMany(PayrollPayment, { foreignKey: 'payrollRunId', as: 'runPayments', constraints: false });
+PayrollPayment.belongsTo(PayrollRun, { foreignKey: 'payrollRunId', as: 'run', constraints: false });
+
+EmployeeLoan.hasMany(LoanRepayment, { foreignKey: 'employeeLoanId', as: 'repaymentLedger', constraints: false });
+LoanRepayment.belongsTo(EmployeeLoan, { foreignKey: 'employeeLoanId', as: 'employeeLoan', constraints: false });
 
 // Payslip Associations
 Employee.hasMany(Payslip, { foreignKey: 'employeeId', as: 'payslips', constraints: false });
@@ -157,6 +196,8 @@ LoanEmiSchedule.belongsTo(EmployeeLoan, { foreignKey: 'loanId', as: 'loan', cons
 
 EmployeeLoan.hasMany(LoanRepayment, { foreignKey: 'loanId', as: 'repayments', constraints: false });
 LoanRepayment.belongsTo(EmployeeLoan, { foreignKey: 'loanId', as: 'loan', constraints: false });
+LoanEmiSchedule.hasMany(LoanRepayment, { foreignKey: 'emiScheduleId', as: 'repayments', constraints: false });
+LoanRepayment.belongsTo(LoanEmiSchedule, { foreignKey: 'emiScheduleId', as: 'emiSchedule', constraints: false });
 
 // Statutory Associations
 Employee.hasMany(EsiContribution, { foreignKey: 'employeeId', as: 'esiContributions', constraints: false });
@@ -225,6 +266,26 @@ NavigationMenu.belongsToMany(Role, { through: 'role_navigation_menus', foreignKe
 Role.belongsToMany(DashboardWidget, { through: 'role_dashboard_widgets', foreignKey: 'roleId', as: 'dashboardWidgets', constraints: false });
 DashboardWidget.belongsToMany(Role, { through: 'role_dashboard_widgets', foreignKey: 'widgetId', as: 'roles', constraints: false });
 
+// Route all models to dynamic tenant sequelize proxy
+const allModels = [
+  User, Role, Permission, Company, Branch, Department, Designation, Employee, AuditLog,
+  Recruitment, Candidate, Interview, PerformanceMaster, PerformanceGoal, PerformanceGoalHistory,
+  PerformanceKpi, PerformanceKpiHistory, PerformanceAppraisal, EmployeePromotion, EmployeeIncrement,
+  RatingScale, Competency, Skill, GoalCategory, PerformanceImprovementPlan, Attendance, Leave,
+  Shift, Asset, Holiday, LeaveType, Overtime, BiometricDeviceUser, BiometricAttendanceEvent,
+  BiometricDevice, Payroll, Salary, Bonus, TdsMaster, SalaryStructure, SalaryComponent,
+  EmployeeSalaryAssignment, PayrollRun, PayrollItem, PayrollEarning, PayrollDeduction, Payslip,
+  EmployeeLoan, LoanRepayment, LoanEmiSchedule, EsiContribution, ProfessionalTaxRule,
+  ProfessionalTaxContribution, PayrollRecord, StatutoryConfiguration, PayrollPayment,
+  PayrollAuditLog, Ticket, Notification, Survey, NavigationMenu, DashboardWidget,
+  OrgAttendanceConfig, OrgAttendanceMethod
+];
+allModels.forEach(m => {
+  if (m && m.prototype) {
+    m.sequelize = sequelize;
+  }
+});
+
 module.exports = {
   sequelize,
   User,
@@ -259,6 +320,9 @@ module.exports = {
   Holiday,
   LeaveType,
   Overtime,
+  BiometricDeviceUser,
+  BiometricAttendanceEvent,
+  BiometricDevice,
   Payroll,
   Salary,
   Bonus,
@@ -277,9 +341,15 @@ module.exports = {
   EsiContribution,
   ProfessionalTaxRule,
   ProfessionalTaxContribution,
+  PayrollRecord,
+  StatutoryConfiguration,
+  PayrollPayment,
+  PayrollAuditLog,
   Ticket,
   Notification,
   Survey,
   NavigationMenu,
   DashboardWidget,
+  OrgAttendanceConfig,
+  OrgAttendanceMethod,
 };

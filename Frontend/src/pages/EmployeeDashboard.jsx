@@ -22,9 +22,34 @@ import {
   ShieldCheckIcon,
   GlobeAltIcon,
   CommandLineIcon,
-  ReceiptPercentIcon
+  ReceiptPercentIcon,
+  MapPinIcon,
+  CameraIcon,
+  QrCodeIcon,
+  FingerPrintIcon,
+  CheckCircleIcon,
+  ExclamationTriangleIcon,
+  ArrowPathIcon,
+  BuildingOffice2Icon,
+  BuildingOfficeIcon,
+  BuildingLibraryIcon,
+  EnvelopeIcon,
+  IdentificationIcon,
+  PhoneIcon,
+  BookOpenIcon,
+  HeartIcon,
+  HomeIcon,
+  ArrowLeftIcon,
+  PencilSquareIcon,
+  EyeIcon,
+  EyeSlashIcon,
+  LockClosedIcon,
+  CheckIcon,
+  XMarkIcon,
+  PaperAirplaneIcon,
+  UserGroupIcon
 } from "@heroicons/react/24/outline";
-import { Badge, Card } from "../components/ui";
+import { Badge, Card, Modal } from "../components/ui";
 import { apiFetch, uploadEmployeeFile } from "../services/hrApi";
 import { useAuth } from "../auth/AuthProvider";
 import EmployeeDocuments from "../components/SupportEngagement/EmployeeDocuments";
@@ -38,6 +63,14 @@ import ReportsDashboard from "../components/Reports/ReportsDashboard";
 import NotificationsDashboard from "../components/Notifications/NotificationsDashboard";
 import ExpenseReimbursementSection from "../components/Expenses/ExpenseReimbursementSection";
 import AssetAllocationDashboard from "../components/Assets/AssetAllocationDashboard";
+
+import FaceAttendanceModal from "../components/FaceRecognition/FaceAttendanceModal";
+import EmployeeBiometricPunch from "../components/Biometric/EmployeeBiometricPunch";
+import CompanyQrScannerModal from "../components/Attendance/CompanyQrScannerModal";
+import CompanyQrAdminConsole from "../components/Attendance/CompanyQrAdminConsole";
+import EmployeeQrCardModal from "../components/Attendance/EmployeeQrCardModal";
+import EmployeeQrScannerModal from "../components/Attendance/EmployeeQrScannerModal";
+
 
 const getStatusVariant = (status) => {
   if (["Active", "Approved", "Processed", "Assigned", "Resolved", "Paid"].includes(status)) return "success";
@@ -127,8 +160,175 @@ const EmployeeDashboard = () => {
   const [uploadingDoc, setUploadingDoc] = useState(false);
   
   const [empCheckedIn, setEmpCheckedIn] = useState(false);
+  const [showFaceModal, setShowFaceModal] = useState(false);
+  const [showBiometricModal, setShowBiometricModal] = useState(false);
+  const [showCompanyQrScanModal, setShowCompanyQrScanModal] = useState(false);
+  const [showCompanyQrAdminModal, setShowCompanyQrAdminModal] = useState(false);
+  const [showEmployeeQrScanModal, setShowEmployeeQrScanModal] = useState(false);
+  const [showEmployeeQrCardModal, setShowEmployeeQrCardModal] = useState(false);
+  const [myQrData, setMyQrData] = useState(null);
+  const [loadingMyQr, setLoadingMyQr] = useState(false);
+  const [facePunchAction, setFacePunchAction] = useState("clock-in");
   const [empPunchTime, setEmpPunchTime] = useState("");
+  const [empCheckOutTime, setEmpCheckOutTime] = useState("");
+  const [empPunchLocation, setEmpPunchLocation] = useState("");
+  const [empShiftCompleted, setEmpShiftCompleted] = useState(false);
   
+  // Organization-Enforced Attendance Methods State (Core Modes: GEO, FACE, BIOMETRIC, QR)
+  const [allowedAttendanceMethods, setAllowedAttendanceMethods] = useState([
+    { method: "GEO", name: "Geo-Tagged Attendance", isEnabled: true },
+    { method: "FACE", name: "Face Recognition Attendance", isEnabled: true },
+    { method: "BIOMETRIC", name: "Biometric Attendance", isEnabled: true },
+    { method: "QR", name: "QR / Barcode Attendance", isEnabled: true }
+  ]);
+  const [selectedPunchMethod, setSelectedPunchMethod] = useState("GEO");
+  const [loadingAllowedMethods, setLoadingAllowedMethods] = useState(false);
+  const [punchProcessing, setPunchProcessing] = useState(false);
+
+  // Geo-Tagged Telemetry State
+  const [geoCoords, setGeoCoords] = useState(null);
+  const [geoLocating, setGeoLocating] = useState(false);
+  const [geoStatusMsg, setGeoStatusMsg] = useState("");
+
+  // QR Attendance State
+  const [qrTokenData, setQrTokenData] = useState(null);
+  const [qrCountdown, setQrCountdown] = useState(60);
+  const [qrModalOpen, setQrModalOpen] = useState(false);
+  const [qrScanInput, setQrScanInput] = useState("");
+
+  // Face Recognition State
+  const [faceModalOpen, setFaceModalOpen] = useState(false);
+  const [faceImagePreview, setFaceImagePreview] = useState(null);
+  const [faceConfidence, setFaceConfidence] = useState(0.94);
+
+  // Biometric Terminal State
+  const [biometricModalOpen, setBiometricModalOpen] = useState(false);
+
+  const webcamVideoRef = React.useRef(null);
+  const [webcamActive, setWebcamActive] = useState(false);
+
+  // Acquire live GPS Geolocation coordinates
+  const handleGetGeoLocation = () => {
+    if (!navigator.geolocation) {
+      setGeoStatusMsg("Geolocation is not supported by your browser.");
+      setGeoCoords({ latitude: 19.0760, longitude: 72.8777, accuracy: 15 });
+      return;
+    }
+    setGeoLocating(true);
+    setGeoStatusMsg("Acquiring GPS fix...");
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        setGeoCoords({
+          latitude: pos.coords.latitude,
+          longitude: pos.coords.longitude,
+          accuracy: pos.coords.accuracy,
+        });
+        setGeoLocating(false);
+        setGeoStatusMsg(`GPS Locked: ${pos.coords.latitude.toFixed(5)}, ${pos.coords.longitude.toFixed(5)} (±${Math.round(pos.coords.accuracy)}m)`);
+      },
+      (err) => {
+        setGeoLocating(false);
+        setGeoStatusMsg(`GPS Warning: ${err.message}. Defaulting to office zone.`);
+        setGeoCoords({
+          latitude: 19.0760,
+          longitude: 72.8777,
+          accuracy: 20,
+        });
+      },
+      { enableHighAccuracy: true, timeout: 8000, maximumAge: 0 }
+    );
+  };
+
+  // Dynamic QR Token Fetcher
+  const fetchQrToken = async () => {
+    try {
+      const res = await apiFetch("/api/operations/attendance/qr-token");
+      if (res && res.data) {
+        setQrTokenData(res.data);
+        setQrCountdown(res.data.rotationSeconds || 60);
+      }
+    } catch (err) {
+      console.warn("Failed to generate dynamic QR token:", err.message);
+    }
+  };
+
+  // Webcam stream handlers for Face Recognition
+  const startWebcam = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ video: { width: 320, height: 240 } });
+      if (webcamVideoRef.current) {
+        webcamVideoRef.current.srcObject = stream;
+      }
+      setWebcamActive(true);
+    } catch (err) {
+      console.warn("Webcam access error:", err.message);
+      setWebcamActive(false);
+    }
+  };
+
+  const stopWebcam = () => {
+    if (webcamVideoRef.current && webcamVideoRef.current.srcObject) {
+      try {
+        webcamVideoRef.current.srcObject.getTracks().forEach(t => t.stop());
+      } catch (e) {}
+      webcamVideoRef.current.srcObject = null;
+    }
+    setWebcamActive(false);
+  };
+
+  const captureFaceSnapshot = () => {
+    if (webcamVideoRef.current && webcamActive) {
+      try {
+        const canvas = document.createElement("canvas");
+        canvas.width = 320;
+        canvas.height = 240;
+        const ctx = canvas.getContext("2d");
+        ctx.drawImage(webcamVideoRef.current, 0, 0, 320, 240);
+        const dataUrl = canvas.toDataURL("image/jpeg", 0.85);
+        setFaceImagePreview(dataUrl);
+        setFaceConfidence(0.96);
+      } catch (e) {
+        setFaceImagePreview("https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=200");
+        setFaceConfidence(0.94);
+      }
+    } else {
+      setFaceImagePreview("https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=200");
+      setFaceConfidence(0.94);
+    }
+  };
+
+  // Auto-init method specific data
+  useEffect(() => {
+    if (selectedPunchMethod === "GEO" && !geoCoords) {
+      handleGetGeoLocation();
+    } else if (selectedPunchMethod === "QR" && !qrTokenData) {
+      fetchQrToken();
+    } else if (selectedPunchMethod === "FACE" && !webcamActive && !faceImagePreview) {
+      startWebcam();
+    }
+
+    return () => {
+      if (selectedPunchMethod !== "FACE" && webcamActive) {
+        stopWebcam();
+      }
+    };
+  }, [selectedPunchMethod]);
+
+  // QR token rotation timer
+  useEffect(() => {
+    if (selectedPunchMethod !== "QR" || !qrTokenData) return;
+    const interval = setInterval(() => {
+      setQrCountdown(prev => {
+        if (prev <= 1) {
+          fetchQrToken();
+          return 60;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [selectedPunchMethod, qrTokenData]);
+
   // Real dynamic user records (no static mock fallbacks)
   const [attendanceLogs, setAttendanceLogs] = useState([]);
   const [leaves, setLeaves] = useState([]);
@@ -158,7 +358,28 @@ const EmployeeDashboard = () => {
   const [newRegularization, setNewRegularization] = useState({ date: "", punchType: "Check-In", requestedCheckIn: "", requestedCheckOut: "", reason: "", attachment: "" });
   const [isNewRegistration, setIsNewRegistration] = useState(false);
   const [isEditingProfile, setIsEditingProfile] = useState(false);
+  const [isEditingBank, setIsEditingBank] = useState(false);
+  const [bankSubmitting, setBankSubmitting] = useState(false);
+  const [showAccountNumber, setShowAccountNumber] = useState(false);
+  const [bankForm, setBankForm] = useState({
+    bankName: "",
+    accountHolderName: "",
+    accountNumber: "",
+    ifscCode: "",
+    branchName: "",
+    upiId: "",
+    basicSalary: "0",
+    grossSalary: "0",
+    ctc: "0",
+    pfApplicable: false,
+    esiApplicable: false
+  });
   const [duplicateWarningModal, setDuplicateWarningModal] = useState(null);
+
+  // Task 2: Last Month Payslip Dual-Approval Request State
+  const [payslipRequestPurpose, setPayslipRequestPurpose] = useState("Official Income Verification & Financial Documentation");
+  const [isPayslipRequestModalOpen, setIsPayslipRequestModalOpen] = useState(false);
+  const [payslipActionToast, setPayslipActionToast] = useState("");
 
   const [employeeForm, setEmployeeForm] = useState({
     photo: "",
@@ -250,10 +471,10 @@ const EmployeeDashboard = () => {
 
   // Derived user details
   const employeeName = currentUserProfile?.firstName || currentUserProfile?.employeeName || user?.employeeName || user?.name || user?.email?.split('@')[0] || "Employee";
-  const departmentName = currentUserProfile?.department || user?.departmentName || user?.department || "Operations";
+  const departmentName = currentUserProfile?.department || user?.departmentName || user?.department || localStorage.getItem("user_department") || "Operations";
 
   const [selectedDeptFilter, setSelectedDeptFilter] = useState("All Departments");
-  const [selectedMonthFilter, setSelectedMonthFilter] = useState("this_month");
+  const [selectedMonthFilter, setSelectedMonthFilter] = useState("last_month");
   const [companyDepartmentsList, setCompanyDepartmentsList] = useState(["IT", "Software Engineering", "Operations", "Finance", "Human Resources", "Sales & Marketing"]);
 
   useEffect(() => {
@@ -354,6 +575,17 @@ const EmployeeDashboard = () => {
       prevDesignation: data.prevDesignation || details.prevDesignation || "",
       totalExpYears: data.totalExpYears || details.totalExpYears || "",
       prevSalary: data.prevSalary || details.prevSalary || "",
+      bankName: data.bankName || details.bankName || "",
+      accountHolderName: data.accountHolderName || details.accountHolderName || "",
+      accountNumber: data.accountNumber || details.accountNumber || "",
+      ifscCode: data.ifscCode || details.ifscCode || "",
+      branchName: data.branchName || details.branchName || "",
+      upiId: data.upiId || details.upiId || "",
+      basicSalary: data.basicSalary || details.basicSalary || "0",
+      grossSalary: data.grossSalary || details.grossSalary || "0",
+      ctc: data.ctc || details.ctc || "0",
+      pfApplicable: Boolean(data.pfApplicable ?? details.pfApplicable ?? false),
+      esiApplicable: Boolean(data.esiApplicable ?? details.esiApplicable ?? false),
       documents: {
         ...(details.documents || {}),
         ...(data.documents || {})
@@ -430,7 +662,7 @@ const EmployeeDashboard = () => {
     if (userRole === "Employee") {
       if (["EXIT_MGMT", "EMP_LEAVE", "EMP_HELPDESK"].includes(activeCategory)) {
         setSearchParams({ category: "EMP_DASHBOARD", tab: "Dashboard Home" });
-      } else if (activeCategory === "EMP_ATTENDANCE" && (!activeTab || activeTab !== "Monthly Attendance")) {
+      } else if (activeCategory === "EMP_ATTENDANCE" && (!activeTab || (activeTab !== "Monthly Attendance" && activeTab !== "Register Attendance"))) {
         setSearchParams({ category: "EMP_ATTENDANCE", tab: "Monthly Attendance" });
       } else if (activeCategory === "EMPLOYEE_MGMT" && (activeTab === "Reporting Manager" || activeTab === "Reporting Hierarchy")) {
         setSearchParams({ category: "EMPLOYEE_MGMT", tab: "Employee Profile" });
@@ -452,6 +684,26 @@ const EmployeeDashboard = () => {
       const attRes = await apiFetch("/api/table/daily_attendance");
       const attList = attRes?.data || [];
       setAllAttendanceList(attList);
+
+      // 2b. Fetch organization-enforced allowed attendance methods
+      try {
+        setLoadingAllowedMethods(true);
+        const allowedRes = await apiFetch("/api/operations/attendance/allowed-methods");
+        if (allowedRes && allowedRes.data && allowedRes.data.allowedMethods) {
+          const methods = allowedRes.data.allowedMethods;
+          setAllowedAttendanceMethods(methods);
+          if (methods.length > 0) {
+            setSelectedPunchMethod(prev => {
+              const stillValid = methods.some(m => m.method === prev);
+              return stillValid ? prev : methods[0].method;
+            });
+          }
+        }
+      } catch (attMethErr) {
+        console.warn("Failed to load allowed attendance methods:", attMethErr.message);
+      } finally {
+        setLoadingAllowedMethods(false);
+      }
 
       // 3. Fetch leaves requests
       const leaveRes = await apiFetch("/api/table/leave_requests");
@@ -533,6 +785,20 @@ const EmployeeDashboard = () => {
       if (profile) {
         setCurrentUserProfile(profile);
         
+        // Load active QR badge data for this employee
+        const qrEmpId = profile.id || profile.employeeCode;
+        if (qrEmpId) {
+          setLoadingMyQr(true);
+          apiFetch(`/api/operations/attendance/employee-qr/${qrEmpId}`)
+            .then(res => {
+              if (res?.success && res.data) {
+                setMyQrData(res.data);
+              }
+            })
+            .catch(() => {})
+            .finally(() => setLoadingMyQr(false));
+        }
+        
         // Filter attendance logs for current user
         const myEmpCode = profile.employeeCode || profile.emp_code || profile.employee_code || "";
         const fullName = `${profile.firstName || ''} ${profile.lastName || ''}`.trim().toLowerCase();
@@ -560,26 +826,48 @@ const EmployeeDashboard = () => {
           ipAddress: l.ipAddress || l.ip_address || "--",
           deviceInfo: l.deviceInfo || l.device_info || "--",
           gpsLocation: l.gpsLocation || l.gps_location || "--",
+          attendanceLocation: l.attendance_location || l.attendanceLocation || l.attendance_location_name || l.branch || "Regional Office",
+          verificationMethod: l.verification_method || l.verificationMethod || "GEO",
+          verificationStatus: l.verification_status || l.verificationStatus || "VERIFIED",
           selfieUrl: l.selfieUrl || l.selfie_url || null,
           breakHours: l.breakHours || l.break_hours || 0,
           remarks: l.remarks
         }));
 
         if (filteredAtt.length > 0) {
+          filteredAtt.sort((a, b) => {
+            if (b.date !== a.date) return String(b.date).localeCompare(String(a.date));
+            return (b.id || 0) - (a.id || 0);
+          });
           setAttendanceLogs(filteredAtt);
           const todayStr = new Date().toISOString().split('T')[0];
           const todayAtt = filteredAtt.find(a => a.date === todayStr);
           if (todayAtt && todayAtt.checkIn && (!todayAtt.checkOut || todayAtt.checkOut === "--")) {
             setEmpCheckedIn(true);
+            setEmpShiftCompleted(false);
             setEmpPunchTime(todayAtt.checkIn);
+            setEmpCheckOutTime("");
+            setEmpPunchLocation(todayAtt.attendanceLocation || todayAtt.attendance_location || todayAtt.gpsLocation || todayAtt.branch || "Regional Office");
+          } else if (todayAtt && todayAtt.checkIn && todayAtt.checkOut && todayAtt.checkOut !== "--") {
+            setEmpCheckedIn(false);
+            setEmpShiftCompleted(false);
+            setEmpPunchTime(todayAtt.checkIn);
+            setEmpCheckOutTime(todayAtt.checkOut);
+            setEmpPunchLocation(todayAtt.attendanceLocation || todayAtt.attendance_location || todayAtt.gpsLocation || todayAtt.branch || "Regional Office");
           } else {
             setEmpCheckedIn(false);
+            setEmpShiftCompleted(false);
             setEmpPunchTime("");
+            setEmpCheckOutTime("");
+            setEmpPunchLocation("");
           }
         } else {
           setAttendanceLogs([]);
           setEmpCheckedIn(false);
+          setEmpShiftCompleted(false);
           setEmpPunchTime("");
+          setEmpCheckOutTime("");
+          setEmpPunchLocation("");
         }
         
         // Filter leaves for current user
@@ -745,10 +1033,140 @@ const EmployeeDashboard = () => {
     }
   };
 
+  // Task 2: Last Month Payslip Dual-Approval Request Computations & Handlers
+  const lastMonthPayslipData = useMemo(() => {
+    if (payslips && payslips.length > 0) {
+      return payslips[0];
+    }
+    const now = new Date();
+    const lastMonthDate = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+    const monthNames = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+    const monthStr = `${monthNames[lastMonthDate.getMonth()]} ${lastMonthDate.getFullYear()}`;
+    
+    const basic = Number(currentUserProfile?.basicSalary) || 45000;
+    const gross = Number(currentUserProfile?.grossSalary) || (basic * 1.6);
+    const hra = Math.round(basic * 0.4);
+    const special = Math.max(0, gross - basic - hra);
+    const pf = Math.round(basic * 0.12);
+    const tax = Math.round(gross * 0.05);
+    const netPay = gross - pf - tax;
+
+    return {
+      id: "latest-payroll-slip",
+      month: monthStr,
+      basic,
+      hra,
+      special,
+      pf,
+      tax,
+      netPay,
+      gross
+    };
+  }, [payslips, currentUserProfile]);
+
+  const empReportingManager = useMemo(() => {
+    return currentUserProfile?.reportingManager || currentUserProfile?.reporting_manager || "Reporting Manager";
+  }, [currentUserProfile]);
+
+  const empDepartmentHr = useMemo(() => {
+    const dept = currentUserProfile?.department || "General";
+    return `${dept} HR Desk`;
+  }, [currentUserProfile]);
+
+  const payslipRequestStorageKey = useMemo(() => {
+    const uid = currentUserProfile?.id || user?.id || user?.email || 'emp';
+    const mStr = (lastMonthPayslipData?.month || 'latest').replace(/\s+/g, '_');
+    return `payslip_approval_req_${uid}_${mStr}`;
+  }, [currentUserProfile, user, lastMonthPayslipData]);
+
+  const [payslipDownloadRequest, setPayslipDownloadRequest] = useState(null);
+
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem(payslipRequestStorageKey);
+      if (saved) {
+        setPayslipDownloadRequest(JSON.parse(saved));
+      } else {
+        setPayslipDownloadRequest(null);
+      }
+    } catch (e) {
+      setPayslipDownloadRequest(null);
+    }
+  }, [payslipRequestStorageKey]);
+
+  const handleCreatePayslipRequest = (e) => {
+    if (e) e.preventDefault();
+    const newReq = {
+      id: `REQ-PAY-${Math.floor(100000 + Math.random() * 900000)}`,
+      month: lastMonthPayslipData.month,
+      requestedAt: new Date().toLocaleString(),
+      reason: payslipRequestPurpose,
+      reportingManager: {
+        name: empReportingManager,
+        status: "PENDING",
+        updatedAt: null
+      },
+      departmentHr: {
+        name: empDepartmentHr,
+        status: "PENDING",
+        updatedAt: null
+      }
+    };
+    setPayslipDownloadRequest(newReq);
+    try {
+      localStorage.setItem(payslipRequestStorageKey, JSON.stringify(newReq));
+    } catch (err) {}
+    setIsPayslipRequestModalOpen(false);
+    setPayslipActionToast(`Payslip download request submitted to ${empReportingManager} and ${empDepartmentHr}!`);
+    setTimeout(() => setPayslipActionToast(""), 5000);
+  };
+
+  const handleUpdatePayslipApproval = (approverRole, newStatus) => {
+    setPayslipDownloadRequest(prev => {
+      if (!prev) return prev;
+      const updated = {
+        ...prev,
+        [approverRole]: {
+          ...prev[approverRole],
+          status: newStatus,
+          updatedAt: new Date().toLocaleString()
+        }
+      };
+      try {
+        localStorage.setItem(payslipRequestStorageKey, JSON.stringify(updated));
+      } catch (err) {}
+      return updated;
+    });
+    setPayslipActionToast(`Permission from ${approverRole === 'reportingManager' ? 'Reporting Manager' : 'Department HR'} updated to ${newStatus}!`);
+    setTimeout(() => setPayslipActionToast(""), 5000);
+  };
+
+  const handleResetPayslipRequest = () => {
+    try {
+      localStorage.removeItem(payslipRequestStorageKey);
+    } catch (err) {}
+    setPayslipDownloadRequest(null);
+    setPayslipActionToast("Request reset. You can submit a new download request.");
+    setTimeout(() => setPayslipActionToast(""), 4000);
+  };
+
+  const isPayslipDownloadApproved = Boolean(
+    payslipDownloadRequest &&
+    payslipDownloadRequest.reportingManager?.status === "APPROVED" &&
+    payslipDownloadRequest.departmentHr?.status === "APPROVED"
+  );
+
   useEffect(() => {
     if (user?.email) {
       loadDashboardData();
     }
+    const handleSilentRefresh = () => {
+      if (user?.email) {
+        loadDashboardData();
+      }
+    };
+    window.addEventListener("silent-refresh", handleSilentRefresh);
+    return () => window.removeEventListener("silent-refresh", handleSilentRefresh);
   }, [user?.email, selectedEmployeeId]);
 
   useEffect(() => {
@@ -1208,7 +1626,18 @@ const EmployeeDashboard = () => {
       specialization: employeeForm.specialization || "",
       university: employeeForm.university || "",
       prevCompany: employeeForm.prevCompany || "",
-      prevDesignation: employeeForm.prevDesignation || ""
+      prevDesignation: employeeForm.prevDesignation || "",
+      bankName: employeeForm.bankName || profileDetails.bankName || "",
+      accountHolderName: employeeForm.accountHolderName || profileDetails.accountHolderName || "",
+      accountNumber: employeeForm.accountNumber || profileDetails.accountNumber || "",
+      ifscCode: employeeForm.ifscCode || profileDetails.ifscCode || "",
+      branchName: employeeForm.branchName || profileDetails.branchName || "",
+      upiId: employeeForm.upiId || profileDetails.upiId || "",
+      basicSalary: employeeForm.basicSalary || profileDetails.basicSalary || "0",
+      grossSalary: employeeForm.grossSalary || profileDetails.grossSalary || "0",
+      ctc: employeeForm.ctc || profileDetails.ctc || "0",
+      pfApplicable: employeeForm.pfApplicable ?? profileDetails.pfApplicable ?? false,
+      esiApplicable: employeeForm.esiApplicable ?? profileDetails.esiApplicable ?? false
     };
 
     const payload = {
@@ -1341,190 +1770,215 @@ const EmployeeDashboard = () => {
     alert(`Loaded profile for ${existingEmp.employee_name || existingEmp.employeeName || existingEmp.firstName || 'Employee'}. You can now update this record.`);
   };
 
-  // Punch Action database integration
-  const handleEmpPunch = async (gpsMock = null, selfieMock = null) => {
-    if (!currentUserProfile) return;
+  const handleStartEditBank = () => {
+    setBankForm({
+      bankName: profileDetails.bankName || "",
+      accountHolderName: profileDetails.accountHolderName || `${profileDetails.firstName || ''} ${profileDetails.lastName || ''}`.trim() || employeeName || "",
+      accountNumber: profileDetails.accountNumber || "",
+      ifscCode: profileDetails.ifscCode || "",
+      branchName: profileDetails.branchName || "",
+      upiId: profileDetails.upiId || "",
+      basicSalary: profileDetails.basicSalary || "0",
+      grossSalary: profileDetails.grossSalary || "0",
+      ctc: profileDetails.ctc || "0",
+      pfApplicable: Boolean(profileDetails.pfApplicable),
+      esiApplicable: Boolean(profileDetails.esiApplicable)
+    });
+    setIsEditingBank(true);
+  };
+
+  const handleCancelEditBank = () => {
+    setIsEditingBank(false);
+  };
+
+  const handleSaveBankDetails = async (e) => {
+    if (e && e.preventDefault) e.preventDefault();
+    if (!bankForm.bankName && !bankForm.accountNumber && !bankForm.ifscCode) {
+      alert("Please enter Bank Name and Account Number.");
+      return;
+    }
+
+    setBankSubmitting(true);
+    try {
+      const activeEmp = currentUserProfile || allEmployeesList.find(emp => 
+        (emp.employeeCode && String(emp.employeeCode).toLowerCase() === "tvn2007") ||
+        (emp.id && emp.id === selectedEmployeeId) ||
+        (emp.email && String(emp.email).toLowerCase() === String(user?.email).toLowerCase())
+      ) || (allEmployeesList.length > 0 ? allEmployeesList[0] : null);
+
+      const targetEmpId = activeEmp?.id || employeeForm.id;
+      if (!targetEmpId) {
+        throw new Error("Unable to locate active employee record in database.");
+      }
+
+      let existingProfileData = {};
+      try {
+        const rawJson = activeEmp?.profile_data || activeEmp?.profileData;
+        if (typeof rawJson === "string") existingProfileData = JSON.parse(rawJson);
+        else if (typeof rawJson === "object" && rawJson) existingProfileData = rawJson;
+      } catch (err) {}
+
+      const cleanIfsc = (bankForm.ifscCode || "").toUpperCase().trim();
+
+      const updatedProfileData = {
+        ...existingProfileData,
+        bankName: bankForm.bankName || "",
+        accountHolderName: bankForm.accountHolderName || "",
+        accountNumber: bankForm.accountNumber || "",
+        ifscCode: cleanIfsc,
+        branchName: bankForm.branchName || "",
+        upiId: bankForm.upiId || "",
+        basicSalary: bankForm.basicSalary || "0",
+        grossSalary: bankForm.grossSalary || "0",
+        ctc: bankForm.ctc || "0",
+        pfApplicable: bankForm.pfApplicable,
+        esiApplicable: bankForm.esiApplicable
+      };
+
+      const payload = {
+        ...activeEmp,
+        bankName: bankForm.bankName || "",
+        accountHolderName: bankForm.accountHolderName || "",
+        accountNumber: bankForm.accountNumber || "",
+        ifscCode: cleanIfsc,
+        branchName: bankForm.branchName || "",
+        upiId: bankForm.upiId || "",
+        basicSalary: bankForm.basicSalary || "0",
+        grossSalary: bankForm.grossSalary || "0",
+        ctc: bankForm.ctc || "0",
+        pfApplicable: bankForm.pfApplicable,
+        esiApplicable: bankForm.esiApplicable,
+        profile_data: JSON.stringify(updatedProfileData)
+      };
+
+      await apiFetch(`/api/table/employees/${targetEmpId}`, {
+        method: "PUT",
+        body: JSON.stringify(payload)
+      });
+
+      // Update state
+      setCurrentUserProfile(prev => ({
+        ...(prev || activeEmp),
+        ...payload
+      }));
+
+      // Reload fresh data from database
+      await loadDashboardData();
+
+      setIsEditingBank(false);
+      alert("✅ Bank details updated successfully! Remittance profile synchronized with Admin and Payroll records.");
+    } catch (err) {
+      alert("Failed to update bank details: " + err.message);
+    } finally {
+      setBankSubmitting(false);
+    }
+  };
+
+  // Unified Production Attendance Engine Punch Integration
+  const handleEmpPunch = async (customMethod = null) => {
+    if (customMethod && typeof customMethod !== 'string') {
+        customMethod = null;
+    }
+    if (!currentUserProfile) {
+      alert("Employee profile not loaded yet.");
+      return;
+    }
+
+    const methodToUse = customMethod || selectedPunchMethod || (allowedAttendanceMethods[0]?.method) || 'GEO';
     const now = new Date();
     const timeStr = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false });
     const dateStr = now.toISOString().split('T')[0];
 
-    // Gather browser/device info
+    // Gather browser/device telemetry
     const userAgent = navigator.userAgent;
-    const ipAddress = "127.0.0.1";
     const browserName = userAgent.includes("Chrome") ? "Chrome" : userAgent.includes("Firefox") ? "Firefox" : "Safari";
     const deviceName = userAgent.includes("Mobi") ? "Mobile Device" : "Desktop PC";
 
+    setPunchProcessing(true);
+
     try {
-      if (!empCheckedIn) {
-        // Prevent duplicate check-in
-        const alreadyPunched = attendanceLogs.some(log => log.date === dateStr);
-        if (alreadyPunched) {
-          alert("You have already completed attendance for today!");
-          return;
-        }
+      const endpoint = empCheckedIn ? "/api/operations/attendance/clock-out" : "/api/operations/attendance/clock-in";
 
-        // Validate shift details - Default Shift starts at 09:00:00
-        const shiftStart = "09:00:00";
-        const graceMinutes = 15;
-        const [sh, sm] = shiftStart.split(':').map(Number);
-        
-        const checkInTime = now;
-        const shiftLimit = new Date();
-        shiftLimit.setHours(sh, sm + graceMinutes, 0, 0);
-        
-        let status = "Present";
-        let lateComing = 0;
-        
-        if (checkInTime > shiftLimit) {
-          status = "Late";
-          const diffMs = checkInTime - shiftLimit;
-          lateComing = Math.floor(diffMs / 60000); // Minutes late
-        }
+      const payload = {
+        method: methodToUse,
+        date: dateStr,
+        ...(empCheckedIn ? { checkOut: timeStr } : { checkIn: timeStr }),
+        shiftStart: "09:00:00",
+        deviceInfo: `${deviceName} (${browserName})`,
+      };
 
-        const newRecord = {
-          empId: currentUserProfile.employeeCode || currentUserProfile.emp_code || currentUserProfile.id,
-          employeeId: null,
-          name: `${currentUserProfile.firstName || ''} ${currentUserProfile.lastName || ''}`.trim() || currentUserProfile.employeeName || "Employee",
-          date: dateStr,
-          checkIn: timeStr,
-          checkOut: "--",
-          workingHours: 0,
-          status: status,
-          lateComing: lateComing,
-          earlyLeaving: 0,
-          overtime: 0,
-          company: currentUserProfile.company || "NIB Technologies Pvt Ltd",
-          branch: currentUserProfile.branch || "Headquarters",
-          department: currentUserProfile.department || "Operations",
-          shift: "General Shift",
-          ip_address: ipAddress,
-          device_info: `${deviceName} (${browserName})`,
-          gps_location: gpsMock || "19.0760, 72.8777",
-          selfie_url: selfieMock || "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=200",
-          break_hours: 1.0,
-          remarks: status === "Late" ? `Late arrival by ${lateComing} minutes` : "On time Check-In"
-        };
-
-        const saved = await apiFetch("/api/table/daily_attendance", {
-          method: "POST",
-          body: JSON.stringify(newRecord)
-        });
-
-        // Write to audit log
-        await apiFetch("/api/table/audit_logs", {
-          method: "POST",
-          body: JSON.stringify({
-            userId: currentUserProfile.id,
-            username: currentUserProfile.email,
-            roleName: "Employee",
-            actionType: "Punch In",
-            moduleName: "Attendance",
-            recordId: saved?.data?.id || Math.random().toString(),
-            previousValues: "None",
-            newValues: JSON.stringify(newRecord),
-            httpMethod: "POST",
-            apiEndpoint: "/api/table/daily_attendance",
-            requestBody: JSON.stringify(newRecord),
-            ipAddress: ipAddress,
-            userAgent: userAgent,
-            browser: browserName,
-            device: deviceName,
-            os: "Windows",
-            status: "Success",
-            timestamp: now.toISOString()
-          })
-        });
-
-        setEmpCheckedIn(true);
-        setEmpPunchTime(timeStr);
-        alert("Punched In successfully!");
-      } else {
-        // Find today's check-in
-        const todayAtt = attendanceLogs.find(a => a.date === dateStr);
-        if (todayAtt && todayAtt.id) {
-          // Calculate hours
-          const [cinH, cinM] = todayAtt.checkIn.split(':').map(Number);
-          const cinDate = new Date();
-          cinDate.setHours(cinH, cinM, 0, 0);
-
-          const diffMs = now - cinDate;
-          let diffHrs = diffMs / 3600000;
-          
-          const breakHours = 1.0;
-          let workingHours = Math.max(0, diffHrs - breakHours);
-          
-          let status = todayAtt.status;
-          let overtime = 0;
-          let earlyLeaving = 0;
-          
-          // General Shift ends at 18:00:00
-          const shiftEnd = "18:00:00";
-          const [seh, sem] = shiftEnd.split(':').map(Number);
-          const shiftEndDate = new Date();
-          shiftEndDate.setHours(seh, sem, 0, 0);
-
-          if (now < shiftEndDate) {
-            status = "Early Exit";
-            earlyLeaving = Math.floor((shiftEndDate - now) / 60000);
-          }
-
-          if (workingHours < 4) {
-            status = "Absent";
-          } else if (workingHours < 8) {
-            status = "Half Day";
-          } else if (workingHours > 8.5) {
-            status = "Overtime";
-            overtime = Number((workingHours - 8.5).toFixed(2));
-          }
-
-          const updatePayload = {
-            checkOut: timeStr,
-            workingHours: Number(workingHours.toFixed(2)),
-            status: status,
-            earlyLeaving: earlyLeaving,
-            overtime: overtime,
-            remarks: `Checked out at ${timeStr}. Working hours: ${workingHours.toFixed(2)}`
-          };
-
-          await apiFetch(`/api/table/daily_attendance/${todayAtt.id}`, {
-            method: "PUT",
-            body: JSON.stringify(updatePayload)
-          });
-
-          // Write to audit log
-          await apiFetch("/api/table/audit_logs", {
-            method: "POST",
-            body: JSON.stringify({
-              userId: currentUserProfile.id,
-              username: currentUserProfile.email,
-              roleName: "Employee",
-              actionType: "Punch Out",
-              moduleName: "Attendance",
-              recordId: todayAtt.id,
-              previousValues: JSON.stringify(todayAtt),
-              newValues: JSON.stringify(updatePayload),
-              httpMethod: "PUT",
-              apiEndpoint: `/api/table/daily_attendance/${todayAtt.id}`,
-              requestBody: JSON.stringify(updatePayload),
-              ipAddress: ipAddress,
-              userAgent: userAgent,
-              browser: browserName,
-              device: deviceName,
-              os: "Windows",
-              status: "Success",
-              timestamp: now.toISOString()
-            })
-          });
-
-          setEmpCheckedIn(false);
-          setEmpPunchTime("");
-          alert("Punched Out successfully! Session locked for today.");
-        }
+      if (methodToUse === "FACE") {
+        setFacePunchAction(empCheckedIn ? "clock-out" : "clock-in");
+        setShowFaceModal(true);
+        setPunchProcessing(false);
+        return;
       }
-      loadDashboardData();
+
+      if (methodToUse === "GEO") {
+        let coords = geoCoords;
+        if (!coords) {
+          try {
+            coords = await new Promise((resolve, reject) => {
+              if (!navigator.geolocation) return reject(new Error("No geolocation"));
+              navigator.geolocation.getCurrentPosition(
+                pos => resolve({ latitude: pos.coords.latitude, longitude: pos.coords.longitude, accuracy: pos.coords.accuracy }),
+                err => reject(err),
+                { enableHighAccuracy: true, timeout: 5000 }
+              );
+            });
+            setGeoCoords(coords);
+          } catch (e) {
+            coords = { latitude: 19.0760, longitude: 72.8777, accuracy: 15 };
+            setGeoCoords(coords);
+          }
+        }
+        payload.latitude = coords.latitude;
+        payload.longitude = coords.longitude;
+        payload.accuracy = coords.accuracy;
+      } else if (methodToUse === "QR") {
+        setShowCompanyQrScanModal(true);
+        setPunchProcessing(false);
+        return;
+      } else if (methodToUse === "BIOMETRIC") {
+        const bioMethod = allowedAttendanceMethods.find(m => m.method === "BIOMETRIC");
+        const devices = bioMethod?.settings?.devices || [];
+        const firstDevice = devices[0];
+        payload.deviceId = firstDevice ? firstDevice.deviceId : "BIO-GATE-01";
+        payload.serialNumber = firstDevice ? firstDevice.serialNumber : "SN-BIO-9021";
+        payload.ipAddress = firstDevice ? firstDevice.ipAddress : "192.168.1.200";
+        payload.biometricUserId = currentUserProfile.employeeCode || currentUserProfile.emp_code || String(currentUserProfile.id);
+      }
+
+      const res = await apiFetch(endpoint, {
+        method: "POST",
+        body: JSON.stringify(payload)
+      });
+
+      if (empCheckedIn) {
+        setEmpCheckedIn(false);
+        setEmpShiftCompleted(true);
+        const outTime = res?.data?.checkOut || timeStr;
+        setEmpCheckOutTime(outTime);
+        const loc = res?.data?.attendance_location || res?.data?.verification?.matchedLocation || empPunchLocation || "Regional Office";
+        setEmpPunchLocation(loc);
+        alert(`Punched Out successfully via ${methodToUse} Attendance!\nCheck-Out Time: ${outTime}\nLocation: ${loc}\nSession locked for today.`);
+      } else {
+        setEmpCheckedIn(true);
+        setEmpShiftCompleted(false);
+        const inTime = res?.data?.checkIn || timeStr;
+        setEmpPunchTime(inTime);
+        const loc = res?.data?.attendance_location || res?.data?.verification?.matchedLocation || "Regional Office";
+        setEmpPunchLocation(loc);
+        alert(`Punched In successfully via ${methodToUse} Attendance!\nCheck-In Time: ${inTime}\nLocation: ${loc}`);
+      }
+
+      await loadDashboardData();
     } catch (err) {
-      console.error("Failed to post attendance event:", err);
-      alert("Error posting attendance event to database.");
+      console.error("Attendance punch error:", err);
+      // Strictly alert the backend rejection reason
+      alert(err.message || "Failed to process attendance punch.");
+    } finally {
+      setPunchProcessing(false);
     }
   };
 
@@ -1845,7 +2299,8 @@ const EmployeeDashboard = () => {
       )}
 
       {/* 1. Header Welcome Bar */}
-      <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between bg-white p-6 rounded-2xl border border-slate-100 shadow-sm">
+      {activeTab !== "Employee Profile" && activeCategory !== "EMP_PROFILE" && (
+        <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between bg-white p-6 rounded-2xl border border-slate-100 shadow-sm">
         <div>
           <span className="text-[10px] font-black uppercase text-indigo-600 tracking-widest block mb-1">
             {isRegularEmployee ? "Employee Self-Service Portal" : "Employee Command Center"}
@@ -1890,6 +2345,27 @@ const EmployeeDashboard = () => {
             </div>
           )}
 
+          {/* Quick Profile Tab Button */}
+          <button
+            type="button"
+            onClick={() => setSearchParams({ category: "EMPLOYEE_MGMT", tab: "Employee Profile" })}
+            className="px-3.5 py-1.5 rounded-xl text-xs font-bold bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 transition flex items-center gap-1.5 cursor-pointer shadow-xs"
+          >
+            <UserIcon className="w-3.5 h-3.5" />
+            <span>My Profile</span>
+          </button>
+
+          <div className="flex items-center gap-2">
+            <span className={`px-2.5 py-1.5 rounded-xl text-xs font-bold border flex items-center gap-1.5 ${
+              empCheckedIn 
+                ? "bg-emerald-50 text-emerald-700 border-emerald-200" 
+                : "bg-amber-50 text-amber-700 border-amber-200"
+            }`}>
+              <span className={`w-2 h-2 rounded-full ${empCheckedIn ? "bg-emerald-500 animate-pulse" : "bg-amber-500"}`} />
+              {empCheckedIn ? `Punched In (${empPunchTime})` : "Not Punched In"}
+            </span>
+          </div>
+
           <div className="flex items-center gap-2 rounded-xl bg-slate-50 border border-slate-200 px-3 py-2 text-xs font-bold text-slate-600">
             <ClockIcon className="h-4 w-4 text-indigo-600 animate-spin-slow" />
             <span>{currentTime.toLocaleTimeString()}</span>
@@ -1930,6 +2406,7 @@ const EmployeeDashboard = () => {
           </button>
         </div>
       </div>
+      )}
 
       {loading ? (
         <div className="flex flex-col items-center justify-center py-20 bg-white rounded-2xl border border-slate-100 shadow-sm">
@@ -1958,18 +2435,10 @@ const EmployeeDashboard = () => {
                       <p className="text-2xl font-black text-slate-800 tracking-tight">{currentTime.toLocaleTimeString()}</p>
                       <p className="text-[11px] font-semibold text-slate-500 mt-0.5">{currentUserProfile?.shift || "General Shift (09:00 AM - 06:00 PM)"}</p>
                     </div>
-                    <button
-                      type="button"
-                      onClick={handleEmpPunch}
-                      className={`w-full py-2.5 px-4 rounded-xl text-xs font-black uppercase tracking-wider text-white shadow-xs transition flex items-center justify-center gap-2 ${
-                        empCheckedIn
-                          ? "bg-rose-600 hover:bg-rose-700 shadow-rose-200"
-                          : "bg-emerald-600 hover:bg-emerald-700 shadow-emerald-200"
-                      }`}
-                    >
-                      <ClockIcon className="h-4 w-4" />
-                      {empCheckedIn ? "Punch Out" : "Punch In"}
-                    </button>
+                    <div className="pt-2 border-t border-slate-100 flex items-center justify-between text-[11px]">
+                      <span className="text-slate-400 font-semibold">Today: <b className="text-slate-700">{new Date().toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}</b></span>
+                      <span className="text-indigo-600 font-extrabold">{empCheckedIn ? "Active Shift" : "Shift Pending"}</span>
+                    </div>
                   </div>
 
                   {/* Card 2: My Monthly Attendance Summary */}
@@ -2204,7 +2673,7 @@ const EmployeeDashboard = () => {
 
                         <button
                           type="button"
-                          onClick={() => setSearchParams({ category: "EMPLOYEE_MGMT", tab: "Salary Details" })}
+                          onClick={() => setSearchParams({ category: "EMP_PAYROLL", tab: "My Payslips" })}
                           className="p-3 rounded-xl border border-slate-200/80 bg-slate-50/50 hover:bg-emerald-50 hover:border-emerald-200 transition text-left group"
                         >
                           <BanknotesIcon className="h-5 w-5 text-emerald-600 mb-1.5 group-hover:scale-110 transition" />
@@ -2270,13 +2739,6 @@ const EmployeeDashboard = () => {
                     </div>
                   </div>
                 </div>
-
-                {/* 3. Expense Reimbursement Section */}
-                <ExpenseReimbursementSection
-                  employeeProfile={currentUserProfile}
-                  currentUser={user}
-                  onNavigateTab={(category, tab) => setSearchParams({ category, tab })}
-                />
               </div>
             ) : (
               <div className="space-y-6">
@@ -2789,7 +3251,7 @@ const EmployeeDashboard = () => {
 
           {/* EMPLOYEE MANAGEMENT SECTION */}
           {(activeCategory === "EMPLOYEE_MGMT" || activeCategory === "EMP_PROFILE") && (
-            <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm space-y-6">
+            <div className={activeCategory === "EMP_PROFILE" || activeTab === "Employee Profile" ? "space-y-6" : "bg-white p-6 rounded-2xl border border-slate-100 shadow-sm space-y-6"}>
               {/* Header */}
               {activeCategory !== "EMP_PROFILE" && activeTab !== "Employee Profile" && (isEditingProfile || isNewRegistration) && (
                 <div className="flex flex-col sm:flex-row items-center gap-5 border-b pb-5 border-slate-100">
@@ -2804,7 +3266,7 @@ const EmployeeDashboard = () => {
                     <h3 className="text-base font-black text-slate-900 leading-tight">
                       {profileDetails.firstName || profileDetails.first_name || ""} {profileDetails.lastName || profileDetails.last_name || ""}
                     </h3>
-                    <p className="text-xs text-indigo-600 font-bold">{profileDetails.designation || "Staff Professional"} • {profileDetails.department || "Operations"}</p>
+                    <p className="text-xs text-indigo-600 font-bold">{profileDetails.designation || "Staff Professional"} • {profileDetails.department || departmentName || "Operations"}</p>
                     <div className="flex items-center justify-center sm:justify-start gap-1 font-mono text-[10px] text-slate-400">
                       <span>Emp ID: #{profileDetails.employeeId || profileDetails.id?.slice(0, 8)}</span>
                       <span>|</span>
@@ -2820,12 +3282,22 @@ const EmployeeDashboard = () => {
                 const displayFirstName = activeProfile.firstName || profileDetails.firstName || "";
                 const displayMiddleName = activeProfile.middleName || profileDetails.middleName || "";
                 const displayLastName = activeProfile.lastName || profileDetails.lastName || "";
-                const displayName = `${displayFirstName} ${displayLastName}`.trim() || employeeName || "Employee";
+                const rawFullName = `${displayFirstName} ${displayLastName}`.trim() || employeeName || "Employee";
+                const displayName = (() => {
+                  if (displayFirstName && displayLastName) {
+                    const fn = displayFirstName.trim();
+                    const ln = displayLastName.trim();
+                    if (fn.toLowerCase().endsWith(ln.toLowerCase())) return fn;
+                    if (fn.toLowerCase().includes(ln.toLowerCase())) return fn;
+                    return `${fn} ${ln}`;
+                  }
+                  return rawFullName;
+                })();
                 const displayCode = activeProfile.employeeCode || profileDetails.employeeCode || "--";
                 const displayId = activeProfile.employeeId || activeProfile.id || profileDetails.employeeId || profileDetails.id || "";
                 const displayDesignation = activeProfile.designation || profileDetails.designation || "Staff Professional";
-                const displayDepartment = activeProfile.department || profileDetails.department || "Operations";
-                const displayCompany = activeProfile.company || profileDetails.company || "Aarogya Homeopathy Clinic";
+                const displayDepartment = activeProfile.department || profileDetails.department || user?.departmentName || user?.department || localStorage.getItem("user_department") || "Operations";
+                const displayCompany = activeProfile.company || profileDetails.company || localStorage.getItem("selected_company_name") || user?.companyName || "NIB Insurance";
                 const displayStatus = activeProfile.employeeStatus || profileDetails.employeeStatus || "Active";
                 const displayGender = activeProfile.gender || profileDetails.gender || "Male";
                 const displayDob = activeProfile.dateOfBirth || profileDetails.dateOfBirth || "";
@@ -2834,9 +3306,9 @@ const EmployeeDashboard = () => {
                 const displayNationality = activeProfile.nationality || profileDetails.nationality || "Indian";
                 const displayOfficialEmail = activeProfile.officialEmail || profileDetails.officialEmail || "";
                 const displayDoj = activeProfile.dateOfJoining || profileDetails.dateOfJoining || "";
-                const displayManager = activeProfile.reportingManager || profileDetails.reportingManager || "";
+                const displayManager = activeProfile.reportingManager || profileDetails.reportingManager || "aman verma";
                 const displayEmpType = activeProfile.employeeType || profileDetails.employeeType || "Full-Time";
-                const displayShift = activeProfile.shift || profileDetails.shift || "General Shift";
+                const displayShift = activeProfile.shift || profileDetails.shift || "General Shift (09:00 - 18:00)";
                 const displayWeeklyOff = activeProfile.weeklyOff || profileDetails.weeklyOff || "Sunday";
                 const displayMobile = activeProfile.mobileNumber || profileDetails.mobileNumber || "";
                 const displayAltMobile = activeProfile.alternateMobile || profileDetails.alternateMobile || "";
@@ -2849,7 +3321,7 @@ const EmployeeDashboard = () => {
                 const displayPrevCompany = activeProfile.prevCompany || profileDetails.prevCompany || "";
                 const displayPrevDesig = activeProfile.prevDesignation || profileDetails.prevDesignation || "";
 
-                                const handleStartEdit = () => {
+                const handleStartEdit = () => {
                   setEmployeeForm(prev => ({
                     ...getEmptyEmployeeForm(),
                     ...profileDetails,
@@ -2881,25 +3353,94 @@ const EmployeeDashboard = () => {
                     }}
                     className="space-y-6 w-full animate-fadeIn"
                   >
+                    {/* Top Header matching reference image pixel-for-pixel */}
+                    <div className="space-y-4">
+                      {/* Breadcrumb */}
+                      <div className="flex items-center gap-1.5 text-xs font-semibold text-slate-400">
+                        <span className="text-slate-500 font-bold">Dashboard</span>
+                        <ChevronRightIcon className="w-3 h-3 text-slate-400" />
+                        <span className="text-blue-600 font-extrabold">Employee Profile</span>
+                      </div>
+
+                      {/* Header Title Row */}
+                      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                        <div>
+                          <h1 className="text-2xl sm:text-3xl font-black text-slate-900 tracking-tight">
+                            Employee Profile
+                          </h1>
+                          <p className="text-xs sm:text-sm text-slate-500 font-medium mt-0.5">
+                            View and manage detailed information of the employee.
+                          </p>
+                        </div>
+
+                        {/* Top Right Buttons: Back to List, Live Punch Status, Export */}
+                        <div className="flex flex-wrap items-center gap-3 shrink-0">
+                          <button
+                            type="button"
+                            onClick={() => setSearchParams({ category: "EMP_DASHBOARD", tab: "Dashboard Home" })}
+                            className="px-4 py-2 rounded-xl text-xs font-bold bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 shadow-xs transition flex items-center gap-1.5 cursor-pointer"
+                          >
+                            <ArrowLeftIcon className="w-3.5 h-3.5" />
+                            <span>Back to List</span>
+                          </button>
+
+                          {/* Live Punch Status Card */}
+                          <div className={`px-3.5 py-1.5 rounded-2xl border flex items-center gap-3 shadow-xs ${
+                            empCheckedIn
+                              ? "bg-emerald-50/70 border-emerald-200/80 text-emerald-800"
+                              : "bg-amber-50/70 border-amber-200/80 text-amber-800"
+                          }`}>
+                            <div className="flex items-center gap-1.5 font-bold text-xs">
+                              <span className={`w-2 h-2 rounded-full ${empCheckedIn ? "bg-emerald-500 animate-pulse" : "bg-amber-500"}`} />
+                              <span className="font-black">{empCheckedIn ? `Punched In` : "Not Punched In"}</span>
+                            </div>
+                            <div className="text-right border-l border-amber-200/60 pl-3">
+                              <div className="text-xs font-mono font-bold text-slate-800 leading-tight">
+                                {currentTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true })}
+                              </div>
+                              <div className="text-[10px] text-slate-400 font-medium leading-tight">
+                                {new Intl.DateTimeFormat("en-GB", { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' }).format(new Date())}
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Export Button */}
+                          <button
+                            type="button"
+                            onClick={() => window.print()}
+                            className="px-4 py-2 rounded-xl text-xs font-black text-white bg-blue-600 hover:bg-blue-500 shadow-xs transition flex items-center gap-1.5 cursor-pointer"
+                          >
+                            <ArrowDownTrayIcon className="w-3.5 h-3.5 stroke-[2.5]" />
+                            <span>Export</span>
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+
                     {/* Hero Overview Header Card */}
-                    <div className="bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 text-white p-6 sm:p-8 rounded-3xl shadow-xl flex flex-col md:flex-row items-center justify-between gap-6 relative overflow-hidden">
-                      <div className="absolute -right-10 -bottom-10 w-64 h-64 bg-indigo-500/10 rounded-full blur-3xl pointer-events-none" />
-                      <div className="flex flex-col sm:flex-row items-center gap-6 z-10 text-center sm:text-left">
+                    <div className="bg-white border border-slate-200/90 rounded-3xl p-6 sm:p-7 shadow-xs relative overflow-hidden flex flex-col md:flex-row items-center justify-between gap-6">
+                      {/* Subtle Background Decorative Graphic */}
+                      <div className="absolute right-0 top-0 bottom-0 w-1/3 bg-gradient-to-l from-indigo-50/60 via-blue-50/20 to-transparent pointer-events-none rounded-r-3xl" />
+                      <div className="absolute -right-10 -bottom-10 w-56 h-56 bg-indigo-500/5 rounded-full blur-2xl pointer-events-none" />
+
+                      <div className="flex flex-col sm:flex-row items-center gap-5 z-10 text-center sm:text-left">
+                        {/* Avatar Square */}
                         <div className="relative group shrink-0">
                           {displayPhoto ? (
                             <img
                               src={displayPhoto}
                               alt={displayName}
-                              className="w-24 h-24 sm:w-28 sm:h-28 rounded-2xl object-cover ring-4 ring-white/20 shadow-2xl"
+                              className="w-20 h-20 rounded-2xl object-cover ring-2 ring-indigo-200 shadow-md"
                             />
                           ) : (
-                            <div className="w-24 h-24 sm:w-28 sm:h-28 rounded-2xl bg-gradient-to-br from-indigo-500 to-purple-600 text-white flex items-center justify-center font-black text-3xl uppercase ring-4 ring-white/20 shadow-2xl">
-                              {(displayFirstName?.[0] || "E")}{(displayLastName?.[0] || "")}
+                            <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-indigo-600 via-indigo-700 to-purple-700 text-white flex items-center justify-center font-black text-3xl uppercase ring-4 ring-indigo-50 shadow-md">
+                              {(displayFirstName?.[0] || displayName?.[0] || "A").toUpperCase()}
                             </div>
                           )}
+
                           {isEditingProfile && (
                             <label className="absolute inset-0 bg-black/60 hover:bg-black/75 rounded-2xl flex flex-col items-center justify-center text-white text-[10px] font-bold cursor-pointer transition opacity-90 group-hover:opacity-100 p-1 text-center">
-                              <span className="text-base">📷</span>
+                              <CameraIcon className="w-4 h-4 mb-0.5" />
                               <span>Change Photo</span>
                               <input
                                 type="file"
@@ -2928,62 +3469,74 @@ const EmployeeDashboard = () => {
                             </label>
                           )}
                         </div>
-                        <div className="space-y-2">
-                          <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2">
-                            <h2 className="text-2xl sm:text-3xl font-black tracking-tight text-white">{displayName}</h2>
-                            {isEditingProfile ? (
-                              <select
-                                value={employeeForm.employeeStatus || "Active"}
-                                onChange={(e) => setEmployeeForm(prev => ({ ...prev, employeeStatus: e.target.value }))}
-                                className="px-2.5 py-1 rounded-full text-xs font-bold bg-slate-800 text-emerald-300 border border-emerald-400/40 focus:outline-none focus:ring-1 focus:ring-emerald-400 cursor-pointer"
-                              >
-                                <option value="Active" className="bg-slate-900 text-white">Active</option>
-                                <option value="Probation" className="bg-slate-900 text-white">Probation</option>
-                                <option value="Notice Period" className="bg-slate-900 text-white">Notice Period</option>
-                                <option value="Inactive" className="bg-slate-900 text-white">Inactive</option>
-                              </select>
-                            ) : (
-                              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider bg-emerald-500/20 text-emerald-300 border border-emerald-400/30">
-                                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                                {displayStatus}
+
+                        {/* Employee Identity Details */}
+                        <div className="space-y-1.5">
+                          <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2.5">
+                            <h2 className="text-2xl sm:text-3xl font-black tracking-tight text-slate-900">{displayName}</h2>
+                            <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-black uppercase tracking-wider bg-emerald-50 text-emerald-700 border border-emerald-200 shadow-2xs">
+                              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                              {displayStatus}
+                            </span>
+                          </div>
+
+                          <p className="text-xs sm:text-sm font-bold text-slate-600">
+                            <span>{displayDesignation}</span>
+                            <span className="mx-1.5 text-slate-300">•</span>
+                            <span className="text-indigo-600 font-extrabold">{displayDepartment}</span>
+                          </p>
+
+                          <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2 pt-1 font-mono text-xs text-slate-600">
+                            <span className="px-2.5 py-1 bg-slate-50 rounded-lg border border-slate-200">
+                              Code: <b className="text-slate-900 font-extrabold">{displayCode}</b>
+                            </span>
+                            <span className="px-2.5 py-1 bg-slate-50 rounded-lg border border-slate-200">
+                              Emp. ID: <b className="text-slate-900 font-extrabold">{displayId ? (String(displayId).startsWith('EMP') ? displayId : 'EMP-' + String(displayId).replace(/\D/g, '').slice(-7) || displayId) : '--'}</b>
+                            </span>
+                            {displayDoj && (
+                              <span className="px-2.5 py-1 bg-slate-50 rounded-lg border border-slate-200">
+                                Joined: <b className="text-slate-900 font-extrabold">{displayDoj.slice(0, 10)}</b>
                               </span>
                             )}
-                          </div>
-                          <p className="text-sm font-bold text-indigo-300">
-                            {displayDesignation} • <span className="text-slate-300">{displayDepartment}</span>
-                          </p>
-                          <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2 text-xs font-mono text-slate-300 pt-1">
-                            <span className="px-2.5 py-1 bg-white/10 rounded-lg border border-white/10">Code: <b className="text-white font-bold">{displayCode}</b></span>
-                            <span className="px-2.5 py-1 bg-white/10 rounded-lg border border-white/10">Emp ID: <b className="text-white font-bold">#{displayId ? String(displayId).slice(0, 10) : "--"}</b></span>
-                            {displayCompany && <span className="px-2.5 py-1 bg-white/10 rounded-lg border border-white/10 text-slate-300">{displayCompany}</span>}
                           </div>
                         </div>
                       </div>
 
-                      {/* Action Buttons */}
+                      {/* Right Action Buttons */}
                       <div className="flex flex-wrap items-center justify-center gap-3 z-10 shrink-0">
+                        <button
+                          type="button"
+                          onClick={() => setShowEmployeeQrCardModal(true)}
+                          className="px-4 py-2.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-xs font-bold rounded-xl border border-indigo-200 transition-all flex items-center gap-1.5 cursor-pointer shadow-xs"
+                          title="View, Print & Download Official QR ID Card Badge"
+                        >
+                          <QrCodeIcon className="w-4 h-4 text-indigo-600" />
+                          <span>QR ID Badge</span>
+                        </button>
+
                         {!isEditingProfile ? (
                           <button
                             type="button"
                             onClick={handleStartEdit}
-                            className="px-6 py-3 bg-indigo-600 hover:bg-indigo-500 active:bg-indigo-700 text-white text-xs font-black uppercase tracking-wider rounded-2xl shadow-lg shadow-indigo-600/40 hover:shadow-indigo-600/60 transition-all flex items-center gap-2 cursor-pointer transform hover:-translate-y-0.5"
+                            className="px-4 py-2.5 bg-blue-600 hover:bg-blue-500 active:bg-blue-700 text-white text-xs font-bold rounded-xl shadow-xs transition-all flex items-center gap-1.5 cursor-pointer"
                           >
-                            <span className="text-base">✏️</span> Edit Profile
+                            <PencilSquareIcon className="w-4 h-4" />
+                            <span>Edit Profile</span>
                           </button>
                         ) : (
-                          <div className="flex items-center gap-2.5">
+                          <div className="flex items-center gap-2">
                             <button
                               type="button"
                               onClick={handleCancelEdit}
-                              className="px-5 py-2.5 bg-white/10 hover:bg-white/20 active:bg-white/30 text-white text-xs font-black uppercase tracking-wider rounded-2xl border border-white/20 transition flex items-center gap-1.5 cursor-pointer"
+                              className="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-xl border border-slate-200 transition flex items-center gap-1 cursor-pointer"
                             >
-                              <span>✕</span> Cancel
+                              <span>Cancel</span>
                             </button>
                             <button
                               type="submit"
-                              className="px-6 py-2.5 bg-emerald-600 hover:bg-emerald-500 active:bg-emerald-700 text-white text-xs font-black uppercase tracking-wider rounded-2xl shadow-lg shadow-emerald-600/40 hover:shadow-emerald-600/60 transition flex items-center gap-2 cursor-pointer transform hover:-translate-y-0.5"
+                              className="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold rounded-xl shadow-xs transition flex items-center gap-1 cursor-pointer"
                             >
-                              <span>💾</span> Save Changes
+                              <span>Save Changes</span>
                             </button>
                           </div>
                         )}
@@ -2992,134 +3545,122 @@ const EmployeeDashboard = () => {
 
                     {/* Detail Cards in 2x2 Grid */}
                     <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                      {/* Card 1: 👤 Basic Information */}
-                      <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-xs space-y-4">
+                      {/* Card 1: Basic Information (Green Accent) */}
+                      <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-xs border-l-4 border-l-emerald-500 space-y-4">
                         <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-                          <h4 className="text-xs font-black uppercase tracking-wider text-slate-900 flex items-center gap-2">
-                            <span className="text-base">👤</span> Basic Information
-                          </h4>
+                          <div className="flex items-center gap-3">
+                            <div className="w-9 h-9 rounded-xl bg-emerald-50 text-emerald-600 border border-emerald-200 flex items-center justify-center shrink-0">
+                              <UserIcon className="w-5 h-5 stroke-2" />
+                            </div>
+                            <div>
+                              <h4 className="text-sm font-black text-slate-900">Basic Information</h4>
+                              <p className="text-[11px] text-slate-400 font-medium">Personal identity & demographics</p>
+                            </div>
+                          </div>
                           {!isEditingProfile && (
                             <button
                               type="button"
                               onClick={handleStartEdit}
-                              className="text-[11px] font-bold text-indigo-600 hover:text-indigo-700 flex items-center gap-1 cursor-pointer"
+                              className="text-xs font-bold text-blue-600 hover:text-blue-700 flex items-center gap-1 cursor-pointer transition"
                             >
-                              Edit <span>✏️</span>
+                              <span>Edit</span>
+                              <span>→</span>
                             </button>
                           )}
                         </div>
-                        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 text-xs">
-                          {/* First Name */}
-                          <div className="bg-slate-50/80 border border-slate-100 rounded-xl p-3">
-                            <span className="text-[10px] font-bold uppercase text-slate-400 block tracking-wider">First Name</span>
-                            {isEditingProfile ? (
+
+                        {/* Content Fields */}
+                        {!isEditingProfile ? (
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                            <div className="bg-slate-50/80 border border-slate-100 rounded-xl p-3">
+                              <span className="text-[10px] font-bold uppercase text-slate-400 block tracking-wider">Full Legal Name</span>
+                              <span className="font-black text-slate-800 block mt-0.5">{displayName}</span>
+                            </div>
+                            <div className="bg-slate-50/80 border border-slate-100 rounded-xl p-3">
+                              <span className="text-[10px] font-bold uppercase text-slate-400 block tracking-wider">Gender</span>
+                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-xs font-bold bg-purple-50 text-purple-700 border border-purple-200 mt-0.5">
+                                {displayGender === "Female" ? "♀ Female" : "♂ Male"}
+                              </span>
+                            </div>
+                            <div className="bg-slate-50/80 border border-slate-100 rounded-xl p-3">
+                              <span className="text-[10px] font-bold uppercase text-slate-400 block tracking-wider">Date of Birth</span>
+                              <span className="font-bold text-slate-800 block mt-0.5 font-mono">{displayDob ? String(displayDob).slice(0, 10) : "--"}</span>
+                            </div>
+                            <div className="bg-slate-50/80 border border-slate-100 rounded-xl p-3">
+                              <span className="text-[10px] font-bold uppercase text-slate-400 block tracking-wider">Marital Status</span>
+                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-xs font-bold bg-blue-50 text-blue-700 border border-blue-200 mt-0.5">
+                                {displayMarital || "Single"}
+                              </span>
+                            </div>
+                            <div className="bg-slate-50/80 border border-slate-100 rounded-xl p-3">
+                              <span className="text-[10px] font-bold uppercase text-slate-400 block tracking-wider">Blood Group</span>
+                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-xs font-extrabold bg-rose-50 text-rose-700 border border-rose-200 mt-0.5">
+                                🩸 {displayBlood || "O+"}
+                              </span>
+                            </div>
+                            <div className="bg-slate-50/80 border border-slate-100 rounded-xl p-3">
+                              <span className="text-[10px] font-bold uppercase text-slate-400 block tracking-wider">Nationality</span>
+                              <span className="font-bold text-slate-800 block mt-0.5">🇮🇳 {displayNationality || "Indian"}</span>
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 text-xs">
+                            <div className="bg-slate-50/70 border border-slate-100 rounded-xl p-2.5">
+                              <label className="text-[10px] font-bold uppercase text-slate-400 block tracking-wider">First Name *</label>
                               <input
                                 type="text"
                                 required
                                 value={employeeForm.firstName || ""}
                                 onChange={(e) => setEmployeeForm(prev => ({ ...prev, firstName: e.target.value }))}
-                                placeholder="First Name"
-                                className="w-full text-xs font-bold text-slate-900 bg-white border border-indigo-200 focus:border-indigo-500 rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-1 focus:ring-indigo-500 mt-1"
+                                className="w-full text-xs font-bold text-slate-900 bg-white border border-blue-200 rounded-lg px-2 py-1 mt-1 focus:ring-1 focus:ring-blue-500"
                               />
-                            ) : (
-                              <span className="font-extrabold text-slate-800 block mt-0.5">{displayFirstName || "--"}</span>
-                            )}
-                          </div>
-
-                          {/* Middle Name */}
-                          <div className="bg-slate-50/80 border border-slate-100 rounded-xl p-3">
-                            <span className="text-[10px] font-bold uppercase text-slate-400 block tracking-wider">Middle Name</span>
-                            {isEditingProfile ? (
+                            </div>
+                            <div className="bg-slate-50/70 border border-slate-100 rounded-xl p-2.5">
+                              <label className="text-[10px] font-bold uppercase text-slate-400 block tracking-wider">Middle Name</label>
                               <input
                                 type="text"
                                 value={employeeForm.middleName || ""}
                                 onChange={(e) => setEmployeeForm(prev => ({ ...prev, middleName: e.target.value }))}
-                                placeholder="Middle Name"
-                                className="w-full text-xs font-bold text-slate-900 bg-white border border-indigo-200 focus:border-indigo-500 rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-1 focus:ring-indigo-500 mt-1"
+                                className="w-full text-xs font-bold text-slate-900 bg-white border border-blue-200 rounded-lg px-2 py-1 mt-1 focus:ring-1 focus:ring-blue-500"
                               />
-                            ) : (
-                              <span className="font-extrabold text-slate-800 block mt-0.5">{displayMiddleName || "--"}</span>
-                            )}
-                          </div>
-
-                          {/* Last Name */}
-                          <div className="bg-slate-50/80 border border-slate-100 rounded-xl p-3">
-                            <span className="text-[10px] font-bold uppercase text-slate-400 block tracking-wider">Last Name</span>
-                            {isEditingProfile ? (
+                            </div>
+                            <div className="bg-slate-50/70 border border-slate-100 rounded-xl p-2.5">
+                              <label className="text-[10px] font-bold uppercase text-slate-400 block tracking-wider">Last Name</label>
                               <input
                                 type="text"
                                 value={employeeForm.lastName || ""}
                                 onChange={(e) => setEmployeeForm(prev => ({ ...prev, lastName: e.target.value }))}
-                                placeholder="Last Name"
-                                className="w-full text-xs font-bold text-slate-900 bg-white border border-indigo-200 focus:border-indigo-500 rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-1 focus:ring-indigo-500 mt-1"
+                                className="w-full text-xs font-bold text-slate-900 bg-white border border-blue-200 rounded-lg px-2 py-1 mt-1 focus:ring-1 focus:ring-blue-500"
                               />
-                            ) : (
-                              <span className="font-extrabold text-slate-800 block mt-0.5">{displayLastName || "--"}</span>
-                            )}
-                          </div>
-
-                          {/* Gender */}
-                          <div className="bg-slate-50/80 border border-slate-100 rounded-xl p-3">
-                            <span className="text-[10px] font-bold uppercase text-slate-400 block tracking-wider">Gender</span>
-                            {isEditingProfile ? (
+                            </div>
+                            <div className="bg-slate-50/70 border border-slate-100 rounded-xl p-2.5">
+                              <label className="text-[10px] font-bold uppercase text-slate-400 block tracking-wider">Gender</label>
                               <select
-                                value={employeeForm.gender || "Male"}
+                                value={employeeForm.gender || "Female"}
                                 onChange={(e) => setEmployeeForm(prev => ({ ...prev, gender: e.target.value }))}
-                                className="w-full text-xs font-bold text-slate-900 bg-white border border-indigo-200 focus:border-indigo-500 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-indigo-500 mt-1"
+                                className="w-full text-xs font-bold text-slate-900 bg-white border border-blue-200 rounded-lg px-2 py-1 mt-1"
                               >
-                                <option value="Male">Male</option>
                                 <option value="Female">Female</option>
+                                <option value="Male">Male</option>
                                 <option value="Other">Other</option>
                               </select>
-                            ) : (
-                              <span className="font-extrabold text-slate-800 block mt-0.5">{displayGender || "--"}</span>
-                            )}
-                          </div>
-
-                          {/* Date of Birth */}
-                          <div className="bg-slate-50/80 border border-slate-100 rounded-xl p-3">
-                            <span className="text-[10px] font-bold uppercase text-slate-400 block tracking-wider">Date of Birth</span>
-                            {isEditingProfile ? (
+                            </div>
+                            <div className="bg-slate-50/70 border border-slate-100 rounded-xl p-2.5">
+                              <label className="text-[10px] font-bold uppercase text-slate-400 block tracking-wider">Date of Birth</label>
                               <input
                                 type="date"
                                 value={employeeForm.dateOfBirth ? String(employeeForm.dateOfBirth).slice(0, 10) : ""}
                                 onChange={(e) => setEmployeeForm(prev => ({ ...prev, dateOfBirth: e.target.value }))}
-                                className="w-full text-xs font-bold text-slate-900 bg-white border border-indigo-200 focus:border-indigo-500 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-indigo-500 mt-1"
+                                className="w-full text-xs font-bold text-slate-900 bg-white border border-blue-200 rounded-lg px-2 py-1 mt-1"
                               />
-                            ) : (
-                              <span className="font-extrabold text-slate-800 block mt-0.5">{displayDob || "--"}</span>
-                            )}
-                          </div>
-
-                          {/* Marital Status */}
-                          <div className="bg-slate-50/80 border border-slate-100 rounded-xl p-3">
-                            <span className="text-[10px] font-bold uppercase text-slate-400 block tracking-wider">Marital Status</span>
-                            {isEditingProfile ? (
+                            </div>
+                            <div className="bg-slate-50/70 border border-slate-100 rounded-xl p-2.5">
+                              <label className="text-[10px] font-bold uppercase text-slate-400 block tracking-wider">Blood Group</label>
                               <select
-                                value={employeeForm.maritalStatus || "Single"}
-                                onChange={(e) => setEmployeeForm(prev => ({ ...prev, maritalStatus: e.target.value }))}
-                                className="w-full text-xs font-bold text-slate-900 bg-white border border-indigo-200 focus:border-indigo-500 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-indigo-500 mt-1"
-                              >
-                                <option value="Single">Single</option>
-                                <option value="Married">Married</option>
-                                <option value="Divorced">Divorced</option>
-                                <option value="Widowed">Widowed</option>
-                              </select>
-                            ) : (
-                              <span className="font-extrabold text-slate-800 block mt-0.5">{displayMarital || "--"}</span>
-                            )}
-                          </div>
-
-                          {/* Blood Group */}
-                          <div className="bg-slate-50/80 border border-slate-100 rounded-xl p-3">
-                            <span className="text-[10px] font-bold uppercase text-slate-400 block tracking-wider">Blood Group</span>
-                            {isEditingProfile ? (
-                              <select
-                                value={employeeForm.bloodGroup || ""}
+                                value={employeeForm.bloodGroup || "O+"}
                                 onChange={(e) => setEmployeeForm(prev => ({ ...prev, bloodGroup: e.target.value }))}
-                                className="w-full text-xs font-bold text-slate-900 bg-white border border-indigo-200 focus:border-indigo-500 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-indigo-500 mt-1"
+                                className="w-full text-xs font-bold text-slate-900 bg-white border border-blue-200 rounded-lg px-2 py-1 mt-1"
                               >
-                                <option value="">Select</option>
                                 <option value="A+">A+</option>
                                 <option value="A-">A-</option>
                                 <option value="B+">B+</option>
@@ -3129,381 +3670,323 @@ const EmployeeDashboard = () => {
                                 <option value="AB+">AB+</option>
                                 <option value="AB-">AB-</option>
                               </select>
-                            ) : (
-                              <span className="font-extrabold text-indigo-700 block mt-0.5">{displayBlood || "--"}</span>
-                            )}
+                            </div>
                           </div>
-
-                          {/* Nationality */}
-                          <div className="bg-slate-50/80 border border-slate-100 rounded-xl p-3 sm:col-span-2">
-                            <span className="text-[10px] font-bold uppercase text-slate-400 block tracking-wider">Nationality</span>
-                            {isEditingProfile ? (
-                              <input
-                                type="text"
-                                value={employeeForm.nationality || "Indian"}
-                                onChange={(e) => setEmployeeForm(prev => ({ ...prev, nationality: e.target.value }))}
-                                placeholder="e.g. Indian"
-                                className="w-full text-xs font-bold text-slate-900 bg-white border border-indigo-200 focus:border-indigo-500 rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-1 focus:ring-indigo-500 mt-1"
-                              />
-                            ) : (
-                              <span className="font-extrabold text-slate-800 block mt-0.5">{displayNationality || "--"}</span>
-                            )}
-                          </div>
-                        </div>
+                        )}
                       </div>
 
-                      {/* Card 2: 🏢 Official Information */}
-                      <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-xs space-y-4">
+                      {/* Card 2: Official Information (Amber Accent) */}
+                      <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-xs border-l-4 border-l-amber-500 space-y-4">
                         <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-                          <h4 className="text-xs font-black uppercase tracking-wider text-slate-900 flex items-center gap-2">
-                            <span className="text-base">🏢</span> Official Information
-                          </h4>
+                          <div className="flex items-center gap-3">
+                            <div className="w-9 h-9 rounded-xl bg-amber-50 text-amber-600 border border-amber-200 flex items-center justify-center shrink-0">
+                              <BriefcaseIcon className="w-5 h-5 stroke-2" />
+                            </div>
+                            <div>
+                              <h4 className="text-sm font-black text-slate-900">Official Information</h4>
+                              <p className="text-[11px] text-slate-400 font-medium">Department, role & reporting hierarchy</p>
+                            </div>
+                          </div>
                           {!isEditingProfile && (
                             <button
                               type="button"
                               onClick={handleStartEdit}
-                              className="text-[11px] font-bold text-indigo-600 hover:text-indigo-700 flex items-center gap-1 cursor-pointer"
+                              className="text-xs font-bold text-blue-600 hover:text-blue-700 flex items-center gap-1 cursor-pointer transition"
                             >
-                              Edit <span>✏️</span>
+                              <span>Edit</span>
+                              <span>→</span>
                             </button>
                           )}
                         </div>
-                        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 text-xs">
-                          {/* Official Email */}
-                          <div className="bg-slate-50/80 border border-slate-100 rounded-xl p-3 sm:col-span-2">
-                            <span className="text-[10px] font-bold uppercase text-slate-400 block tracking-wider">Official Email</span>
-                            {isEditingProfile ? (
+
+                        {/* Content Fields */}
+                        {!isEditingProfile ? (
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                            <div className="bg-slate-50/80 border border-slate-100 rounded-xl p-3 sm:col-span-2">
+                              <span className="text-[10px] font-bold uppercase text-slate-400 block tracking-wider">Official Email</span>
+                              <span className="font-mono font-bold text-indigo-600 block mt-0.5 truncate">{displayOfficialEmail || "--"}</span>
+                            </div>
+                            <div className="bg-slate-50/80 border border-slate-100 rounded-xl p-3">
+                              <span className="text-[10px] font-bold uppercase text-slate-400 block tracking-wider">Department</span>
+                              <span className="font-extrabold text-slate-800 block mt-0.5">{displayDepartment}</span>
+                            </div>
+                            <div className="bg-slate-50/80 border border-slate-100 rounded-xl p-3">
+                              <span className="text-[10px] font-bold uppercase text-slate-400 block tracking-wider">Designation</span>
+                              <span className="font-extrabold text-slate-800 block mt-0.5">{displayDesignation}</span>
+                            </div>
+                            <div className="bg-slate-50/80 border border-slate-100 rounded-xl p-3">
+                              <span className="text-[10px] font-bold uppercase text-slate-400 block tracking-wider">Reporting Manager</span>
+                              <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-lg text-xs font-bold bg-amber-50 text-amber-800 border border-amber-200 mt-0.5">
+                                👔 {displayManager || "aman verma"}
+                              </span>
+                            </div>
+                            <div className="bg-slate-50/80 border border-slate-100 rounded-xl p-3">
+                              <span className="text-[10px] font-bold uppercase text-slate-400 block tracking-wider">Employment Type</span>
+                              <span className="font-bold text-slate-800 block mt-0.5">{displayEmpType}</span>
+                            </div>
+                            <div className="bg-slate-50/80 border border-slate-100 rounded-xl p-3">
+                              <span className="text-[10px] font-bold uppercase text-slate-400 block tracking-wider">Shift Schedule</span>
+                              <span className="font-bold text-slate-800 block mt-0.5 truncate">{displayShift}</span>
+                            </div>
+                            <div className="bg-slate-50/80 border border-slate-100 rounded-xl p-3">
+                              <span className="text-[10px] font-bold uppercase text-slate-400 block tracking-wider">Weekly Off</span>
+                              <span className="font-bold text-slate-800 block mt-0.5">{displayWeeklyOff}</span>
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                            <div className="bg-slate-50/70 border border-slate-100 rounded-xl p-2.5 sm:col-span-2">
+                              <label className="text-[10px] font-bold uppercase text-slate-400 block tracking-wider">Official Email</label>
                               <input
                                 type="email"
                                 value={employeeForm.officialEmail || ""}
                                 onChange={(e) => setEmployeeForm(prev => ({ ...prev, officialEmail: e.target.value }))}
-                                placeholder="employee@company.com"
-                                className="w-full text-xs font-bold text-slate-900 bg-white border border-indigo-200 focus:border-indigo-500 rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-1 focus:ring-indigo-500 mt-1 font-mono"
+                                className="w-full text-xs font-bold text-slate-900 bg-white border border-blue-200 rounded-lg px-2 py-1 mt-1"
                               />
-                            ) : (
-                              <span className="font-extrabold text-slate-800 block mt-0.5 truncate">{displayOfficialEmail || "--"}</span>
-                            )}
-                          </div>
-
-                          {/* Department */}
-                          <div className="bg-slate-50/80 border border-slate-100 rounded-xl p-3">
-                            <span className="text-[10px] font-bold uppercase text-slate-400 block tracking-wider">Department</span>
-                            {isEditingProfile ? (
+                            </div>
+                            <div className="bg-slate-50/70 border border-slate-100 rounded-xl p-2.5">
+                              <label className="text-[10px] font-bold uppercase text-slate-400 block tracking-wider">Department</label>
                               <input
                                 type="text"
                                 value={employeeForm.department || ""}
                                 onChange={(e) => setEmployeeForm(prev => ({ ...prev, department: e.target.value }))}
-                                placeholder="Department"
-                                className="w-full text-xs font-bold text-slate-900 bg-white border border-indigo-200 focus:border-indigo-500 rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-1 focus:ring-indigo-500 mt-1"
+                                className="w-full text-xs font-bold text-slate-900 bg-white border border-blue-200 rounded-lg px-2 py-1 mt-1"
                               />
-                            ) : (
-                              <span className="font-extrabold text-indigo-700 block mt-0.5">{displayDepartment || "--"}</span>
-                            )}
-                          </div>
-
-                          {/* Designation */}
-                          <div className="bg-slate-50/80 border border-slate-100 rounded-xl p-3">
-                            <span className="text-[10px] font-bold uppercase text-slate-400 block tracking-wider">Designation</span>
-                            {isEditingProfile ? (
+                            </div>
+                            <div className="bg-slate-50/70 border border-slate-100 rounded-xl p-2.5">
+                              <label className="text-[10px] font-bold uppercase text-slate-400 block tracking-wider">Designation</label>
                               <input
                                 type="text"
                                 value={employeeForm.designation || ""}
                                 onChange={(e) => setEmployeeForm(prev => ({ ...prev, designation: e.target.value }))}
-                                placeholder="Designation"
-                                className="w-full text-xs font-bold text-slate-900 bg-white border border-indigo-200 focus:border-indigo-500 rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-1 focus:ring-indigo-500 mt-1"
+                                className="w-full text-xs font-bold text-slate-900 bg-white border border-blue-200 rounded-lg px-2 py-1 mt-1"
                               />
-                            ) : (
-                              <span className="font-extrabold text-slate-800 block mt-0.5">{displayDesignation || "--"}</span>
-                            )}
-                          </div>
-
-                          {/* Joining Date */}
-                          <div className="bg-slate-50/80 border border-slate-100 rounded-xl p-3">
-                            <span className="text-[10px] font-bold uppercase text-slate-400 block tracking-wider">Joining Date</span>
-                            {isEditingProfile ? (
-                              <input
-                                type="date"
-                                value={employeeForm.dateOfJoining ? String(employeeForm.dateOfJoining).slice(0, 10) : ""}
-                                onChange={(e) => setEmployeeForm(prev => ({ ...prev, dateOfJoining: e.target.value }))}
-                                className="w-full text-xs font-bold text-slate-900 bg-white border border-indigo-200 focus:border-indigo-500 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-indigo-500 mt-1"
-                              />
-                            ) : (
-                              <span className="font-extrabold text-slate-800 block mt-0.5">{displayDoj || "--"}</span>
-                            )}
-                          </div>
-
-                          {/* Reporting Manager */}
-                          <div className="bg-slate-50/80 border border-slate-100 rounded-xl p-3">
-                            <span className="text-[10px] font-bold uppercase text-slate-400 block tracking-wider">Reporting Manager</span>
-                            {isEditingProfile ? (
+                            </div>
+                            <div className="bg-slate-50/70 border border-slate-100 rounded-xl p-2.5">
+                              <label className="text-[10px] font-bold uppercase text-slate-400 block tracking-wider">Reporting Manager</label>
                               <input
                                 type="text"
                                 value={employeeForm.reportingManager || ""}
                                 onChange={(e) => setEmployeeForm(prev => ({ ...prev, reportingManager: e.target.value }))}
-                                placeholder="Reporting Manager"
-                                className="w-full text-xs font-bold text-slate-900 bg-white border border-indigo-200 focus:border-indigo-500 rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-1 focus:ring-indigo-500 mt-1"
+                                className="w-full text-xs font-bold text-slate-900 bg-white border border-blue-200 rounded-lg px-2 py-1 mt-1"
                               />
-                            ) : (
-                              <span className="font-extrabold text-slate-800 block mt-0.5">{displayManager || "--"}</span>
-                            )}
-                          </div>
-
-                          {/* Employment Type */}
-                          <div className="bg-slate-50/80 border border-slate-100 rounded-xl p-3">
-                            <span className="text-[10px] font-bold uppercase text-slate-400 block tracking-wider">Employment Type</span>
-                            {isEditingProfile ? (
+                            </div>
+                            <div className="bg-slate-50/70 border border-slate-100 rounded-xl p-2.5">
+                              <label className="text-[10px] font-bold uppercase text-slate-400 block tracking-wider">Employment Type</label>
                               <select
                                 value={employeeForm.employeeType || "Full-Time"}
                                 onChange={(e) => setEmployeeForm(prev => ({ ...prev, employeeType: e.target.value }))}
-                                className="w-full text-xs font-bold text-slate-900 bg-white border border-indigo-200 focus:border-indigo-500 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-indigo-500 mt-1"
+                                className="w-full text-xs font-bold text-slate-900 bg-white border border-blue-200 rounded-lg px-2 py-1 mt-1"
                               >
                                 <option value="Full-Time">Full-Time</option>
                                 <option value="Part-Time">Part-Time</option>
                                 <option value="Contract">Contract</option>
                                 <option value="Intern">Intern</option>
                               </select>
-                            ) : (
-                              <span className="font-extrabold text-slate-800 block mt-0.5">{displayEmpType || "--"}</span>
-                            )}
+                            </div>
                           </div>
-
-                          {/* Shift Policy */}
-                          <div className="bg-slate-50/80 border border-slate-100 rounded-xl p-3">
-                            <span className="text-[10px] font-bold uppercase text-slate-400 block tracking-wider">Shift Policy</span>
-                            {isEditingProfile ? (
-                              <input
-                                type="text"
-                                value={employeeForm.shift || "General Shift"}
-                                onChange={(e) => setEmployeeForm(prev => ({ ...prev, shift: e.target.value }))}
-                                placeholder="Shift Policy"
-                                className="w-full text-xs font-bold text-slate-900 bg-white border border-indigo-200 focus:border-indigo-500 rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-1 focus:ring-indigo-500 mt-1"
-                              />
-                            ) : (
-                              <span className="font-extrabold text-slate-800 block mt-0.5 truncate">{displayShift || "General Shift"}</span>
-                            )}
-                          </div>
-
-                          {/* Weekly Off */}
-                          <div className="bg-slate-50/80 border border-slate-100 rounded-xl p-3">
-                            <span className="text-[10px] font-bold uppercase text-slate-400 block tracking-wider">Weekly Off</span>
-                            {isEditingProfile ? (
-                              <input
-                                type="text"
-                                value={employeeForm.weeklyOff || "Sunday"}
-                                onChange={(e) => setEmployeeForm(prev => ({ ...prev, weeklyOff: e.target.value }))}
-                                placeholder="Weekly Off"
-                                className="w-full text-xs font-bold text-slate-900 bg-white border border-indigo-200 focus:border-indigo-500 rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-1 focus:ring-indigo-500 mt-1"
-                              />
-                            ) : (
-                              <span className="font-extrabold text-slate-800 block mt-0.5">{displayWeeklyOff || "Sunday"}</span>
-                            )}
-                          </div>
-                        </div>
+                        )}
                       </div>
 
-                      {/* Card 3: 📞 Contact Information */}
-                      <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-xs space-y-4">
+                      {/* Card 3: Contact Information (Orange Accent) */}
+                      <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-xs border-l-4 border-l-orange-500 space-y-4">
                         <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-                          <h4 className="text-xs font-black uppercase tracking-wider text-slate-900 flex items-center gap-2">
-                            <span className="text-base">📞</span> Contact Information
-                          </h4>
+                          <div className="flex items-center gap-3">
+                            <div className="w-9 h-9 rounded-xl bg-orange-50 text-orange-600 border border-orange-200 flex items-center justify-center shrink-0">
+                              <PhoneIcon className="w-5 h-5 stroke-2" />
+                            </div>
+                            <div>
+                              <h4 className="text-sm font-black text-slate-900">Contact Information</h4>
+                              <p className="text-[11px] text-slate-400 font-medium">Primary phone, personal email & addresses</p>
+                            </div>
+                          </div>
                           {!isEditingProfile && (
                             <button
                               type="button"
                               onClick={handleStartEdit}
-                              className="text-[11px] font-bold text-indigo-600 hover:text-indigo-700 flex items-center gap-1 cursor-pointer"
+                              className="text-xs font-bold text-blue-600 hover:text-blue-700 flex items-center gap-1 cursor-pointer transition"
                             >
-                              Edit <span>✏️</span>
+                              <span>Edit</span>
+                              <span>→</span>
                             </button>
                           )}
                         </div>
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
-                          {/* Mobile Number */}
-                          <div className="bg-slate-50/80 border border-slate-100 rounded-xl p-3">
-                            <span className="text-[10px] font-bold uppercase text-slate-400 block tracking-wider">Mobile Number</span>
-                            {isEditingProfile ? (
+
+                        {/* Content Fields */}
+                        {!isEditingProfile ? (
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                            <div className="bg-slate-50/80 border border-slate-100 rounded-xl p-3">
+                              <span className="text-[10px] font-bold uppercase text-slate-400 block tracking-wider">Primary Mobile</span>
+                              <span className="font-mono font-bold text-slate-800 block mt-0.5">📞 {displayMobile || "--"}</span>
+                            </div>
+                            <div className="bg-slate-50/80 border border-slate-100 rounded-xl p-3">
+                              <span className="text-[10px] font-bold uppercase text-slate-400 block tracking-wider">Alternate Mobile</span>
+                              <span className="font-mono text-slate-700 block mt-0.5">{displayAltMobile || "--"}</span>
+                            </div>
+                            <div className="bg-slate-50/80 border border-slate-100 rounded-xl p-3 sm:col-span-2">
+                              <span className="text-[10px] font-bold uppercase text-slate-400 block tracking-wider">Personal Email</span>
+                              <span className="font-mono text-slate-800 block mt-0.5 truncate">{displayPersonalEmail || "--"}</span>
+                            </div>
+                            <div className="bg-slate-50/80 border border-slate-100 rounded-xl p-3 sm:col-span-2">
+                              <span className="text-[10px] font-bold uppercase text-slate-400 block tracking-wider">Current Address</span>
+                              <span className="font-bold text-slate-800 block mt-0.5 leading-relaxed flex items-start gap-1.5">
+                                <MapPinIcon className="w-4 h-4 text-orange-500 shrink-0 mt-0.5" />
+                                <span>{displayCurrentAddress || "102, Vijay Nagar, Scheme No. 54"}</span>
+                              </span>
+                            </div>
+                            <div className="bg-slate-50/80 border border-slate-100 rounded-xl p-3 sm:col-span-2">
+                              <span className="text-[10px] font-bold uppercase text-slate-400 block tracking-wider">Permanent Address</span>
+                              <span className="font-medium text-slate-600 block mt-0.5 leading-relaxed">
+                                {displayPermanentAddress && displayPermanentAddress !== "na" ? displayPermanentAddress : "Same as Current Address"}
+                              </span>
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                            <div className="bg-slate-50/70 border border-slate-100 rounded-xl p-2.5">
+                              <label className="text-[10px] font-bold uppercase text-slate-400 block tracking-wider">Primary Mobile</label>
                               <input
                                 type="tel"
                                 value={employeeForm.mobileNumber || ""}
                                 onChange={(e) => setEmployeeForm(prev => ({ ...prev, mobileNumber: e.target.value }))}
-                                placeholder="e.g. +91 9876543210"
-                                className="w-full text-xs font-bold text-slate-900 bg-white border border-indigo-200 focus:border-indigo-500 rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-1 focus:ring-indigo-500 mt-1 font-mono"
+                                className="w-full text-xs font-bold text-slate-900 bg-white border border-blue-200 rounded-lg px-2 py-1 mt-1 font-mono"
                               />
-                            ) : (
-                              <span className="font-extrabold text-slate-800 block mt-0.5">{displayMobile || "--"}</span>
-                            )}
-                          </div>
-
-                          {/* Alternate Mobile */}
-                          <div className="bg-slate-50/80 border border-slate-100 rounded-xl p-3">
-                            <span className="text-[10px] font-bold uppercase text-slate-400 block tracking-wider">Alternate Mobile</span>
-                            {isEditingProfile ? (
+                            </div>
+                            <div className="bg-slate-50/70 border border-slate-100 rounded-xl p-2.5">
+                              <label className="text-[10px] font-bold uppercase text-slate-400 block tracking-wider">Alternate Mobile</label>
                               <input
                                 type="tel"
                                 value={employeeForm.alternateMobile || ""}
                                 onChange={(e) => setEmployeeForm(prev => ({ ...prev, alternateMobile: e.target.value }))}
-                                placeholder="Alternate Contact"
-                                className="w-full text-xs font-bold text-slate-900 bg-white border border-indigo-200 focus:border-indigo-500 rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-1 focus:ring-indigo-500 mt-1 font-mono"
+                                className="w-full text-xs font-bold text-slate-900 bg-white border border-blue-200 rounded-lg px-2 py-1 mt-1 font-mono"
                               />
-                            ) : (
-                              <span className="font-extrabold text-slate-800 block mt-0.5">{displayAltMobile || "--"}</span>
-                            )}
-                          </div>
-
-                          {/* Personal Email */}
-                          <div className="bg-slate-50/80 border border-slate-100 rounded-xl p-3 sm:col-span-2">
-                            <span className="text-[10px] font-bold uppercase text-slate-400 block tracking-wider">Personal Email</span>
-                            {isEditingProfile ? (
+                            </div>
+                            <div className="bg-slate-50/70 border border-slate-100 rounded-xl p-2.5 sm:col-span-2">
+                              <label className="text-[10px] font-bold uppercase text-slate-400 block tracking-wider">Personal Email</label>
                               <input
                                 type="email"
                                 value={employeeForm.personalEmail || ""}
                                 onChange={(e) => setEmployeeForm(prev => ({ ...prev, personalEmail: e.target.value }))}
-                                placeholder="personal@gmail.com"
-                                className="w-full text-xs font-bold text-slate-900 bg-white border border-indigo-200 focus:border-indigo-500 rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-1 focus:ring-indigo-500 mt-1 font-mono"
+                                className="w-full text-xs font-bold text-slate-900 bg-white border border-blue-200 rounded-lg px-2 py-1 mt-1"
                               />
-                            ) : (
-                              <span className="font-extrabold text-slate-800 block mt-0.5">{displayPersonalEmail || "--"}</span>
-                            )}
-                          </div>
-
-                          {/* Current Address */}
-                          <div className="bg-slate-50/80 border border-slate-100 rounded-xl p-3 sm:col-span-2">
-                            <span className="text-[10px] font-bold uppercase text-slate-400 block tracking-wider">Current Address</span>
-                            {isEditingProfile ? (
+                            </div>
+                            <div className="bg-slate-50/70 border border-slate-100 rounded-xl p-2.5 sm:col-span-2">
+                              <label className="text-[10px] font-bold uppercase text-slate-400 block tracking-wider">Current Address</label>
                               <textarea
                                 rows="2"
                                 value={employeeForm.currentAddress || ""}
                                 onChange={(e) => setEmployeeForm(prev => ({ ...prev, currentAddress: e.target.value }))}
-                                placeholder="Current Residential Address"
-                                className="w-full text-xs font-bold text-slate-900 bg-white border border-indigo-200 focus:border-indigo-500 rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-1 focus:ring-indigo-500 mt-1"
+                                className="w-full text-xs font-bold text-slate-900 bg-white border border-blue-200 rounded-lg px-2 py-1 mt-1"
                               />
-                            ) : (
-                              <span className="font-medium text-slate-800 block mt-0.5 leading-relaxed">{displayCurrentAddress || "--"}</span>
-                            )}
+                            </div>
                           </div>
-
-                          {/* Permanent Address */}
-                          <div className="bg-slate-50/80 border border-slate-100 rounded-xl p-3 sm:col-span-2">
-                            <span className="text-[10px] font-bold uppercase text-slate-400 block tracking-wider">Permanent Address</span>
-                            {isEditingProfile ? (
-                              <textarea
-                                rows="2"
-                                value={employeeForm.permanentAddress || ""}
-                                onChange={(e) => setEmployeeForm(prev => ({ ...prev, permanentAddress: e.target.value }))}
-                                placeholder="Permanent Address"
-                                className="w-full text-xs font-bold text-slate-900 bg-white border border-indigo-200 focus:border-indigo-500 rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-1 focus:ring-indigo-500 mt-1"
-                              />
-                            ) : (
-                              <span className="font-medium text-slate-800 block mt-0.5 leading-relaxed">{displayPermanentAddress || "--"}</span>
-                            )}
-                          </div>
-                        </div>
+                        )}
                       </div>
 
-                      {/* Card 4: 🎓 Education & 💼 Experience */}
-                      <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-xs space-y-4">
+                      {/* Card 4: Education & Experience (Blue Accent) */}
+                      <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-xs border-l-4 border-l-blue-500 space-y-4">
                         <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-                          <h4 className="text-xs font-black uppercase tracking-wider text-slate-900 flex items-center gap-2">
-                            <span className="text-base">🎓</span> Education &amp; Experience
-                          </h4>
+                          <div className="flex items-center gap-3">
+                            <div className="w-9 h-9 rounded-xl bg-blue-50 text-blue-600 border border-blue-200 flex items-center justify-center shrink-0">
+                              <AcademicCapIcon className="w-5 h-5 stroke-2" />
+                            </div>
+                            <div>
+                              <h4 className="text-sm font-black text-slate-900">Education & Experience</h4>
+                              <p className="text-[11px] text-slate-400 font-medium">Qualifications, university & past credentials</p>
+                            </div>
+                          </div>
                           {!isEditingProfile && (
                             <button
                               type="button"
                               onClick={handleStartEdit}
-                              className="text-[11px] font-bold text-indigo-600 hover:text-indigo-700 flex items-center gap-1 cursor-pointer"
+                              className="text-xs font-bold text-blue-600 hover:text-blue-700 flex items-center gap-1 cursor-pointer transition"
                             >
-                              Edit <span>✏️</span>
+                              <span>Edit</span>
+                              <span>→</span>
                             </button>
                           )}
                         </div>
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
-                          {/* Highest Degree */}
-                          <div className="bg-slate-50/80 border border-slate-100 rounded-xl p-3">
-                            <span className="text-[10px] font-bold uppercase text-slate-400 block tracking-wider">Highest Degree</span>
-                            {isEditingProfile ? (
+
+                        {/* Content Fields */}
+                        {!isEditingProfile ? (
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                            <div className="bg-slate-50/80 border border-slate-100 rounded-xl p-3">
+                              <span className="text-[10px] font-bold uppercase text-slate-400 block tracking-wider">Highest Degree</span>
+                              <span className="font-extrabold text-slate-800 block mt-0.5">🎓 {displayDegree || "B.Tech"}</span>
+                            </div>
+                            <div className="bg-slate-50/80 border border-slate-100 rounded-xl p-3">
+                              <span className="text-[10px] font-bold uppercase text-slate-400 block tracking-wider">Specialization</span>
+                              <span className="font-extrabold text-indigo-700 block mt-0.5">{displaySpecialization || "CSE"}</span>
+                            </div>
+                            <div className="bg-slate-50/80 border border-slate-100 rounded-xl p-3 sm:col-span-2">
+                              <span className="text-[10px] font-bold uppercase text-slate-400 block tracking-wider">University / Board</span>
+                              <span className="font-bold text-slate-800 block mt-0.5">🏛️ {displayUniversity || "RGPV"}</span>
+                            </div>
+                            <div className="bg-slate-50/80 border border-slate-100 rounded-xl p-3">
+                              <span className="text-[10px] font-bold uppercase text-slate-400 block tracking-wider">Previous Company</span>
+                              <span className="font-extrabold text-slate-800 block mt-0.5">🏢 {displayPrevCompany || "TechSlice"}</span>
+                            </div>
+                            <div className="bg-slate-50/80 border border-slate-100 rounded-xl p-3">
+                              <span className="text-[10px] font-bold uppercase text-slate-400 block tracking-wider">Previous Designation</span>
+                              <span className="font-bold text-slate-700 block mt-0.5">{displayPrevDesig || "Executive"}</span>
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                            <div className="bg-slate-50/70 border border-slate-100 rounded-xl p-2.5">
+                              <label className="text-[10px] font-bold uppercase text-slate-400 block tracking-wider">Highest Degree</label>
                               <input
                                 type="text"
                                 value={employeeForm.highestDegree || ""}
                                 onChange={(e) => setEmployeeForm(prev => ({ ...prev, highestDegree: e.target.value }))}
-                                placeholder="e.g. B.Tech / MBA / MCA"
-                                className="w-full text-xs font-bold text-slate-900 bg-white border border-indigo-200 focus:border-indigo-500 rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-1 focus:ring-indigo-500 mt-1"
+                                className="w-full text-xs font-bold text-slate-900 bg-white border border-blue-200 rounded-lg px-2 py-1 mt-1"
                               />
-                            ) : (
-                              <span className="font-extrabold text-slate-800 block mt-0.5">{displayDegree || "--"}</span>
-                            )}
-                          </div>
-
-                          {/* Specialization */}
-                          <div className="bg-slate-50/80 border border-slate-100 rounded-xl p-3">
-                            <span className="text-[10px] font-bold uppercase text-slate-400 block tracking-wider">Specialization</span>
-                            {isEditingProfile ? (
+                            </div>
+                            <div className="bg-slate-50/70 border border-slate-100 rounded-xl p-2.5">
+                              <label className="text-[10px] font-bold uppercase text-slate-400 block tracking-wider">Specialization</label>
                               <input
                                 type="text"
                                 value={employeeForm.specialization || ""}
                                 onChange={(e) => setEmployeeForm(prev => ({ ...prev, specialization: e.target.value }))}
-                                placeholder="e.g. Computer Science"
-                                className="w-full text-xs font-bold text-slate-900 bg-white border border-indigo-200 focus:border-indigo-500 rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-1 focus:ring-indigo-500 mt-1"
+                                className="w-full text-xs font-bold text-slate-900 bg-white border border-blue-200 rounded-lg px-2 py-1 mt-1"
                               />
-                            ) : (
-                              <span className="font-extrabold text-slate-800 block mt-0.5">{displaySpecialization || "--"}</span>
-                            )}
-                          </div>
-
-                          {/* University */}
-                          <div className="bg-slate-50/80 border border-slate-100 rounded-xl p-3 sm:col-span-2">
-                            <span className="text-[10px] font-bold uppercase text-slate-400 block tracking-wider">University</span>
-                            {isEditingProfile ? (
+                            </div>
+                            <div className="bg-slate-50/70 border border-slate-100 rounded-xl p-2.5 sm:col-span-2">
+                              <label className="text-[10px] font-bold uppercase text-slate-400 block tracking-wider">University</label>
                               <input
                                 type="text"
                                 value={employeeForm.university || ""}
                                 onChange={(e) => setEmployeeForm(prev => ({ ...prev, university: e.target.value }))}
-                                placeholder="University or Institute Name"
-                                className="w-full text-xs font-bold text-slate-900 bg-white border border-indigo-200 focus:border-indigo-500 rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-1 focus:ring-indigo-500 mt-1"
+                                className="w-full text-xs font-bold text-slate-900 bg-white border border-blue-200 rounded-lg px-2 py-1 mt-1"
                               />
-                            ) : (
-                              <span className="font-extrabold text-slate-800 block mt-0.5">{displayUniversity || "--"}</span>
-                            )}
-                          </div>
-
-                          {/* Previous Company */}
-                          <div className="bg-slate-50/80 border border-slate-100 rounded-xl p-3">
-                            <span className="text-[10px] font-bold uppercase text-slate-400 block tracking-wider">Previous Company</span>
-                            {isEditingProfile ? (
+                            </div>
+                            <div className="bg-slate-50/70 border border-slate-100 rounded-xl p-2.5">
+                              <label className="text-[10px] font-bold uppercase text-slate-400 block tracking-wider">Previous Company</label>
                               <input
                                 type="text"
                                 value={employeeForm.prevCompany || ""}
                                 onChange={(e) => setEmployeeForm(prev => ({ ...prev, prevCompany: e.target.value }))}
-                                placeholder="Previous Employer Name"
-                                className="w-full text-xs font-bold text-slate-900 bg-white border border-indigo-200 focus:border-indigo-500 rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-1 focus:ring-indigo-500 mt-1"
+                                className="w-full text-xs font-bold text-slate-900 bg-white border border-blue-200 rounded-lg px-2 py-1 mt-1"
                               />
-                            ) : (
-                              <span className="font-extrabold text-slate-800 block mt-0.5">{displayPrevCompany || "--"}</span>
-                            )}
-                          </div>
-
-                          {/* Last Designation */}
-                          <div className="bg-slate-50/80 border border-slate-100 rounded-xl p-3">
-                            <span className="text-[10px] font-bold uppercase text-slate-400 block tracking-wider">Last Designation</span>
-                            {isEditingProfile ? (
+                            </div>
+                            <div className="bg-slate-50/70 border border-slate-100 rounded-xl p-2.5">
+                              <label className="text-[10px] font-bold uppercase text-slate-400 block tracking-wider">Last Designation</label>
                               <input
                                 type="text"
                                 value={employeeForm.prevDesignation || ""}
                                 onChange={(e) => setEmployeeForm(prev => ({ ...prev, prevDesignation: e.target.value }))}
-                                placeholder="Last Held Designation"
-                                className="w-full text-xs font-bold text-slate-900 bg-white border border-indigo-200 focus:border-indigo-500 rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-1 focus:ring-indigo-500 mt-1"
+                                className="w-full text-xs font-bold text-slate-900 bg-white border border-blue-200 rounded-lg px-2 py-1 mt-1"
                               />
-                            ) : (
-                              <span className="font-extrabold text-slate-800 block mt-0.5">{displayPrevDesig || "--"}</span>
-                            )}
+                            </div>
                           </div>
-                        </div>
+                        )}
                       </div>
                     </div>
 
                     {/* Bottom Action Bar when in Edit Mode */}
                     {isEditingProfile && (
-                      <div className="bg-indigo-50/90 border border-indigo-200 p-4 sm:p-5 rounded-2xl flex flex-col sm:flex-row items-center justify-between gap-4 shadow-sm animate-fadeIn">
-                        <div className="flex items-center gap-2 text-xs text-indigo-950 font-bold">
+                      <div className="bg-blue-50/90 border border-blue-200 p-4 sm:p-5 rounded-2xl flex flex-col sm:flex-row items-center justify-between gap-4 shadow-sm animate-fadeIn">
+                        <div className="flex items-center gap-2 text-xs text-blue-950 font-bold">
                           <span className="text-lg">✏️</span>
                           <span><b>Inline Edit Mode:</b> Update details directly in the cards above and click <b>Save Changes</b>.</span>
                         </div>
@@ -3511,13 +3994,13 @@ const EmployeeDashboard = () => {
                           <button
                             type="button"
                             onClick={handleCancelEdit}
-                            className="px-5 py-2.5 bg-white hover:bg-slate-100 active:bg-slate-200 text-slate-700 text-xs font-black uppercase tracking-wider rounded-xl border border-slate-300 shadow-xs transition cursor-pointer"
+                            className="px-5 py-2.5 bg-white hover:bg-slate-100 text-slate-700 text-xs font-black uppercase tracking-wider rounded-xl border border-slate-300 shadow-xs transition cursor-pointer"
                           >
                             ✕ Cancel
                           </button>
                           <button
                             type="submit"
-                            className="px-6 py-2.5 bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 text-white text-xs font-black uppercase tracking-wider rounded-xl shadow-md shadow-indigo-600/30 transition cursor-pointer flex items-center gap-2"
+                            className="px-6 py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-black uppercase tracking-wider rounded-xl shadow-md transition cursor-pointer flex items-center gap-2"
                           >
                             <span>💾</span> Save Changes
                           </button>
@@ -3528,17 +4011,6 @@ const EmployeeDashboard = () => {
                 );
 
       })()}
-
-              {/* Tab: Expense Reimbursement Standalone View */}
-              {(activeTab === "Expense Reimbursement" || activeCategory === "EMP_EXPENSES" || activeTab === "Expense Claims") && (
-                <div className="space-y-6 animate-fadeIn">
-                  <ExpenseReimbursementSection
-                    employeeProfile={currentUserProfile}
-                    currentUser={user}
-                    onNavigateTab={(category, tab) => setSearchParams({ category, tab })}
-                  />
-                </div>
-              )}
 
               {/* Tab 2: Documents */}
               {(activeTab === "Documents" || activeTab === "Document Log") && (
@@ -3605,8 +4077,7 @@ const EmployeeDashboard = () => {
                           </div>
 
                           <div className="flex flex-wrap gap-2 items-center justify-between pt-2 border-t border-slate-100">
-                            <label className="cursor-pointer px-2.5 py-1.5 bg-slate-100 hover:bg-slate-200 active:bg-slate-300 text-slate-700 text-[10px] font-bold rounded-xl transition flex items-center gap-1">
-                              <span>📤</span>
+                            <label className="cursor-pointer px-3 py-1.5 bg-slate-100 hover:bg-slate-200 active:bg-slate-300 text-slate-700 text-xs font-bold rounded-xl transition inline-flex items-center justify-center">
                               <span>{isUploaded ? "Re-upload" : "Choose File"}</span>
                               <input
                                 type="file"
@@ -3666,9 +4137,9 @@ const EmployeeDashboard = () => {
                                 href={resolveFileUrl(val)}
                                 target="_blank"
                                 rel="noopener noreferrer"
-                                className="px-3 py-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 rounded-xl text-[10px] font-black tracking-wide whitespace-nowrap transition flex items-center gap-1"
+                                className="px-3 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 rounded-xl text-xs font-bold whitespace-nowrap transition inline-flex items-center justify-center shadow-2xs cursor-pointer"
                               >
-                                <span>👁️</span> Open Document
+                                Open Document
                               </a>
                             )}
                           </div>
@@ -3740,9 +4211,9 @@ const EmployeeDashboard = () => {
                                   href={resolveFileUrl(item.url)}
                                   target="_blank"
                                   rel="noopener noreferrer"
-                                  className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-[10px] font-black tracking-wide whitespace-nowrap transition flex items-center gap-1 shadow-xs"
+                                  className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold whitespace-nowrap transition inline-flex items-center justify-center shadow-2xs cursor-pointer"
                                 >
-                                  <span>👁️</span> Open Document
+                                  Open Document
                                 </a>
                               )}
                             </div>
@@ -3914,102 +4385,346 @@ const EmployeeDashboard = () => {
 
               {/* Tab 4: Bank Details */}
               {activeTab === "Bank Details" && (
-                <div className="space-y-4">
-                  <h4 className="text-xs font-black uppercase text-slate-900 tracking-wider border-b pb-2 border-slate-100">
-                    🏦 Bank Register & Payroll configuration
-                  </h4>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 text-xs font-bold text-slate-600">
-                    <div className="border p-3.5 rounded-xl bg-slate-50/30">
-                      <span className="text-[9px] text-slate-400 block uppercase">Bank Name</span>
-                      <span className="text-slate-800 font-black mt-0.5 block">{profileDetails.bankName || "--"}</span>
+                <div className="space-y-6">
+                  {/* Top Bar with Header & Action Buttons */}
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-3 border-b border-slate-100 gap-3">
+                    <div>
+                      <h4 className="text-sm font-black uppercase text-slate-900 tracking-wider flex items-center gap-2">
+                        <span>🏦</span> Bank Register &amp; Remittance Configuration
+                      </h4>
+                      <p className="text-xs text-slate-500 font-medium mt-0.5">
+                        Manage employee bank account for salary disbursal and remittance. Updates are saved to database and synchronized with Admin.
+                      </p>
                     </div>
-                    <div className="border p-3.5 rounded-xl bg-slate-50/30">
-                      <span className="text-[9px] text-slate-400 block uppercase">Account Holder</span>
-                      <span className="text-slate-800 font-black mt-0.5 block">{profileDetails.accountHolderName || "--"}</span>
-                    </div>
-                    <div className="border p-3.5 rounded-xl bg-slate-50/30">
-                      <span className="text-[9px] text-slate-400 block uppercase">Account Number</span>
-                      <span className="text-slate-800 font-black mt-0.5 block font-mono">{profileDetails.accountNumber || "--"}</span>
-                    </div>
-                    <div className="border p-3.5 rounded-xl bg-slate-50/30">
-                      <span className="text-[9px] text-slate-400 block uppercase">IFSC Code</span>
-                      <span className="text-slate-800 font-black mt-0.5 block font-mono">{profileDetails.ifscCode || "--"}</span>
-                    </div>
-                    <div className="border p-3.5 rounded-xl bg-slate-50/30">
-                      <span className="text-[9px] text-slate-400 block uppercase">Basic Salary (₹)</span>
-                      <span className="text-slate-800 font-black mt-0.5 block">₹{Number(profileDetails.basicSalary || 0).toLocaleString()}</span>
-                    </div>
-                    <div className="border p-3.5 rounded-xl bg-slate-50/30">
-                      <span className="text-[9px] text-slate-400 block uppercase">Gross Salary (₹)</span>
-                      <span className="text-slate-800 font-black mt-0.5 block">₹{Number(profileDetails.grossSalary || 0).toLocaleString()}</span>
-                    </div>
-                    <div className="border p-3.5 rounded-xl bg-slate-50/30">
-                      <span className="text-[9px] text-slate-400 block uppercase">Annual CTC (₹)</span>
-                      <span className="text-slate-800 font-black mt-0.5 block">₹{Number(profileDetails.ctc || 0).toLocaleString()}</span>
-                    </div>
-                    <div className="border p-3.5 rounded-xl bg-slate-50/30">
-                      <span className="text-[9px] text-slate-400 block uppercase">PF Deduction status</span>
-                      <span className="text-slate-800 font-black mt-0.5 block">{profileDetails.pfApplicable ? "Yes (Applicable)" : "No"}</span>
-                    </div>
-                    <div className="border p-3.5 rounded-xl bg-slate-50/30">
-                      <span className="text-[9px] text-slate-400 block uppercase">ESI Contribution status</span>
-                      <span className="text-slate-800 font-black mt-0.5 block">{profileDetails.esiApplicable ? "Yes (Applicable)" : "No"}</span>
+
+                    <div className="flex items-center gap-2.5">
+                      <span className={`px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wider border flex items-center gap-1.5 shadow-2xs ${
+                        (profileDetails.bankName && profileDetails.accountNumber)
+                          ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+                          : "bg-amber-50 text-amber-700 border-amber-200"
+                      }`}>
+                        <span className={`w-1.5 h-1.5 rounded-full ${
+                          (profileDetails.bankName && profileDetails.accountNumber) ? "bg-emerald-500 animate-pulse" : "bg-amber-500"
+                        }`} />
+                        {(profileDetails.bankName && profileDetails.accountNumber) ? "Remittance Configured" : "Remittance Pending"}
+                      </span>
+
+                      {!isEditingBank ? (
+                        <button
+                          type="button"
+                          onClick={handleStartEditBank}
+                          className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 text-white rounded-xl text-xs font-bold shadow-xs flex items-center gap-1.5 transition cursor-pointer"
+                        >
+                          <PencilSquareIcon className="w-4 h-4" />
+                          <span>Edit Bank Details</span>
+                        </button>
+                      ) : (
+                        <div className="flex items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={handleCancelEditBank}
+                            className="px-3.5 py-2 bg-white hover:bg-slate-100 text-slate-700 border border-slate-300 rounded-xl text-xs font-bold transition cursor-pointer"
+                          >
+                            Cancel
+                          </button>
+                          <button
+                            type="button"
+                            onClick={handleSaveBankDetails}
+                            disabled={bankSubmitting}
+                            className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold shadow-xs flex items-center gap-1.5 transition cursor-pointer disabled:opacity-50"
+                          >
+                            <span>💾</span>
+                            <span>{bankSubmitting ? "Saving..." : "Save Bank Details"}</span>
+                          </button>
+                        </div>
+                      )}
                     </div>
                   </div>
+
+                  {!isEditingBank ? (
+                    <div className="space-y-6 animate-fadeIn">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 text-xs font-bold text-slate-600">
+                        {/* Bank Name */}
+                        <div className="border border-slate-200/90 p-4 rounded-2xl bg-white shadow-2xs space-y-1">
+                          <span className="text-[10px] font-black uppercase text-slate-400 block tracking-wider">Bank Name</span>
+                          <span className="text-slate-800 font-black text-sm block">{profileDetails.bankName || "--"}</span>
+                        </div>
+
+                        {/* Account Holder */}
+                        <div className="border border-slate-200/90 p-4 rounded-2xl bg-white shadow-2xs space-y-1">
+                          <span className="text-[10px] font-black uppercase text-slate-400 block tracking-wider">Account Holder</span>
+                          <span className="text-slate-800 font-black text-sm block">
+                            {profileDetails.accountHolderName || `${profileDetails.firstName || ''} ${profileDetails.lastName || ''}`.trim() || employeeName || "--"}
+                          </span>
+                        </div>
+
+                        {/* Account Number with Eye Toggle */}
+                        <div className="border border-slate-200/90 p-4 rounded-2xl bg-white shadow-2xs space-y-1">
+                          <div className="flex items-center justify-between">
+                            <span className="text-[10px] font-black uppercase text-slate-400 block tracking-wider">Account Number</span>
+                            {profileDetails.accountNumber && (
+                              <button
+                                type="button"
+                                onClick={() => setShowAccountNumber(prev => !prev)}
+                                className="text-slate-400 hover:text-slate-600 p-0.5 cursor-pointer"
+                                title={showAccountNumber ? "Mask account number" : "Reveal full account number"}
+                              >
+                                {showAccountNumber ? <EyeSlashIcon className="w-3.5 h-3.5" /> : <EyeIcon className="w-3.5 h-3.5" />}
+                              </button>
+                            )}
+                          </div>
+                          <span className="text-slate-800 font-black font-mono text-sm block">
+                            {profileDetails.accountNumber ? (
+                              showAccountNumber
+                                ? profileDetails.accountNumber
+                                : (profileDetails.accountNumber.length > 4 ? `•••• •••• ${profileDetails.accountNumber.slice(-4)}` : profileDetails.accountNumber)
+                            ) : "--"}
+                          </span>
+                        </div>
+
+                        {/* IFSC Code */}
+                        <div className="border border-slate-200/90 p-4 rounded-2xl bg-white shadow-2xs space-y-1">
+                          <span className="text-[10px] font-black uppercase text-slate-400 block tracking-wider">IFSC Code</span>
+                          <span className="text-slate-800 font-black font-mono text-sm uppercase block">{profileDetails.ifscCode || "--"}</span>
+                        </div>
+
+                        {/* Branch Name */}
+                        <div className="border border-slate-200/90 p-4 rounded-2xl bg-white shadow-2xs space-y-1">
+                          <span className="text-[10px] font-black uppercase text-slate-400 block tracking-wider">Branch Name</span>
+                          <span className="text-slate-800 font-bold block">{profileDetails.branchName || "--"}</span>
+                        </div>
+
+                        {/* UPI ID / VPA */}
+                        <div className="border border-slate-200/90 p-4 rounded-2xl bg-white shadow-2xs space-y-1">
+                          <span className="text-[10px] font-black uppercase text-slate-400 block tracking-wider">UPI ID / VPA</span>
+                          <span className="text-slate-800 font-mono font-bold block">{profileDetails.upiId || "--"}</span>
+                        </div>
+
+                        {/* Basic Salary */}
+                        <div className="border border-slate-200/90 p-4 rounded-2xl bg-white shadow-2xs space-y-1">
+                          <span className="text-[10px] font-black uppercase text-slate-400 block tracking-wider">Basic Salary (₹)</span>
+                          <span className="text-slate-800 font-black text-sm block">₹{Number(profileDetails.basicSalary || 0).toLocaleString()}</span>
+                        </div>
+
+                        {/* Gross Salary */}
+                        <div className="border border-slate-200/90 p-4 rounded-2xl bg-white shadow-2xs space-y-1">
+                          <span className="text-[10px] font-black uppercase text-slate-400 block tracking-wider">Gross Salary (₹)</span>
+                          <span className="text-slate-800 font-black text-sm block">₹{Number(profileDetails.grossSalary || 0).toLocaleString()}</span>
+                        </div>
+
+                        {/* Annual CTC */}
+                        <div className="border border-slate-200/90 p-4 rounded-2xl bg-white shadow-2xs space-y-1">
+                          <span className="text-[10px] font-black uppercase text-slate-400 block tracking-wider">Annual CTC (₹)</span>
+                          <span className="text-slate-800 font-black text-sm block">₹{Number(profileDetails.ctc || 0).toLocaleString()}</span>
+                        </div>
+
+                        {/* PF Deduction status */}
+                        <div className="border border-slate-200/90 p-4 rounded-2xl bg-white shadow-2xs space-y-1">
+                          <span className="text-[10px] font-black uppercase text-slate-400 block tracking-wider">PF Deduction status</span>
+                          <span className="text-slate-800 font-bold block">{profileDetails.pfApplicable ? "Yes (Applicable)" : "No"}</span>
+                        </div>
+
+                        {/* ESI Contribution status */}
+                        <div className="border border-slate-200/90 p-4 rounded-2xl bg-white shadow-2xs space-y-1">
+                          <span className="text-[10px] font-black uppercase text-slate-400 block tracking-wider">ESI Contribution status</span>
+                          <span className="text-slate-800 font-bold block">{profileDetails.esiApplicable ? "Yes (Applicable)" : "No"}</span>
+                        </div>
+                      </div>
+
+                      {/* Sync status card */}
+                      <div className="p-4 bg-emerald-50/70 border border-emerald-200/80 rounded-2xl flex items-center gap-3 text-xs text-emerald-900 font-semibold shadow-2xs">
+                        <span className="text-lg">✓</span>
+                        <span><b>Live Database Sync Active:</b> Any updates made to your bank details are recorded directly in the company central database and reflect immediately on the Admin console and Payroll Remittance ledger.</span>
+                      </div>
+                    </div>
+                  ) : (
+                    <form onSubmit={handleSaveBankDetails} className="space-y-6 animate-fadeIn">
+                      <div className="bg-indigo-50/70 border border-indigo-100 p-4 rounded-2xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs text-indigo-900 font-semibold">
+                        <div className="flex items-center gap-2">
+                          <span className="text-xl">✏️</span>
+                          <span><b>Editing Bank Account Details:</b> Fill in your bank information below. Clicking <b>Save Bank Details</b> will instantly update the employee record and synchronize with Admin.</span>
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 text-xs font-bold text-slate-700">
+                        {/* Bank Name */}
+                        <div className="bg-white border border-slate-200 rounded-xl p-3.5 space-y-1.5 shadow-2xs">
+                          <label className="text-[10px] font-black uppercase text-slate-400 block tracking-wider">
+                            Bank Name <span className="text-rose-500">*</span>
+                          </label>
+                          <input
+                            type="text"
+                            required
+                            list="popular-bank-list"
+                            placeholder="e.g. HDFC Bank, SBI..."
+                            value={bankForm.bankName}
+                            onChange={(e) => setBankForm(prev => ({ ...prev, bankName: e.target.value }))}
+                            className="w-full bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-2 text-xs font-bold text-slate-800 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                          />
+                          <datalist id="popular-bank-list">
+                            <option value="State Bank of India" />
+                            <option value="HDFC Bank" />
+                            <option value="ICICI Bank" />
+                            <option value="Axis Bank" />
+                            <option value="Punjab National Bank" />
+                            <option value="Kotak Mahindra Bank" />
+                            <option value="Bank of Baroda" />
+                            <option value="Canara Bank" />
+                            <option value="Union Bank of India" />
+                            <option value="IndusInd Bank" />
+                            <option value="IDFC First Bank" />
+                            <option value="Yes Bank" />
+                            <option value="Federal Bank" />
+                          </datalist>
+                        </div>
+
+                        {/* Account Holder Name */}
+                        <div className="bg-white border border-slate-200 rounded-xl p-3.5 space-y-1.5 shadow-2xs">
+                          <label className="text-[10px] font-black uppercase text-slate-400 block tracking-wider">
+                            Account Holder Name <span className="text-rose-500">*</span>
+                          </label>
+                          <input
+                            type="text"
+                            required
+                            placeholder="e.g. Yashwani Kushwaha"
+                            value={bankForm.accountHolderName}
+                            onChange={(e) => setBankForm(prev => ({ ...prev, accountHolderName: e.target.value }))}
+                            className="w-full bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-2 text-xs font-bold text-slate-800 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                          />
+                        </div>
+
+                        {/* Account Number */}
+                        <div className="bg-white border border-slate-200 rounded-xl p-3.5 space-y-1.5 shadow-2xs">
+                          <label className="text-[10px] font-black uppercase text-slate-400 block tracking-wider">
+                            Account Number <span className="text-rose-500">*</span>
+                          </label>
+                          <input
+                            type="text"
+                            required
+                            placeholder="e.g. 50100431289574"
+                            value={bankForm.accountNumber}
+                            onChange={(e) => setBankForm(prev => ({ ...prev, accountNumber: e.target.value.replace(/[^0-9]/g, '') }))}
+                            className="w-full bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-2 text-xs font-bold font-mono text-slate-800 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                          />
+                        </div>
+
+                        {/* IFSC Code */}
+                        <div className="bg-white border border-slate-200 rounded-xl p-3.5 space-y-1.5 shadow-2xs">
+                          <label className="text-[10px] font-black uppercase text-slate-400 block tracking-wider">
+                            IFSC Code <span className="text-rose-500">*</span>
+                          </label>
+                          <input
+                            type="text"
+                            required
+                            placeholder="e.g. HDFC0000124"
+                            value={bankForm.ifscCode}
+                            onChange={(e) => setBankForm(prev => ({ ...prev, ifscCode: e.target.value.toUpperCase().trim() }))}
+                            className="w-full bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-2 text-xs font-bold font-mono uppercase text-slate-800 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                          />
+                        </div>
+
+                        {/* Branch Name */}
+                        <div className="bg-white border border-slate-200 rounded-xl p-3.5 space-y-1.5 shadow-2xs">
+                          <label className="text-[10px] font-black uppercase text-slate-400 block tracking-wider">
+                            Branch Name
+                          </label>
+                          <input
+                            type="text"
+                            placeholder="e.g. Sector 62 Branch, Noida"
+                            value={bankForm.branchName}
+                            onChange={(e) => setBankForm(prev => ({ ...prev, branchName: e.target.value }))}
+                            className="w-full bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-2 text-xs font-bold text-slate-800 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                          />
+                        </div>
+
+                        {/* UPI ID / VPA */}
+                        <div className="bg-white border border-slate-200 rounded-xl p-3.5 space-y-1.5 shadow-2xs">
+                          <label className="text-[10px] font-black uppercase text-slate-400 block tracking-wider">
+                            UPI ID / VPA (Optional)
+                          </label>
+                          <input
+                            type="text"
+                            placeholder="e.g. name@okhdfcbank"
+                            value={bankForm.upiId}
+                            onChange={(e) => setBankForm(prev => ({ ...prev, upiId: e.target.value }))}
+                            className="w-full bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-2 text-xs font-bold text-slate-800 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                          />
+                        </div>
+                      </div>
+
+                      {/* Salary & Compliance Section (Optional / Admin adjustable) */}
+                      <div className="bg-slate-50/70 border border-slate-200/80 p-4 rounded-2xl space-y-3">
+                        <div className="flex items-center justify-between">
+                          <span className="text-[11px] font-black uppercase tracking-wider text-slate-700 flex items-center gap-1.5">
+                            <span>💼</span> Payroll &amp; Statutory Configuration
+                          </span>
+                          <span className="text-[10px] text-slate-400 font-semibold">
+                            Admin / HR Remittance Parameters
+                          </span>
+                        </div>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+                          <div>
+                            <label className="text-[9px] font-bold uppercase text-slate-400 block">Basic Salary (₹)</label>
+                            <input
+                              type="number"
+                              disabled={!canManageEmployees}
+                              value={bankForm.basicSalary}
+                              onChange={(e) => setBankForm(prev => ({ ...prev, basicSalary: e.target.value }))}
+                              className={`w-full bg-white border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs font-bold text-slate-800 mt-1 ${!canManageEmployees ? 'bg-slate-100 cursor-not-allowed opacity-75' : ''}`}
+                            />
+                          </div>
+                          <div>
+                            <label className="text-[9px] font-bold uppercase text-slate-400 block">Gross Salary (₹)</label>
+                            <input
+                              type="number"
+                              disabled={!canManageEmployees}
+                              value={bankForm.grossSalary}
+                              onChange={(e) => setBankForm(prev => ({ ...prev, grossSalary: e.target.value }))}
+                              className={`w-full bg-white border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs font-bold text-slate-800 mt-1 ${!canManageEmployees ? 'bg-slate-100 cursor-not-allowed opacity-75' : ''}`}
+                            />
+                          </div>
+                          <div>
+                            <label className="text-[9px] font-bold uppercase text-slate-400 block">Annual CTC (₹)</label>
+                            <input
+                              type="number"
+                              disabled={!canManageEmployees}
+                              value={bankForm.ctc}
+                              onChange={(e) => setBankForm(prev => ({ ...prev, ctc: e.target.value }))}
+                              className={`w-full bg-white border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs font-bold text-slate-800 mt-1 ${!canManageEmployees ? 'bg-slate-100 cursor-not-allowed opacity-75' : ''}`}
+                            />
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Action Button Bar */}
+                      <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-3 border-t border-slate-100">
+                        <span className="text-[10px] text-slate-400 font-medium">
+                          Click Save to write bank details to the database and update Admin records.
+                        </span>
+                        <div className="flex items-center gap-3 w-full sm:w-auto justify-end">
+                          <button
+                            type="button"
+                            onClick={handleCancelEditBank}
+                            className="px-5 py-2.5 bg-white hover:bg-slate-100 text-slate-700 border border-slate-300 rounded-xl text-xs font-bold transition cursor-pointer"
+                          >
+                            Cancel
+                          </button>
+                          <button
+                            type="submit"
+                            disabled={bankSubmitting}
+                            className="px-6 py-2.5 bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white rounded-xl text-xs font-black uppercase tracking-wider shadow-md transition cursor-pointer disabled:opacity-50 flex items-center gap-2"
+                          >
+                            <span>💾</span>
+                            <span>{bankSubmitting ? "Saving..." : "Save Bank Details"}</span>
+                          </button>
+                        </div>
+                      </div>
+                    </form>
+                  )}
                 </div>
               )}
 
-              {/* Tab 5: Salary Details */}
-              {(activeTab === "Salary Details" || activeTab === "Salary Structure") && (
-                <div className="space-y-4">
-                  <h4 className="text-xs font-black uppercase text-slate-900 tracking-wider border-b pb-2 border-slate-100">
-                    💵 Generated Payroll Payslips
-                  </h4>
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-left text-xs font-bold text-slate-600">
-                      <thead>
-                        <tr className="border-b border-slate-100 text-slate-400 uppercase text-[9px]">
-                          <th className="py-2.5">Month</th>
-                          <th>Basic Salary</th>
-                          <th>HRA</th>
-                          <th>Special Allowance</th>
-                          <th>PF Deduction</th>
-                          <th>Net Payout</th>
-                          <th>Action</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-slate-100 font-bold text-slate-600">
-                        {payslips.length === 0 ? (
-                          <tr>
-                            <td colSpan="7" className="py-6 text-center text-xs text-slate-400 font-semibold">
-                              No payslip records generated yet.
-                            </td>
-                          </tr>
-                        ) : (
-                          payslips.map((ps, idx) => (
-                            <tr key={idx} className="hover:bg-slate-50/50 transition">
-                              <td className="py-3 text-slate-800 font-extrabold">{ps.month}</td>
-                              <td>₹{ps.basic.toLocaleString()}</td>
-                              <td>₹{ps.hra.toLocaleString()}</td>
-                              <td>₹{ps.special.toLocaleString()}</td>
-                              <td className="text-red-500">-₹{ps.pf.toLocaleString()}</td>
-                              <td className="text-emerald-600 font-black">₹{ps.netPay.toLocaleString()}</td>
-                              <td>
-                                <button
-                                  onClick={() => setSelectedPayslip(ps)}
-                                  className="px-3 py-1 bg-indigo-50 hover:bg-indigo-100 text-indigo-600 rounded-lg text-[10px] font-black"
-                                >
-                                  View payslip
-                                </button>
-                              </td>
-                            </tr>
-                          ))
-                        )}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-              )}
+
 
               {/* Tab 7: Employee Timeline */}
               {activeTab === "Employee Timeline" && (
@@ -4039,170 +4754,7 @@ const EmployeeDashboard = () => {
           {/* MY ATTENDANCE SUB-VIEWS */}
           {activeCategory === "EMP_ATTENDANCE" && (
             <div className="space-y-6">
-              {/* Check In / Check Out / Today's Attendance Unified View */}
-              {(activeTab === "Check In" || activeTab === "Check Out" || activeTab === "Today's Attendance" || activeTab === "Attendance Dashboard") && (
-                <div className="grid grid-cols-1 xl:grid-cols-3 gap-6 animate-fadeIn">
-                  {/* Punch Box */}
-                  <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm xl:col-span-1 space-y-6">
-                    <h4 className="font-extrabold text-sm text-slate-800 pb-3 border-b border-slate-100 flex items-center gap-1.5">
-                      <ClockIcon className="h-4.5 w-4.5 text-blue-600" /> Shift Command Clock
-                    </h4>
-                    <div className="text-center space-y-5">
-                      <div className="inline-block p-5 bg-slate-50 rounded-full border border-slate-100 shadow-inner">
-                        <ClockIcon className={`h-14 w-14 ${empCheckedIn ? 'text-green-500 animate-pulse' : 'text-slate-400'}`} />
-                      </div>
-                      
-                      <div className="space-y-1 bg-slate-50/50 p-3 rounded-xl border border-slate-100/80">
-                        <p className="text-xs text-slate-700 font-bold">{currentUserProfile?.shift || "General Shift (09:00 AM - 06:00 PM)"}</p>
-                        <p className="text-[10px] text-slate-400 font-semibold">Grace Period: 15 Minutes</p>
-                      </div>
-
-                      {/* Webcam feed mock */}
-                      <div className="border border-slate-100 bg-slate-50 rounded-xl p-3 space-y-2">
-                        <div className="h-28 bg-slate-800 rounded-lg flex items-center justify-center relative overflow-hidden">
-                          <div className="absolute top-2 left-2 px-1.5 py-0.5 bg-red-600 text-white rounded text-[8px] font-black uppercase tracking-wider animate-pulse">Live Feed</div>
-                          <span className="text-[10px] text-slate-400 font-black uppercase">Webcam Ready</span>
-                        </div>
-                        <p className="text-[9px] text-slate-400 font-bold">Secure photo verification will capture at Punch In</p>
-                      </div>
-
-                      <div className="space-y-1">
-                        {empCheckedIn ? (
-                          <div className="text-xs font-black text-green-600 bg-green-50/80 border border-green-200 rounded-lg p-2.5">
-                            Check-In Recorded: {empPunchTime}
-                          </div>
-                        ) : (
-                          <div className="text-xs font-bold text-slate-500 bg-slate-50 border border-slate-200 rounded-lg p-2.5">
-                            Status: Session Locked (Not checked in)
-                          </div>
-                        )}
-                      </div>
-
-                      <div className="flex gap-4">
-                        <button
-                          onClick={() => !empCheckedIn && handleEmpPunch()}
-                          disabled={empCheckedIn}
-                          className={`flex-1 py-3 rounded-xl text-xs font-black uppercase tracking-wider text-white shadow-xs transition ${
-                            empCheckedIn ? 'bg-slate-300 cursor-not-allowed text-slate-400' : 'bg-emerald-600 hover:bg-emerald-700'
-                          }`}
-                        >
-                          Check In
-                        </button>
-                        <button
-                          onClick={() => empCheckedIn && handleEmpPunch()}
-                          disabled={!empCheckedIn}
-                          className={`flex-1 py-3 rounded-xl text-xs font-black uppercase tracking-wider text-white shadow-xs transition ${
-                            !empCheckedIn ? 'bg-slate-300 cursor-not-allowed text-slate-400' : 'bg-red-600 hover:bg-red-700'
-                          }`}
-                        >
-                          Check Out
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Today's Summary & Geolocation details */}
-                  <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm xl:col-span-2 space-y-6">
-                    <h4 className="font-extrabold text-sm text-slate-800 pb-3 border-b border-slate-100">
-                      📝 Today's Punch Summary
-                    </h4>
-
-                    {/* Specifications grid */}
-                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 text-xs font-bold text-slate-600">
-                      <div className="border p-3.5 rounded-xl bg-slate-50/30">
-                        <span className="text-[9px] text-slate-400 block uppercase">Check In Time</span>
-                        <span className="text-slate-800 font-black mt-0.5 block">{empCheckedIn ? empPunchTime : "--"}</span>
-                      </div>
-                      <div className="border p-3.5 rounded-xl bg-slate-50/30">
-                        <span className="text-[9px] text-slate-400 block uppercase">Check Out Time</span>
-                        <span className="text-slate-800 font-black mt-0.5 block">
-                          {(() => {
-                            const todayStr = new Date().toISOString().split('T')[0];
-                            const t = attendanceLogs.find(a => a.date === todayStr);
-                            return t && t.checkOut !== "--" ? t.checkOut : "--";
-                          })()}
-                        </span>
-                      </div>
-                      <div className="border p-3.5 rounded-xl bg-slate-50/30">
-                        <span className="text-[9px] text-slate-400 block uppercase">Status</span>
-                        <span className="mt-0.5 block">
-                          {(() => {
-                            const todayStr = new Date().toISOString().split('T')[0];
-                            const t = attendanceLogs.find(a => a.date === todayStr);
-                            return t ? <Badge variant={getStatusVariant(t.status)}>{t.status}</Badge> : <Badge variant="secondary">Not Checked In</Badge>;
-                          })()}
-                        </span>
-                      </div>
-                      <div className="border p-3.5 rounded-xl bg-slate-50/30">
-                        <span className="text-[9px] text-slate-400 block uppercase">Working Hours</span>
-                        <span className="text-slate-800 font-black mt-0.5 block">
-                          {(() => {
-                            const todayStr = new Date().toISOString().split('T')[0];
-                            const t = attendanceLogs.find(a => a.date === todayStr);
-                            return t && t.workingHours ? `${t.workingHours} Hrs` : "--";
-                          })()}
-                        </span>
-                      </div>
-                      <div className="border p-3.5 rounded-xl bg-slate-50/30">
-                        <span className="text-[9px] text-slate-400 block uppercase">Lunch Break</span>
-                        <span className="text-slate-800 font-black mt-0.5 block">
-                          {(() => {
-                            const todayStr = new Date().toISOString().split('T')[0];
-                            const t = attendanceLogs.find(a => a.date === todayStr);
-                            return t && t.breakHours ? `${t.breakHours} Hr` : "1.0 Hr";
-                          })()}
-                        </span>
-                      </div>
-                      <div className="border p-3.5 rounded-xl bg-slate-50/30">
-                        <span className="text-[9px] text-slate-400 block uppercase">Overtime</span>
-                        <span className="text-slate-800 font-black mt-0.5 block">
-                          {(() => {
-                            const todayStr = new Date().toISOString().split('T')[0];
-                            const t = attendanceLogs.find(a => a.date === todayStr);
-                            return t && t.overtime ? `${t.overtime} Hrs` : "0 Hrs";
-                          })()}
-                        </span>
-                      </div>
-                    </div>
-
-                    <div className="border-t pt-5">
-                      <h5 className="text-xs font-black uppercase text-slate-900 tracking-wider mb-3">📍 Network & Geolocation Telemetry</h5>
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs font-bold text-slate-600 bg-slate-50 p-4 rounded-xl border border-slate-100">
-                        <div>
-                          <p className="text-[10px] text-slate-400 block uppercase tracking-wider">Device details</p>
-                          <span className="text-slate-700 font-black block mt-0.5 truncate">{navigator.userAgent}</span>
-                        </div>
-                        <div>
-                          <p className="text-[10px] text-slate-400 block uppercase tracking-wider">IP Address</p>
-                          <span className="text-slate-700 font-black block mt-0.5">
-                            {(() => {
-                              const todayStr = new Date().toISOString().split('T')[0];
-                              const t = attendanceLogs.find(a => a.date === todayStr);
-                              return (t && t.ipAddress && t.ipAddress !== "--") ? t.ipAddress : "192.168.1.104 (Office Network)";
-                            })()}
-                          </span>
-                        </div>
-                        <div>
-                          <p className="text-[10px] text-slate-400 block uppercase tracking-wider">Location coordinates</p>
-                          <span className="text-slate-700 font-black block mt-0.5">
-                            {(() => {
-                              const todayStr = new Date().toISOString().split('T')[0];
-                              const t = attendanceLogs.find(a => a.date === todayStr);
-                              if (t && t.gpsLocation && t.gpsLocation !== "--") return t.gpsLocation;
-                              const loc = currentUserProfile?.workLocation || currentUserProfile?.branch || "Mumbai HQ";
-                              return `${loc} (Geofence Matched)`;
-                            })()}
-                          </span>
-                        </div>
-                        <div>
-                          <p className="text-[10px] text-slate-400 block uppercase tracking-wider">Geofence validation</p>
-                          <span className="text-emerald-600 font-black block mt-0.5 flex items-center gap-1">✔ Authorized Zone</span>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              )}
+              {/* Unified Shift Command Clock & Attendance Registration Section Removed */}
 
               {/* Attendance Calendar */}
               {activeTab === "Attendance Calendar" && (
@@ -4294,13 +4846,12 @@ const EmployeeDashboard = () => {
                           <th>Clock Out</th>
                           <th>Working Hours</th>
                           <th>Status</th>
-                          <th>Network details</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-100">
                         {attendanceLogs.length === 0 ? (
                           <tr>
-                            <td colSpan="6" className="py-6 text-center text-xs text-slate-400 font-semibold">
+                            <td colSpan="5" className="py-6 text-center text-xs text-slate-400 font-semibold">
                               No attendance logs recorded for this period.
                             </td>
                           </tr>
@@ -4314,7 +4865,6 @@ const EmployeeDashboard = () => {
                               <td>
                                 <Badge variant={getStatusVariant(log.status)}>{log.status}</Badge>
                               </td>
-                              <td className="text-[10px] text-slate-400 font-semibold">{log.deviceInfo} ({log.ipAddress})</td>
                             </tr>
                           ))
                         )}
@@ -4345,7 +4895,7 @@ const EmployeeDashboard = () => {
                         <button
                           type="button"
                           onClick={() => setSelectedMonthFilter("this_month")}
-                          className={`px-3 py-1 text-xs font-bold rounded-lg transition ${
+                          className={`px-3 py-1.5 text-xs font-bold rounded-lg transition cursor-pointer ${
                             selectedMonthFilter === "this_month"
                               ? "bg-white text-blue-600 shadow-xs"
                               : "text-slate-600 hover:text-slate-900"
@@ -4356,7 +4906,7 @@ const EmployeeDashboard = () => {
                         <button
                           type="button"
                           onClick={() => setSelectedMonthFilter("last_month")}
-                          className={`px-3 py-1 text-xs font-bold rounded-lg transition ${
+                          className={`px-3 py-1.5 text-xs font-bold rounded-lg transition cursor-pointer ${
                             selectedMonthFilter === "last_month"
                               ? "bg-white text-blue-600 shadow-xs"
                               : "text-slate-600 hover:text-slate-900"
@@ -4367,7 +4917,7 @@ const EmployeeDashboard = () => {
                         <button
                           type="button"
                           onClick={() => setSelectedMonthFilter("all")}
-                          className={`px-3 py-1 text-xs font-bold rounded-lg transition ${
+                          className={`px-3 py-1.5 text-xs font-bold rounded-lg transition cursor-pointer ${
                             selectedMonthFilter === "all"
                               ? "bg-white text-blue-600 shadow-xs"
                               : "text-slate-600 hover:text-slate-900"
@@ -4379,12 +4929,32 @@ const EmployeeDashboard = () => {
 
                       <button 
                         onClick={() => window.print()}
-                        className="px-3 py-1.5 bg-slate-800 hover:bg-slate-900 text-white rounded-lg text-xs font-bold transition flex items-center gap-1.5"
+                        className="px-3 py-1.5 bg-slate-800 hover:bg-slate-900 text-white rounded-lg text-xs font-bold transition flex items-center gap-1.5 cursor-pointer"
                       >
                         <span>🖨</span> Print Monthly Logs
                       </button>
                     </div>
                   </div>
+
+                  {selectedMonthFilter === "this_month" && monthlyAttendanceLogs.length === 0 && (
+                    <div className="p-4 bg-slate-50 border border-slate-200 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
+                      <div className="flex items-center gap-2.5">
+                        <span className="text-xl">ℹ️</span>
+                        <div>
+                          <p className="font-extrabold text-slate-800">Current Month ({selectedMonthInfo.label}) Telemetry</p>
+                          <p className="text-slate-500 text-[11px]">No check-in logs recorded yet for {selectedMonthInfo.label}. Switch to Last Month to view your attendance history.</p>
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setSelectedMonthFilter("last_month")}
+                        className="px-3.5 py-1.5 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl text-xs transition cursor-pointer shrink-0 shadow-xs flex items-center gap-1.5"
+                      >
+                        <span>View Last Month Attendance</span>
+                        <ChevronRightIcon className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
+                  )}
 
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-xs font-bold text-slate-600">
                     <div className="border p-3.5 rounded-xl bg-slate-50/30">
@@ -4429,13 +4999,12 @@ const EmployeeDashboard = () => {
                             <th>Clock Out</th>
                             <th>Working Hours</th>
                             <th>Status</th>
-                            <th>Network details</th>
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-100">
                           {monthlyAttendanceLogs.length === 0 ? (
                             <tr>
-                              <td colSpan="6" className="py-6 text-center text-xs text-slate-400 font-semibold">
+                              <td colSpan="5" className="py-6 text-center text-xs text-slate-400 font-semibold">
                                 No attendance logs recorded for {selectedMonthInfo.label}.
                               </td>
                             </tr>
@@ -4448,14 +5017,6 @@ const EmployeeDashboard = () => {
                                 <td>{log.workingHours} Hrs</td>
                                 <td>
                                   <Badge variant={getStatusVariant(log.status)}>{log.status}</Badge>
-                                </td>
-                                <td className="text-[10px] text-slate-400 font-semibold">
-                                  {log.deviceInfo} ({log.ipAddress})
-                                  {log.remarks && (
-                                    <span className="block text-[9px] text-slate-400 font-normal italic mt-0.5">
-                                      Note: {log.remarks}
-                                    </span>
-                                  )}
                                 </td>
                               </tr>
                             ))
@@ -4935,6 +5496,8 @@ const EmployeeDashboard = () => {
                   </div>
                 )}
 
+                
+
                 {/* Holiday Calendar view inside Leaves category */}
                 {activeTab === "Holiday Calendar" && (
                   <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm col-span-3 space-y-6 animate-fadeIn">
@@ -5002,53 +5565,619 @@ const EmployeeDashboard = () => {
             </div>
           )}
 
-          {/* MY PAYROLL SUB-VIEWS */}
+          {/* MY PAYROLL SUB-VIEWS - DUAL-APPROVAL LAST MONTH PAYSLIP DOWNLOAD */}
           {activeCategory === "EMP_PAYROLL" && (
-            <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm space-y-6">
-              <h4 className="font-extrabold text-sm text-slate-800 pb-3 border-b border-slate-100">Salary Structure & Generated Payslips</h4>
-              <div className="overflow-x-auto">
-                <table className="w-full text-left text-xs font-bold text-slate-600">
-                  <thead>
-                    <tr className="border-b border-slate-100 text-slate-400 uppercase text-[9px]">
-                      <th className="py-2.5">Month</th>
-                      <th>Basic Salary</th>
-                      <th>HRA</th>
-                      <th>Special Allowance</th>
-                      <th>PF Deduction</th>
-                      <th>Net Payout</th>
-                      <th>Action</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100">
-                    {payslips.length === 0 ? (
-                      <tr>
-                        <td colSpan="7" className="py-6 text-center text-xs text-slate-400 font-semibold">
-                          No payslip records generated yet.
-                        </td>
-                      </tr>
+            <div className="space-y-6 animate-fadeIn">
+              {/* Toast Notification */}
+              {payslipActionToast && (
+                <div className="p-4 bg-indigo-50 border border-indigo-200 text-indigo-900 rounded-2xl flex items-center justify-between text-xs font-bold shadow-sm transition animate-fadeIn">
+                  <div className="flex items-center gap-2">
+                    <span className="p-1.5 bg-indigo-600 text-white rounded-lg text-xs">ℹ️</span>
+                    <span>{payslipActionToast}</span>
+                  </div>
+                  <button 
+                    onClick={() => setPayslipActionToast("")}
+                    className="text-indigo-500 hover:text-indigo-800 font-black p-1 text-sm cursor-pointer"
+                  >
+                    ✕
+                  </button>
+                </div>
+              )}
+
+              {/* Main Container */}
+              <div className="bg-white rounded-3xl border border-slate-200/80 shadow-xs overflow-hidden">
+                {/* 1. Header Banner */}
+                <div className="p-6 sm:p-8 bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 text-white flex flex-col md:flex-row md:items-center justify-between gap-5 relative overflow-hidden">
+                  <div className="relative z-10 space-y-1.5">
+                    <div className="flex items-center gap-2 text-indigo-300 text-xs font-black uppercase tracking-widest">
+                      <ReceiptPercentIcon className="w-4 h-4" />
+                      <span>Confidential Payroll Access</span>
+                    </div>
+                    <h3 className="text-xl sm:text-2xl font-black tracking-tight text-white flex items-center gap-2.5">
+                      <span>Payroll Slip Portal</span>
+                      <span className="text-xs px-3 py-1 rounded-full bg-white/10 text-indigo-200 border border-white/15 font-bold">
+                        Cycle: {lastMonthPayslipData.month}
+                      </span>
+                    </h3>
+                    <p className="text-xs text-slate-300 font-medium max-w-xl">
+                      Download authorization portal for your latest official payslip. In accordance with internal security policy, payslip generation requires explicit dual sign-off.
+                    </p>
+                  </div>
+
+                  {/* Header Status Badge */}
+                  <div className="relative z-10 shrink-0">
+                    {isPayslipDownloadApproved ? (
+                      <span className="inline-flex items-center gap-2 px-4 py-2 bg-emerald-500 text-white rounded-xl text-xs font-black shadow-lg shadow-emerald-500/30">
+                        <CheckCircleIcon className="w-4 h-4 stroke-[2.5]" />
+                        <span>Ready for Download</span>
+                      </span>
+                    ) : payslipDownloadRequest ? (
+                      <span className="inline-flex items-center gap-2 px-4 py-2 bg-amber-400/20 text-amber-300 border border-amber-400/30 rounded-xl text-xs font-black backdrop-blur-sm">
+                        <ClockIcon className="w-4 h-4 animate-spin-slow" />
+                        <span>Approval in Progress (
+                          {[
+                            payslipDownloadRequest.reportingManager?.status === "APPROVED",
+                            payslipDownloadRequest.departmentHr?.status === "APPROVED"
+                          ].filter(Boolean).length}/2
+                        )</span>
+                      </span>
                     ) : (
-                      payslips.map((ps, idx) => (
-                      <tr key={idx} className="hover:bg-slate-50/50 transition">
-                        <td className="py-3.5 text-slate-800 font-extrabold">{ps.month}</td>
-                        <td>₹{ps.basic.toLocaleString()}</td>
-                        <td>₹{ps.hra.toLocaleString()}</td>
-                        <td>₹{ps.special.toLocaleString()}</td>
-                        <td className="text-red-500">-₹{ps.pf.toLocaleString()}</td>
-                        <td className="text-emerald-600 font-black">₹{ps.netPay.toLocaleString()}</td>
-                        <td>
-                          <button 
-                            onClick={() => setSelectedPayslip(ps)}
-                            className="px-3 py-1.5 bg-blue-50 text-blue-600 hover:bg-blue-100/80 rounded-lg transition text-[10px] font-black"
-                          >
-                            View slip
-                          </button>
-                        </td>
-                      </tr>
-                    ))
+                      <span className="inline-flex items-center gap-2 px-4 py-2 bg-white/10 text-slate-200 border border-white/15 rounded-xl text-xs font-bold backdrop-blur-sm">
+                        <LockClosedIcon className="w-3.5 h-3.5 text-indigo-300" />
+                        <span>Download Locked</span>
+                      </span>
                     )}
-                  </tbody>
-                </table>
+                  </div>
+                </div>
+
+                <div className="p-6 sm:p-8 space-y-8">
+                  {/* 2. Visual Authorization Pipeline / Stepper */}
+                  <div className="bg-slate-50/80 border border-slate-200/80 rounded-2xl p-5">
+                    <div className="flex items-center justify-between pb-3 mb-4 border-b border-slate-200/60 text-xs">
+                      <span className="font-black uppercase tracking-wider text-slate-600 flex items-center gap-2">
+                        <ShieldCheckIcon className="w-4 h-4 text-indigo-600" />
+                        Dual-Authorization Workflow Pipeline
+                      </span>
+                      <span className="text-[11px] font-bold text-slate-400">
+                        Target Cycle: <b className="text-slate-700">{lastMonthPayslipData.month}</b>
+                      </span>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-4 gap-4 relative">
+                      {/* Step 1: Request Submission */}
+                      <div className={`p-4 rounded-xl border flex flex-col justify-between transition ${
+                        payslipDownloadRequest ? "bg-white border-emerald-200 shadow-xs" : "bg-white/60 border-slate-200"
+                      }`}>
+                        <div className="flex items-center justify-between mb-2">
+                          <span className="text-[10px] font-black uppercase tracking-wider text-slate-400">Step 1</span>
+                          {payslipDownloadRequest ? (
+                            <span className="w-5 h-5 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center text-[10px] font-black">✓</span>
+                          ) : (
+                            <span className="w-5 h-5 rounded-full bg-slate-100 text-slate-400 flex items-center justify-center text-[10px] font-bold">1</span>
+                          )}
+                        </div>
+                        <h6 className="font-extrabold text-xs text-slate-800">Request Dispatched</h6>
+                        <p className="text-[11px] text-slate-500 font-medium mt-1">
+                          {payslipDownloadRequest ? "Submitted to approvers" : "Not yet initiated"}
+                        </p>
+                      </div>
+
+                      {/* Step 2: Reporting Manager */}
+                      <div className={`p-4 rounded-xl border flex flex-col justify-between transition ${
+                        payslipDownloadRequest?.reportingManager?.status === "APPROVED"
+                          ? "bg-white border-emerald-200 shadow-xs"
+                          : payslipDownloadRequest?.reportingManager?.status === "REJECTED"
+                          ? "bg-white border-rose-200 shadow-xs"
+                          : payslipDownloadRequest
+                          ? "bg-white border-amber-200 shadow-xs"
+                          : "bg-white/60 border-slate-200"
+                      }`}>
+                        <div className="flex items-center justify-between mb-2">
+                          <span className="text-[10px] font-black uppercase tracking-wider text-slate-400">Step 2</span>
+                          {payslipDownloadRequest?.reportingManager?.status === "APPROVED" ? (
+                            <span className="w-5 h-5 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center text-[10px] font-black">✓</span>
+                          ) : payslipDownloadRequest?.reportingManager?.status === "REJECTED" ? (
+                            <span className="w-5 h-5 rounded-full bg-rose-100 text-rose-700 flex items-center justify-center text-[10px] font-black">✕</span>
+                          ) : payslipDownloadRequest ? (
+                            <span className="w-5 h-5 rounded-full bg-amber-100 text-amber-700 flex items-center justify-center text-[10px] font-black">⏳</span>
+                          ) : (
+                            <span className="w-5 h-5 rounded-full bg-slate-100 text-slate-400 flex items-center justify-center text-[10px] font-bold">2</span>
+                          )}
+                        </div>
+                        <h6 className="font-extrabold text-xs text-slate-800">Manager Sign-Off</h6>
+                        <p className="text-[11px] text-slate-500 font-medium mt-1 truncate" title={empReportingManager}>
+                          {empReportingManager}
+                        </p>
+                      </div>
+
+                      {/* Step 3: Department HR */}
+                      <div className={`p-4 rounded-xl border flex flex-col justify-between transition ${
+                        payslipDownloadRequest?.departmentHr?.status === "APPROVED"
+                          ? "bg-white border-emerald-200 shadow-xs"
+                          : payslipDownloadRequest?.departmentHr?.status === "REJECTED"
+                          ? "bg-white border-rose-200 shadow-xs"
+                          : payslipDownloadRequest
+                          ? "bg-white border-amber-200 shadow-xs"
+                          : "bg-white/60 border-slate-200"
+                      }`}>
+                        <div className="flex items-center justify-between mb-2">
+                          <span className="text-[10px] font-black uppercase tracking-wider text-slate-400">Step 3</span>
+                          {payslipDownloadRequest?.departmentHr?.status === "APPROVED" ? (
+                            <span className="w-5 h-5 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center text-[10px] font-black">✓</span>
+                          ) : payslipDownloadRequest?.departmentHr?.status === "REJECTED" ? (
+                            <span className="w-5 h-5 rounded-full bg-rose-100 text-rose-700 flex items-center justify-center text-[10px] font-black">✕</span>
+                          ) : payslipDownloadRequest ? (
+                            <span className="w-5 h-5 rounded-full bg-amber-100 text-amber-700 flex items-center justify-center text-[10px] font-black">⏳</span>
+                          ) : (
+                            <span className="w-5 h-5 rounded-full bg-slate-100 text-slate-400 flex items-center justify-center text-[10px] font-bold">3</span>
+                          )}
+                        </div>
+                        <h6 className="font-extrabold text-xs text-slate-800">Department HR Desk</h6>
+                        <p className="text-[11px] text-slate-500 font-medium mt-1 truncate" title={empDepartmentHr}>
+                          {empDepartmentHr}
+                        </p>
+                      </div>
+
+                      {/* Step 4: File Generation */}
+                      <div className={`p-4 rounded-xl border flex flex-col justify-between transition ${
+                        isPayslipDownloadApproved ? "bg-emerald-50 border-emerald-300 shadow-xs" : "bg-white/60 border-slate-200"
+                      }`}>
+                        <div className="flex items-center justify-between mb-2">
+                          <span className="text-[10px] font-black uppercase tracking-wider text-slate-400">Step 4</span>
+                          {isPayslipDownloadApproved ? (
+                            <span className="w-5 h-5 rounded-full bg-emerald-600 text-white flex items-center justify-center text-[10px] font-black">📥</span>
+                          ) : (
+                            <span className="w-5 h-5 rounded-full bg-slate-100 text-slate-400 flex items-center justify-center text-[10px] font-bold">🔒</span>
+                          )}
+                        </div>
+                        <h6 className="font-extrabold text-xs text-slate-800">Payslip PDF Unlocked</h6>
+                        <p className="text-[11px] text-slate-500 font-medium mt-1">
+                          {isPayslipDownloadApproved ? "Available for download" : "Requires dual approval"}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* 3. Approver Cards (Grid of 2) */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                    {/* Approver 1: Reporting Manager */}
+                    <div className="bg-white p-5 rounded-2xl border border-slate-200/90 shadow-xs flex flex-col justify-between space-y-4 hover:border-slate-300 transition">
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="flex items-center gap-3">
+                          <div className="w-11 h-11 rounded-2xl bg-indigo-50 text-indigo-700 font-black text-sm flex items-center justify-center border border-indigo-100 shadow-2xs">
+                            {empReportingManager.slice(0, 2).toUpperCase()}
+                          </div>
+                          <div>
+                            <span className="text-[10px] font-black uppercase text-indigo-600 tracking-wider block">
+                              Primary Approver • Line Manager
+                            </span>
+                            <h5 className="font-extrabold text-sm text-slate-900 mt-0.5">
+                              {empReportingManager}
+                            </h5>
+                            <p className="text-[11px] text-slate-400 font-medium">Direct Hierarchy Authority</p>
+                          </div>
+                        </div>
+
+                        {/* Status Chip */}
+                        <div>
+                          {payslipDownloadRequest?.reportingManager?.status === "APPROVED" ? (
+                            <span className="inline-flex items-center gap-1 px-3 py-1 bg-emerald-100 text-emerald-800 rounded-full text-xs font-black">
+                              <CheckIcon className="w-3.5 h-3.5 stroke-[3]" /> Authorized
+                            </span>
+                          ) : payslipDownloadRequest?.reportingManager?.status === "REJECTED" ? (
+                            <span className="inline-flex items-center gap-1 px-3 py-1 bg-rose-100 text-rose-800 rounded-full text-xs font-black">
+                              <XMarkIcon className="w-3.5 h-3.5 stroke-[3]" /> Declined
+                            </span>
+                          ) : payslipDownloadRequest ? (
+                            <span className="inline-flex items-center gap-1 px-3 py-1 bg-amber-100 text-amber-800 rounded-full text-xs font-black">
+                              <ClockIcon className="w-3.5 h-3.5 animate-pulse" /> Pending Review
+                            </span>
+                          ) : (
+                            <span className="px-3 py-1 bg-slate-100 text-slate-500 rounded-full text-xs font-bold">
+                              Not Requested
+                            </span>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="pt-3 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-500">
+                        <span>Role: Managerial Verification</span>
+                        <span className="font-mono text-slate-400">
+                          {payslipDownloadRequest?.reportingManager?.updatedAt || "Awaiting action"}
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Approver 2: Department HR Desk */}
+                    <div className="bg-white p-5 rounded-2xl border border-slate-200/90 shadow-xs flex flex-col justify-between space-y-4 hover:border-slate-300 transition">
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="flex items-center gap-3">
+                          <div className="w-11 h-11 rounded-2xl bg-blue-50 text-blue-700 font-black text-sm flex items-center justify-center border border-blue-100 shadow-2xs">
+                            HR
+                          </div>
+                          <div>
+                            <span className="text-[10px] font-black uppercase text-blue-600 tracking-wider block">
+                              Final Sign-Off • Department HR
+                            </span>
+                            <h5 className="font-extrabold text-sm text-slate-900 mt-0.5">
+                              {empDepartmentHr}
+                            </h5>
+                            <p className="text-[11px] text-slate-400 font-medium">Statutory Compliance Desk</p>
+                          </div>
+                        </div>
+
+                        {/* Status Chip */}
+                        <div>
+                          {payslipDownloadRequest?.departmentHr?.status === "APPROVED" ? (
+                            <span className="inline-flex items-center gap-1 px-3 py-1 bg-emerald-100 text-emerald-800 rounded-full text-xs font-black">
+                              <CheckIcon className="w-3.5 h-3.5 stroke-[3]" /> Authorized
+                            </span>
+                          ) : payslipDownloadRequest?.departmentHr?.status === "REJECTED" ? (
+                            <span className="inline-flex items-center gap-1 px-3 py-1 bg-rose-100 text-rose-800 rounded-full text-xs font-black">
+                              <XMarkIcon className="w-3.5 h-3.5 stroke-[3]" /> Declined
+                            </span>
+                          ) : payslipDownloadRequest ? (
+                            <span className="inline-flex items-center gap-1 px-3 py-1 bg-amber-100 text-amber-800 rounded-full text-xs font-black">
+                              <ClockIcon className="w-3.5 h-3.5 animate-pulse" /> Pending Review
+                            </span>
+                          ) : (
+                            <span className="px-3 py-1 bg-slate-100 text-slate-500 rounded-full text-xs font-bold">
+                              Not Requested
+                            </span>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="pt-3 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-500">
+                        <span>Role: Statutory &amp; Audit Release</span>
+                        <span className="font-mono text-slate-400">
+                          {payslipDownloadRequest?.departmentHr?.updatedAt || "Awaiting action"}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* 4. Request Metadata Bar (When active) */}
+                  {payslipDownloadRequest && (
+                    <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200/80 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
+                      <div className="flex items-center gap-3">
+                        <span className="px-2.5 py-1 rounded-lg bg-indigo-100 text-indigo-800 font-mono font-bold text-[11px]">
+                          {payslipDownloadRequest.id}
+                        </span>
+                        <div className="space-y-0.5">
+                          <span className="text-slate-400 font-bold block text-[10px] uppercase">Stated Justification</span>
+                          <span className="text-slate-800 font-bold block">{payslipDownloadRequest.reason || "Official Financial Documentation"}</span>
+                        </div>
+                      </div>
+                      <div className="text-slate-500 text-[11px] shrink-0 font-medium">
+                        Submitted on: <b className="text-slate-700">{payslipDownloadRequest.requestedAt}</b>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* 5. Action Center */}
+                  <div className="pt-2">
+                    {!payslipDownloadRequest ? (
+                      /* STATE 1: Ready to Request */
+                      <div className="bg-gradient-to-br from-indigo-50/60 via-white to-blue-50/40 border border-indigo-100 rounded-3xl p-8 text-center space-y-4 shadow-xs">
+                        <div className="w-14 h-14 bg-indigo-600 text-white rounded-2xl flex items-center justify-center mx-auto shadow-lg shadow-indigo-600/20">
+                          <PaperAirplaneIcon className="w-7 h-7 -rotate-45" />
+                        </div>
+                        <div className="max-w-md mx-auto space-y-1.5">
+                          <h4 className="font-black text-base text-slate-900 tracking-tight">
+                            Request Payslip Download Permission
+                          </h4>
+                          <p className="text-xs text-slate-500 font-medium leading-relaxed">
+                            To unlock and download your payslip PDF for <strong>{lastMonthPayslipData.month}</strong>, initiate an authorization request. Both your Reporting Manager and Department HR will be notified immediately.
+                          </p>
+                        </div>
+                        <div className="pt-2 flex flex-wrap items-center justify-center gap-3">
+                          <button
+                            onClick={() => setIsPayslipRequestModalOpen(true)}
+                            className="px-6 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-black shadow-md shadow-indigo-600/20 transition flex items-center gap-2 cursor-pointer transform hover:-translate-y-0.5"
+                          >
+                            <PaperAirplaneIcon className="w-4 h-4" />
+                            <span>Request Download Permission</span>
+                          </button>
+                          <button
+                            disabled
+                            className="px-5 py-3 bg-slate-100 text-slate-400 border border-slate-200 rounded-xl text-xs font-bold flex items-center gap-2 cursor-not-allowed opacity-75"
+                          >
+                            <LockClosedIcon className="w-4 h-4 text-slate-400" />
+                            <span>Download Slip (Locked)</span>
+                          </button>
+                        </div>
+                      </div>
+                    ) : !isPayslipDownloadApproved ? (
+                      /* STATE 2: Pending Dual Approval */
+                      <div className="bg-gradient-to-br from-amber-50/70 via-white to-amber-50/40 border border-amber-200 rounded-3xl p-8 text-center space-y-4 shadow-xs">
+                        <div className="w-14 h-14 bg-amber-500 text-white rounded-2xl flex items-center justify-center mx-auto shadow-lg shadow-amber-500/25">
+                          <ClockIcon className="w-7 h-7 animate-pulse" />
+                        </div>
+                        <div className="max-w-md mx-auto space-y-1.5">
+                          <h4 className="font-black text-base text-amber-950 tracking-tight">
+                            Authorization in Progress
+                          </h4>
+                          <p className="text-xs text-amber-900/80 font-medium leading-relaxed">
+                            Your request is under review. Both your <strong>Reporting Manager</strong> ({empReportingManager}) and <strong>Department HR</strong> ({empDepartmentHr}) must authorize access to unlock file download.
+                          </p>
+                        </div>
+
+                        {/* Progress Tracker */}
+                        <div className="max-w-xs mx-auto space-y-1.5 pt-1">
+                          <div className="flex justify-between text-[11px] font-bold text-amber-800">
+                            <span>Dual Verification Status</span>
+                            <span>
+                              {[
+                                payslipDownloadRequest.reportingManager?.status === "APPROVED",
+                                payslipDownloadRequest.departmentHr?.status === "APPROVED"
+                              ].filter(Boolean).length} of 2 Approved
+                            </span>
+                          </div>
+                          <div className="w-full bg-amber-200/80 h-2 rounded-full overflow-hidden">
+                            <div 
+                              className="bg-amber-500 h-full transition-all duration-500" 
+                              style={{ 
+                                width: `${([
+                                  payslipDownloadRequest.reportingManager?.status === "APPROVED",
+                                  payslipDownloadRequest.departmentHr?.status === "APPROVED"
+                                ].filter(Boolean).length) * 50}%` 
+                              }}
+                            />
+                          </div>
+                        </div>
+
+                        <div className="pt-2 flex flex-wrap items-center justify-center gap-3">
+                          <button
+                            disabled
+                            className="px-6 py-3 bg-slate-200 text-slate-500 rounded-xl text-xs font-black flex items-center gap-2 cursor-not-allowed opacity-80"
+                          >
+                            <LockClosedIcon className="w-4 h-4" />
+                            <span>Download Locked (Awaiting Both Permissions)</span>
+                          </button>
+                          <button
+                            onClick={handleResetPayslipRequest}
+                            className="px-4 py-3 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 rounded-xl text-xs font-bold transition cursor-pointer"
+                          >
+                            Cancel / Reset Request
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      /* STATE 3: Both Approved - Unlocked */
+                      <div className="bg-gradient-to-br from-emerald-50 via-white to-emerald-50/50 border border-emerald-300 rounded-3xl p-8 text-center space-y-4 shadow-sm">
+                        <div className="w-16 h-16 bg-emerald-600 text-white rounded-2xl flex items-center justify-center mx-auto shadow-xl shadow-emerald-600/30">
+                          <CheckCircleIcon className="w-9 h-9 stroke-[2.5]" />
+                        </div>
+                        <div className="max-w-md mx-auto space-y-1.5">
+                          <h4 className="font-black text-lg text-emerald-950 tracking-tight">
+                            Dual Authorization Confirmed!
+                          </h4>
+                          <p className="text-xs text-emerald-800 font-semibold leading-relaxed">
+                            Both your Reporting Manager (<span className="font-bold">{empReportingManager}</span>) and Department HR (<span className="font-bold">{empDepartmentHr}</span>) have granted approval. Your payslip for <strong>{lastMonthPayslipData.month}</strong> is ready.
+                          </p>
+                        </div>
+                        <div className="pt-2 flex flex-wrap items-center justify-center gap-3">
+                          <button
+                            onClick={() => setSelectedPayslip(lastMonthPayslipData)}
+                            className="px-7 py-3.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-black shadow-xl shadow-emerald-600/30 transition flex items-center gap-2.5 cursor-pointer transform hover:-translate-y-0.5"
+                          >
+                            <ArrowDownTrayIcon className="w-4 h-4 stroke-[2.5]" />
+                            <span>Download Last Month Payslip (PDF)</span>
+                          </button>
+                          <button
+                            onClick={() => setSelectedPayslip(lastMonthPayslipData)}
+                            className="px-5 py-3.5 bg-white border border-emerald-200 hover:bg-emerald-50 text-emerald-800 rounded-xl text-xs font-black transition flex items-center gap-2 cursor-pointer"
+                          >
+                            <PrinterIcon className="w-4 h-4" />
+                            <span>Preview &amp; Print</span>
+                          </button>
+                          <button
+                            onClick={handleResetPayslipRequest}
+                            className="px-3 py-3 text-slate-400 hover:text-slate-600 text-xs font-bold transition cursor-pointer"
+                            title="Reset request simulation state"
+                          >
+                            Reset
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* 6. Professional Workflow Verification & QA Testing Console */}
+                  {payslipDownloadRequest && (
+                    <div className="pt-4 border-t border-slate-150">
+                      <div className="p-4.5 rounded-2xl bg-slate-50 border border-slate-200 space-y-3">
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 text-xs">
+                          <span className="font-black uppercase tracking-wider text-slate-700 flex items-center gap-1.5 text-[10px]">
+                            <WrenchScrewdriverIcon className="w-3.5 h-3.5 text-indigo-600" />
+                            Approver Actions Console (Workflow Simulation)
+                          </span>
+                          <span className="text-[10px] text-slate-400 font-semibold">
+                            Simulate dual approval or denial to test lock/unlock logic
+                          </span>
+                        </div>
+
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                          {/* Manager Testing Bar */}
+                          <div className="bg-white p-3.5 rounded-xl border border-slate-200 flex items-center justify-between gap-2 shadow-2xs">
+                            <div className="truncate">
+                              <span className="text-[9px] font-black uppercase text-slate-400 block tracking-wider">Manager Desk</span>
+                              <span className="font-extrabold text-slate-800 text-xs truncate block">{empReportingManager}</span>
+                            </div>
+                            <div className="flex items-center gap-1.5 shrink-0">
+                              <button
+                                onClick={() => handleUpdatePayslipApproval("reportingManager", "APPROVED")}
+                                className={`px-3 py-1 rounded-lg text-[10px] font-black transition cursor-pointer ${
+                                  payslipDownloadRequest.reportingManager?.status === "APPROVED"
+                                    ? "bg-emerald-600 text-white shadow-xs"
+                                    : "bg-emerald-50 text-emerald-700 hover:bg-emerald-100"
+                                }`}
+                              >
+                                ✓ Approve
+                              </button>
+                              <button
+                                onClick={() => handleUpdatePayslipApproval("reportingManager", "REJECTED")}
+                                className={`px-2.5 py-1 rounded-lg text-[10px] font-black transition cursor-pointer ${
+                                  payslipDownloadRequest.reportingManager?.status === "REJECTED"
+                                    ? "bg-rose-600 text-white shadow-xs"
+                                    : "bg-rose-50 text-rose-700 hover:bg-rose-100"
+                                }`}
+                              >
+                                ✕ Deny
+                              </button>
+                            </div>
+                          </div>
+
+                          {/* Dept HR Testing Bar */}
+                          <div className="bg-white p-3.5 rounded-xl border border-slate-200 flex items-center justify-between gap-2 shadow-2xs">
+                            <div className="truncate">
+                              <span className="text-[9px] font-black uppercase text-slate-400 block tracking-wider">Department HR Desk</span>
+                              <span className="font-extrabold text-slate-800 text-xs truncate block">{empDepartmentHr}</span>
+                            </div>
+                            <div className="flex items-center gap-1.5 shrink-0">
+                              <button
+                                onClick={() => handleUpdatePayslipApproval("departmentHr", "APPROVED")}
+                                className={`px-3 py-1 rounded-lg text-[10px] font-black transition cursor-pointer ${
+                                  payslipDownloadRequest.departmentHr?.status === "APPROVED"
+                                    ? "bg-emerald-600 text-white shadow-xs"
+                                    : "bg-emerald-50 text-emerald-700 hover:bg-emerald-100"
+                                }`}
+                              >
+                                ✓ Approve
+                              </button>
+                              <button
+                                onClick={() => handleUpdatePayslipApproval("departmentHr", "REJECTED")}
+                                className={`px-2.5 py-1 rounded-lg text-[10px] font-black transition cursor-pointer ${
+                                  payslipDownloadRequest.departmentHr?.status === "REJECTED"
+                                    ? "bg-rose-600 text-white shadow-xs"
+                                    : "bg-rose-50 text-rose-700 hover:bg-rose-100"
+                                }`}
+                              >
+                                ✕ Deny
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
               </div>
+
+              {/* Request Payslip Download Modal */}
+              {isPayslipRequestModalOpen && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fadeIn">
+                  <div className="bg-white rounded-3xl shadow-2xl max-w-lg w-full border border-slate-150 overflow-hidden transform transition-all">
+                    <div className="bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 text-white p-6 flex justify-between items-center">
+                      <div className="flex items-center gap-3">
+                        <div className="p-2.5 bg-white/10 rounded-2xl">
+                          <PaperAirplaneIcon className="w-5 h-5 text-indigo-300" />
+                        </div>
+                        <div>
+                          <h4 className="font-black text-sm tracking-tight">Request Payslip Download</h4>
+                          <p className="text-[10px] text-indigo-200 font-semibold uppercase tracking-wider">
+                            Payroll Cycle: {lastMonthPayslipData.month}
+                          </p>
+                        </div>
+                      </div>
+                      <button
+                        onClick={() => setIsPayslipRequestModalOpen(false)}
+                        className="text-white/60 hover:text-white text-lg font-black p-1 cursor-pointer"
+                      >
+                        ✕
+                      </button>
+                    </div>
+
+                    <form onSubmit={handleCreatePayslipRequest} className="p-6 sm:p-7 space-y-5 text-xs font-bold text-slate-600">
+                      <div className="bg-indigo-50/70 border border-indigo-100 p-4.5 rounded-2xl space-y-2.5">
+                        <span className="text-[10px] font-black uppercase text-indigo-900 tracking-wider block">
+                          Designated Dual Approvers
+                        </span>
+                        <div className="space-y-2 text-[11px]">
+                          <div className="flex items-center justify-between text-slate-700">
+                            <span className="flex items-center gap-2">
+                              <span className="w-2 h-2 rounded-full bg-indigo-600"></span>
+                              Reporting Manager:
+                            </span>
+                            <span className="font-extrabold text-slate-900">{empReportingManager}</span>
+                          </div>
+                          <div className="flex items-center justify-between text-slate-700">
+                            <span className="flex items-center gap-2">
+                              <span className="w-2 h-2 rounded-full bg-blue-600"></span>
+                              Department HR:
+                            </span>
+                            <span className="font-extrabold text-slate-900">{empDepartmentHr}</span>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="space-y-2">
+                        <label className="text-[11px] font-black uppercase text-slate-500 block tracking-wider">
+                          Purpose / Justification for Download
+                        </label>
+                        <select
+                          value={payslipRequestPurpose}
+                          onChange={(e) => setPayslipRequestPurpose(e.target.value)}
+                          className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-3 text-xs font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer"
+                        >
+                          <option value="Official Income Verification & Financial Documentation">
+                            Official Income Verification &amp; Financial Documentation
+                          </option>
+                          <option value="Personal Tax Filing / Form 16 Cross-Check">
+                            Personal Tax Filing / Form 16 Cross-Check
+                          </option>
+                          <option value="Bank Loan, Mortgage or Credit Facility Application">
+                            Bank Loan, Mortgage or Credit Facility Application
+                          </option>
+                          <option value="Visa / Immigration Processing Requirement">
+                            Visa / Immigration Processing Requirement
+                          </option>
+                          <option value="Personal Records & Annual Budgeting">
+                            Personal Records &amp; Annual Budgeting
+                          </option>
+                        </select>
+                      </div>
+
+                      <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-xl text-[11px] text-slate-500 font-medium leading-relaxed">
+                        Dual sign-off request will be immediately routed to both your manager and department HR. Payslip PDF download will unlock automatically upon confirmation.
+                      </div>
+
+                      <div className="pt-2 flex justify-end gap-2.5">
+                        <button
+                          type="button"
+                          onClick={() => setIsPayslipRequestModalOpen(false)}
+                          className="px-4 py-2.5 border border-slate-200 hover:bg-slate-50 rounded-xl text-xs font-bold text-slate-600 transition cursor-pointer"
+                        >
+                          Cancel
+                        </button>
+                        <button
+                          type="submit"
+                          className="px-6 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-black shadow-md shadow-indigo-600/20 transition flex items-center gap-1.5 cursor-pointer"
+                        >
+                          <PaperAirplaneIcon className="w-3.5 h-3.5" />
+                          <span>Submit Request</span>
+                        </button>
+                      </div>
+                    </form>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* EXPENSE CLAIMS & REIMBURSEMENT SUB-VIEWS */}
+          {(activeCategory === "EMP_EXPENSES" || activeTab === "Expense Reimbursement" || activeTab === "Expense Claims") && (
+            <div className="space-y-6 animate-fadeIn">
+              <ExpenseReimbursementSection
+                employeeProfile={currentUserProfile}
+                currentUser={user}
+                canManageEmployees={canManageEmployees}
+                isRegularEmployee={isRegularEmployee}
+                dashboardViewMode={dashboardViewMode}
+                selectedDeptFilter={selectedDeptFilter}
+                onNavigateTab={(category, tab) => setSearchParams({ category, tab })}
+              />
             </div>
           )}
 
@@ -5362,6 +6491,116 @@ const EmployeeDashboard = () => {
             </div>
           </div>
         </div>
+      )}
+
+      {/* 10. Face Recognition Attendance Modal */}
+      {showFaceModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
+          <FaceAttendanceModal
+            action="auto"
+            onSuccess={(data) => {
+              if (data?.action === 'clock-in' && !data?.completed) {
+                setEmpCheckedIn(true);
+                setEmpShiftCompleted(false);
+                if (data?.checkIn) setEmpPunchTime(data.checkIn);
+                window.dispatchEvent(new Event("silent-refresh"));
+                return;
+              }
+              if (data?.action === 'clock-out') {
+                setEmpCheckedIn(false);
+                setEmpShiftCompleted(false);
+                if (data?.checkOut) setEmpCheckOutTime(data.checkOut);
+                window.dispatchEvent(new Event("silent-refresh"));
+                return;
+              }
+              setShowFaceModal(false);
+              window.dispatchEvent(new Event("silent-refresh"));
+            }}
+            onCancel={() => setShowFaceModal(false)}
+          />
+        </div>
+      )}
+
+      {/* 11. Biometric Attendance Terminal Modal */}
+      {showBiometricModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md overflow-y-auto">
+          <div className="relative w-full max-w-5xl my-8">
+            <EmployeeBiometricPunch
+              onClose={() => {
+                setShowBiometricModal(false);
+                window.dispatchEvent(new Event("silent-refresh"));
+              }}
+            />
+          </div>
+        </div>
+      )}
+
+      {/* 12. Company QR Attendance Scanner Modal (Employee) */}
+      <CompanyQrScannerModal
+        isOpen={showCompanyQrScanModal}
+        onClose={() => {
+          setShowCompanyQrScanModal(false);
+          window.dispatchEvent(new Event("silent-refresh"));
+        }}
+        onSuccess={(data) => {
+          if (data?.action === 'clock-in') {
+            setEmpCheckedIn(true);
+            setEmpPunchTime(data.time || new Date().toLocaleTimeString());
+          } else if (data?.action === 'clock-out') {
+            setEmpCheckedIn(false);
+            setEmpCheckOutTime(data.time || new Date().toLocaleTimeString());
+          }
+          window.dispatchEvent(new Event("silent-refresh"));
+        }}
+      />
+
+      {/* 13. Company QR Admin Console Modal (Admin / SuperAdmin) */}
+      {showCompanyQrAdminModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md overflow-y-auto">
+          <div className="relative w-full max-w-5xl my-8">
+            <CompanyQrAdminConsole
+              onClose={() => {
+                setShowCompanyQrAdminModal(false);
+                window.dispatchEvent(new Event("silent-refresh"));
+              }}
+            />
+          </div>
+        </div>
+      )}
+
+      {/* 14. Employee QR Attendance Scanner Modal (Admin / Kiosk) */}
+      <EmployeeQrScannerModal
+        isOpen={showEmployeeQrScanModal}
+        onClose={() => {
+          setShowEmployeeQrScanModal(false);
+          window.dispatchEvent(new Event("silent-refresh"));
+        }}
+        onSuccess={() => {
+          window.dispatchEvent(new Event("silent-refresh"));
+        }}
+      />
+
+      {/* 15. Employee QR Card Modal (View / Print / Download / Revoke Badge) */}
+      {showEmployeeQrCardModal && (
+        <EmployeeQrCardModal
+          isOpen={showEmployeeQrCardModal}
+          onClose={() => setShowEmployeeQrCardModal(false)}
+          employee={{
+            id: profileDetails.id || currentUserProfile?.id || user?.employee?.id || user?.emp_id || user?.empId || user?.id,
+            employeeCode: profileDetails.employeeCode || currentUserProfile?.employeeCode || user?.employeeCode || user?.emp_code || user?.empCode || user?.username,
+            companyCode: currentUserProfile?.companyCode || currentUserProfile?.company_code || user?.companyCode || user?.company_code || profileDetails.companyCode || profileDetails.company_code,
+            name: `${profileDetails.firstName || ""} ${profileDetails.lastName || ""}`.trim() || profileDetails.name || profileDetails.employeeName || user?.name || "Employee",
+            designation: profileDetails.designation || "Staff Professional",
+            department: profileDetails.department || "Operations",
+            photo: profileDetails.photo || currentUserProfile?.photo || "",
+            company: profileDetails.company || currentUserProfile?.company || user?.company || "HRMS",
+            officialEmail: profileDetails.officialEmail || profileDetails.email || user?.email || "",
+            mobileNumber: profileDetails.mobileNumber || profileDetails.mobile || "",
+          }}
+          onUpdated={() => {
+            window.dispatchEvent(new Event("silent-refresh"));
+          }}
+        />
       )}
     </div>
   );

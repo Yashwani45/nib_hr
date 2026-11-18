@@ -16,23 +16,6 @@ export const AuthProvider = ({ children }) => {
     dispatch(loginSuccess({ token: newToken, user: newUser }));
   };
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-  
-
   const logout = () => {
     dispatch(logoutSuccess());
     navigate("/login");

@@ -25,9 +25,13 @@ const DynamicForm = ({
   error = "",
   success = "",
   submitButtonText = "Submit",
+  children,
 }) => {
   return (
-    <form onSubmit={onSubmit} className="space-y-4">
+    <form onSubmit={onSubmit} className="space-y-4" autoComplete="off">
+      {/* Hidden dummy inputs to prevent browser password managers from auto-filling */}
+      <input type="text" name="fake_username_remember" style={{ display: "none" }} tabIndex={-1} autoComplete="off" />
+      <input type="password" name="fake_password_remember" style={{ display: "none" }} tabIndex={-1} autoComplete="new-password" />
       {/* Alert Banners */}
       {error && (
         <div className="p-4 bg-red-50 border border-red-200 text-red-800 text-xs font-semibold rounded-2xl flex items-center space-x-2 animate-shake">
@@ -81,6 +85,9 @@ const DynamicForm = ({
               required={field.required}
               value={formData[field.name] || ""}
               onChange={onChange}
+              autoComplete={field.autoComplete || (field.type === "password" ? "new-password" : "off")}
+              data-lpignore="true"
+              data-form-type="other"
               className="w-full bg-slate-50 border border-slate-200 text-slate-900 rounded-xl px-4 py-2.5 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-blue-600 placeholder:text-slate-400 transition"
             />
           );
@@ -98,6 +105,8 @@ const DynamicForm = ({
           );
         })}
       </div>
+
+      {children}
 
       {/* Footer Actions */}
       <div className="flex justify-end items-center space-x-3 pt-4 border-t border-slate-100">

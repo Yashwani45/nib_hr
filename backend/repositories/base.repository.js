@@ -8,7 +8,7 @@ class BaseRepository {
   }
 
   async update(id, data, options = {}) {
-    const record = await this.model.findByPk(id);
+    const record = await this.model.findByPk(id, options);
     if (!record) return null;
     return await record.update(data, options);
   }
@@ -31,8 +31,11 @@ class BaseRepository {
     return await this.model.findByPk(id, { include, ...options });
   }
 
-  async findOne(where, include = [], options = {}) {
-    return await this.model.findOne({ where, include, ...options });
+  async findOne(whereOrOptions, include = [], options = {}) {
+    if (whereOrOptions && typeof whereOrOptions === 'object' && whereOrOptions.where) {
+      return await this.model.findOne({ include, ...options, ...whereOrOptions });
+    }
+    return await this.model.findOne({ where: whereOrOptions, include, ...options });
   }
 
   async findAll(queryOptions = {}) {

@@ -1,5 +1,7 @@
 import { useState, useRef, useEffect, useMemo } from "react";
+import { useSelector } from "react-redux";
 import { 
+  MapPinIcon,
   Bars3Icon, 
   BellIcon, 
   ChevronDownIcon,
@@ -13,12 +15,16 @@ import {
   ArrowTopRightOnSquareIcon,
   CheckBadgeIcon,
   PlusIcon,
-  TrashIcon
+  TrashIcon,
+  BuildingOffice2Icon,
+  BriefcaseIcon
 } from "@heroicons/react/24/outline";
 import { useAuth } from "../auth/AuthProvider";
 import { useNavigate } from "react-router-dom";
 import technoLogo from "../assets/shortlogo1.png";
-import { getTableData, deleteTableRecord, updateTableRecord, createTableRecord } from "../services/hrApi";
+import { getTableData, deleteTableRecord, updateTableRecord, createTableRecord, invalidateTableCache } from "../services/hrApi";
+
+const API_BASE = import.meta.env.VITE_API_BASE || "http://localhost:5000";
 
 const Navbar = ({ isOpen, setIsOpen }) => {
   const { logout, user } = useAuth();
@@ -28,6 +34,20 @@ const Navbar = ({ isOpen, setIsOpen }) => {
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
   const [isMessagesOpen, setIsMessagesOpen] = useState(false);
+  const [isCompanyDropdownOpen, setIsCompanyDropdownOpen] = useState(false);
+  const [allTenants, setAllTenants] = useState([]);
+
+  // Live Dynamic Branch Switcher States
+  const [isBranchDropdownOpen, setIsBranchDropdownOpen] = useState(false);
+  const [branches, setBranches] = useState([]);
+  const [selectedBranchId, setSelectedBranchId] = useState(() => localStorage.getItem("selected_branch_id") || "ALL");
+  const [selectedBranchName, setSelectedBranchName] = useState(() => localStorage.getItem("selected_branch_name") || "All Branches");
+
+  const reduxBranches = useSelector((state) => 
+    state.hr?.dbData?.["Branch"] || 
+    state.hr?.dbData?.["branch"] || 
+    state.hr?.dbData?.["branches"]
+  );
 
   // Live Database States (Initialized empty, populated directly from MySQL)
   const [notifications, setNotifications] = useState([]);
@@ -47,6 +67,258 @@ const Navbar = ({ isOpen, setIsOpen }) => {
   const dropdownRef = useRef(null);
   const notificationsRef = useRef(null);
   const messagesRef = useRef(null);
+  const companyDropdownRef = useRef(null);
+  const branchDropdownRef = useRef(null);
+
+  // SuperAdmin & Access Role detection
+  const activeUserRole = typeof user?.role === "object" ? user?.role?.name : user?.role;
+  const roleStr = String(activeUserRole || "").toLowerCase().trim();
+  const userEmail = String(user?.email || "").toLowerCase().trim();
+  const isSuperAdminUser = (
+    roleStr === "superadmin" || 
+    userEmail === "superadmin@nib.com"
+  );
+  const isAdmin = (
+    roleStr === "admin" || 
+    roleStr === "hr admin" || 
+    roleStr.includes("admin") ||
+    userEmail.includes("admin")
+  );
+  const isEmployee = !isSuperAdminUser && !isAdmin;
+  const hasCompanyWideAccess = isSuperAdminUser || isAdmin || user?.hasCompanyWideAccess === true;
+
+  // Auto-migrate legacy "NIB Master Operations" to "NIB Insurance"
+  if (
+    localStorage.getItem("selected_company_name") === "NIB Master Operations" ||
+    (user?.companyName && user.companyName === "NIB Master Operations")
+  ) {
+    localStorage.setItem("selected_company_name", "NIB Insurance");
+    localStorage.setItem("selected_company_code", "2731b266-27c4-483d-a699-382b022d6c50");
+    localStorage.setItem("selected_tenant_db", "nib_insurance");
+    try {
+      const u = JSON.parse(localStorage.getItem("user") || "{}");
+      if (u) {
+        u.companyName = "NIB Insurance";
+        u.companyCode = "2731b266-27c4-483d-a699-382b022d6c50";
+        u.tenantDb = "nib_insurance";
+        localStorage.setItem("user", JSON.stringify(u));
+      }
+    } catch (e) {}
+  }
+
+  const rawCompName = localStorage.getItem("selected_company_name") || user?.companyName || "";
+  const activeCompanyName = rawCompName === "NIB Master Operations" ? "NIB Insurance" : rawCompName;
+  const activeCompanyCode = localStorage.getItem("selected_company_code") || user?.companyCode || "";
+  const activeTenantDb = localStorage.getItem("selected_tenant_db") || "";
+
+  // Employee assigned branch, company and department states
+  const [employeeAssignedBranch, setEmployeeAssignedBranch] = useState(() => {
+    return user?.branchName || user?.branch || localStorage.getItem("selected_branch_name") || "";
+  });
+  const [employeeAssignedCompany, setEmployeeAssignedCompany] = useState(() => {
+    return user?.companyName || user?.company || localStorage.getItem("selected_company_name") || "";
+  });
+  const [employeeDepartment, setEmployeeDepartment] = useState(() => {
+    return user?.departmentName || user?.department || localStorage.getItem("user_department") || "";
+  });
+
+  const currentDepartment = employeeDepartment || user?.departmentName || user?.department || localStorage.getItem("user_department") || "";
+
+  useEffect(() => {
+    if (isEmployee && user?.email) {
+      getTableData("employees").then(emps => {
+        if (Array.isArray(emps)) {
+          const myEmp = emps.find(e => 
+            String(e.email || '').toLowerCase() === String(user.email).toLowerCase() ||
+            String(e.officialEmail || '').toLowerCase() === String(user.email).toLowerCase() ||
+            String(e.personalEmail || '').toLowerCase() === String(user.email).toLowerCase() ||
+            (user.employeeCode && String(e.employeeCode || e.emp_code || e.id) === String(user.employeeCode)) ||
+            (user.employeeName && String(e.employee_name || e.employeeName) === String(user.employeeName))
+          );
+          if (myEmp) {
+            const bName = myEmp.branch || myEmp.branchName || myEmp.branch_name || "";
+            const bId = myEmp.branch_id || myEmp.branchId || "";
+            if (bName) {
+              setEmployeeAssignedBranch(bName);
+              setSelectedBranchName(bName);
+              localStorage.setItem("selected_branch_name", bName);
+            }
+            if (bId) {
+              setSelectedBranchId(bId);
+              localStorage.setItem("selected_branch_id", bId);
+            }
+            const cName = myEmp.company || user?.companyName || "";
+            if (cName) {
+              setEmployeeAssignedCompany(cName);
+              localStorage.setItem("selected_company_name", cName);
+            }
+            const dName = myEmp.department || myEmp.departmentName || myEmp.department_name || "";
+            if (dName) {
+              setEmployeeDepartment(dName);
+              localStorage.setItem("user_department", dName);
+            }
+          }
+        }
+      }).catch(() => {});
+    }
+  }, [user, isEmployee]);
+
+  // Load tenants list dynamically from backend without fake hardcoded fallbacks
+  const loadTenants = () => {
+    const token = localStorage.getItem("token");
+    if (!token) return;
+
+    fetch(`${API_BASE}/api/super-admin/tenants`, {
+      headers: { "Authorization": `Bearer ${token}` }
+    })
+    .then(r => r.json())
+    .then(res => {
+      if (res && res.success && Array.isArray(res.data)) {
+        setAllTenants(res.data);
+      } else {
+        setAllTenants([]);
+      }
+    })
+    .catch(() => {
+      setAllTenants([]);
+    });
+  };
+
+  useEffect(() => {
+    loadTenants();
+    window.addEventListener("companies_updated", loadTenants);
+    return () => window.removeEventListener("companies_updated", loadTenants);
+  }, []);
+
+  // Load branches dynamically from active company tenant database
+  const loadBranches = async () => {
+    try {
+      let data = await getTableData("branch", true);
+      if (!Array.isArray(data) || data.length === 0) {
+        if (Array.isArray(reduxBranches) && reduxBranches.length > 0) {
+          data = reduxBranches;
+        }
+      }
+      if (Array.isArray(data) && data.length > 0) {
+        setBranches(data);
+        if (isEmployee) {
+          // Employee is strictly locked to their assigned branch
+          return;
+        }
+        const curId = localStorage.getItem("selected_branch_id");
+        if (curId && curId !== "ALL") {
+          const match = data.find(b => String(b.id) === String(curId) || String(b.branchCode || b.branch_code) === String(curId));
+          if (match) {
+            setSelectedBranchId(match.id);
+            setSelectedBranchName(match.branchName || match.branch_name || "Branch");
+          } else {
+            setSelectedBranchId("ALL");
+            setSelectedBranchName("All Branches");
+            localStorage.setItem("selected_branch_id", "ALL");
+            localStorage.setItem("selected_branch_name", "All Branches");
+            localStorage.setItem("selected_branch_code", "ALL");
+            window.dispatchEvent(new Event("branches_updated"));
+            window.dispatchEvent(new Event("branch_changed"));
+            window.dispatchEvent(new CustomEvent("branch_switched", { detail: { branchId: "ALL", branchName: "All Branches", branchCode: "ALL" } }));
+          }
+        } else {
+          setSelectedBranchId("ALL");
+          setSelectedBranchName("All Branches");
+        }
+      } else {
+        if (Array.isArray(reduxBranches) && reduxBranches.length > 0) {
+          setBranches(reduxBranches);
+        } else {
+          setBranches([]);
+        }
+      }
+    } catch (e) {
+      console.warn("Could not load branches for active tenant:", e.message);
+      if (Array.isArray(reduxBranches) && reduxBranches.length > 0) {
+        setBranches(reduxBranches);
+      } else {
+        setBranches([]);
+      }
+    }
+  };
+
+  // Sync with reduxBranches instantly when available
+  useEffect(() => {
+    if (Array.isArray(reduxBranches) && reduxBranches.length > 0 && branches.length === 0) {
+      setBranches(reduxBranches);
+    }
+  }, [reduxBranches, branches.length]);
+
+  useEffect(() => {
+    loadBranches();
+    window.addEventListener("branches_updated", loadBranches);
+    window.addEventListener("companies_updated", loadBranches);
+    window.addEventListener("focus", loadBranches);
+    window.addEventListener("storage", loadBranches);
+    return () => {
+      window.removeEventListener("branches_updated", loadBranches);
+      window.removeEventListener("companies_updated", loadBranches);
+      window.removeEventListener("focus", loadBranches);
+      window.removeEventListener("storage", loadBranches);
+    };
+  }, [activeCompanyCode, activeTenantDb]);
+
+  const handleSwitchCompany = (tenant) => {
+    setIsCompanyDropdownOpen(false);
+    try {
+      const userObj = JSON.parse(localStorage.getItem("user") || "{}");
+      userObj.companyCode = tenant.id;
+      userObj.companyName = tenant.name;
+      userObj.tenantDb = tenant.db;
+      if (isSuperAdminUser) {
+        userObj.isSuperAdminImpersonating = true;
+        localStorage.setItem("superadmin_impersonating", "true");
+      } else {
+        delete userObj.isSuperAdminImpersonating;
+        localStorage.removeItem("superadmin_impersonating");
+      }
+      localStorage.setItem("user", JSON.stringify(userObj));
+      localStorage.setItem("selected_company_code", tenant.id);
+      localStorage.setItem("selected_company_name", tenant.name);
+      localStorage.setItem("selected_tenant_db", tenant.db || "");
+
+      // Reset branch selection whenever company changes
+      localStorage.setItem("selected_branch_id", "ALL");
+      localStorage.setItem("selected_branch_name", "All Branches");
+      localStorage.setItem("selected_branch_code", "ALL");
+    } catch (e) {}
+    invalidateTableCache();
+    window.location.href = "/admin/dashboard";
+  };
+
+  const handleSwitchBranch = (b) => {
+    setIsBranchDropdownOpen(false);
+    let targetId = "ALL";
+    let targetName = "All Branches";
+    let targetCode = "ALL";
+
+    if (!b || b === "ALL") {
+      localStorage.setItem("selected_branch_id", "ALL");
+      localStorage.setItem("selected_branch_name", "All Branches");
+      localStorage.setItem("selected_branch_code", "ALL");
+      setSelectedBranchId("ALL");
+      setSelectedBranchName("All Branches");
+    } else {
+      targetId = b.id;
+      targetName = b.branchName || b.branch_name || "Branch";
+      targetCode = b.branchCode || b.branch_code || "";
+      localStorage.setItem("selected_branch_id", targetId);
+      localStorage.setItem("selected_branch_name", targetName);
+      localStorage.setItem("selected_branch_code", targetCode);
+      setSelectedBranchId(targetId);
+      setSelectedBranchName(targetName);
+    }
+    invalidateTableCache();
+    window.dispatchEvent(new Event("branches_updated"));
+    window.dispatchEvent(new Event("branch_changed"));
+    window.dispatchEvent(new Event("storage"));
+    window.dispatchEvent(new CustomEvent("branch_switched", { detail: { branchId: targetId, branchName: targetName, branchCode: targetCode } }));
+  };
 
   // Load notifications directly from MySQL database
   const loadNotificationsFromDb = async () => {
@@ -127,6 +399,12 @@ const Navbar = ({ isOpen, setIsOpen }) => {
       if (messagesRef.current && !messagesRef.current.contains(event.target)) {
         setIsMessagesOpen(false);
       }
+      if (companyDropdownRef.current && !companyDropdownRef.current.contains(event.target)) {
+        setIsCompanyDropdownOpen(false);
+      }
+      if (branchDropdownRef.current && !branchDropdownRef.current.contains(event.target)) {
+        setIsBranchDropdownOpen(false);
+      }
     };
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
@@ -162,8 +440,18 @@ const Navbar = ({ isOpen, setIsOpen }) => {
     setIsDropdownOpen(false);
     if (tabName === "Logout") {
       logout();
+    } else if (tabName === "Preferences") {
+      if (isEmployee) {
+        navigate(`/employee/dashboard?category=SETTINGS&tab=Settings%20Dashboard`);
+      } else {
+        navigate(`/hr-hub?category=SETTINGS&tab=Settings%20Dashboard`);
+      }
     } else {
-      navigate(`/hr-hub?category=EMPLOYEE_MGMT&tab=Employee%20Profile`);
+      if (isEmployee) {
+        navigate(`/employee/dashboard?category=EMPLOYEE_MGMT&tab=Employee%20Profile`);
+      } else {
+        navigate(`/hr-hub?category=EMPLOYEE_MGMT&tab=Employee%20Profile`);
+      }
     }
   };
 
@@ -317,13 +605,13 @@ const Navbar = ({ isOpen, setIsOpen }) => {
     const email = String(user?.email || "").toLowerCase();
 
     // 1. Prioritize user's actual personal name
-    if (user?.employeeName && user.employeeName !== "Employee" && user.employeeName !== "Department HR") {
-      return user.employeeName;
-    }
     if (user?.firstName) {
       return `${user.firstName} ${user.lastName || ''}`.trim();
     }
-    if (user?.name && user.name !== "Employee" && user.name !== "Department HR" && user.name !== user?.departmentName) {
+    if (user?.employeeName && user.employeeName !== "Employee" && user.employeeName !== "Department HR" && user.employeeName !== "Admin") {
+      return user.employeeName;
+    }
+    if (user?.name && user.name !== "Employee" && user.name !== "Department HR" && user.name !== user?.departmentName && user.name !== "Admin") {
       return user.name;
     }
 
@@ -335,9 +623,12 @@ const Navbar = ({ isOpen, setIsOpen }) => {
       return "Department HR";
     }
 
-    // 3. Admin fallback
-    if (rawRole === "Admin" || rawRole === "SuperAdmin" || email.includes("admin")) {
+    // 3. Admin & SuperAdmin fallback
+    if (rawRole === "Admin" || email.includes("admin")) {
       return "Rahul Sharma";
+    }
+    if (rawRole === "SuperAdmin") {
+      return "Super Admin";
     }
 
     if (user?.email) return user.email.split("@")[0];
@@ -355,7 +646,7 @@ const Navbar = ({ isOpen, setIsOpen }) => {
 
   return (
     <header
-      className={`fixed top-0 right-0 h-16 bg-white border-b border-gray-200/80 z-20 flex items-center justify-between px-4 transition-all duration-300 sm:px-6 ${
+      className={`fixed top-0 right-0 h-16 bg-white/95 backdrop-blur-md border-b border-slate-200/80 shadow-2xs z-20 flex items-center justify-between px-4 transition-all duration-300 sm:px-6 ${
         isOpen ? "lg:left-72" : "lg:left-20"
       }`}
     >
@@ -403,6 +694,185 @@ const Navbar = ({ isOpen, setIsOpen }) => {
 
       {/* Right: Quick Actions & User Profile */}
       <div className="flex items-center gap-2.5 sm:gap-4">
+
+        {/* Dynamic Context Header: Employee vs Admin / SuperAdmin */}
+        {isEmployee ? (
+          /* =========================================================================
+             EMPLOYEE VIEW: Clean Read-Only Badges (No 0/100, No 2/50, No Dropdowns)
+             Shows ONLY the specific company and branch the employee belongs to
+             ========================================================================= */
+          <div className="flex items-center gap-2 sm:gap-3">
+            {/* Employee Company Badge */}
+            <div className="flex items-center gap-1.5 sm:gap-2 bg-slate-50 border border-slate-200/90 rounded-xl px-2.5 py-1 sm:py-1.5 shadow-2xs select-none">
+              <BuildingOffice2Icon className="h-4 w-4 text-blue-600 shrink-0" />
+              <div className="flex flex-col text-left leading-none">
+                <span className="text-[9px] font-black uppercase tracking-wider text-slate-400 mb-0.5">
+                  Company
+                </span>
+                <span className="text-[11px] sm:text-xs font-black text-slate-800 truncate max-w-[110px] xs:max-w-[140px] sm:max-w-[180px]">
+                  {employeeAssignedCompany || activeCompanyName || "NIB Insurance"}
+                </span>
+              </div>
+            </div>
+
+            {/* Employee Branch Badge */}
+            <div className="flex items-center gap-1.5 sm:gap-2 bg-slate-50 border border-slate-200/90 rounded-xl px-2.5 py-1 sm:py-1.5 shadow-2xs select-none">
+              <MapPinIcon className="h-4 w-4 text-emerald-600 shrink-0" />
+              <div className="flex flex-col text-left leading-none">
+                <span className="text-[9px] font-black uppercase tracking-wider text-slate-400 mb-0.5">
+                  Branch
+                </span>
+                <span className="text-[11px] sm:text-xs font-black text-slate-800 truncate max-w-[110px] xs:max-w-[140px] sm:max-w-[180px]">
+                  {employeeAssignedBranch || selectedBranchName || "Main Branch"}
+                </span>
+              </div>
+            </div>
+
+            {/* Employee Department Badge */}
+            {currentDepartment && (
+              <div className="hidden xs:flex items-center gap-1.5 sm:gap-2 bg-slate-50 border border-slate-200/90 rounded-xl px-2.5 py-1 sm:py-1.5 shadow-2xs select-none">
+                <BriefcaseIcon className="h-4 w-4 text-indigo-600 shrink-0" />
+                <div className="flex flex-col text-left leading-none">
+                  <span className="text-[9px] font-black uppercase tracking-wider text-slate-400 mb-0.5">
+                    Department
+                  </span>
+                  <span className="text-[11px] sm:text-xs font-black text-slate-800 truncate max-w-[110px] xs:max-w-[140px] sm:max-w-[180px]">
+                    {currentDepartment}
+                  </span>
+                </div>
+              </div>
+            )}
+          </div>
+        ) : (
+          /* =========================================================================
+             ADMIN / SUPERADMIN VIEW: Switchers (Company & Branch)
+             ========================================================================= */
+          <div className="flex items-center gap-2 sm:gap-3">
+            {/* Company Switcher Dropdown UI */}
+            {isSuperAdminUser || (isAdmin && allTenants.length > 1) ? (
+              <div className="relative flex items-center">
+                <div className="flex items-center gap-1.5 sm:gap-2 bg-white hover:bg-slate-50 border border-slate-300 hover:border-blue-500 focus-within:ring-2 focus-within:ring-blue-500/20 focus-within:border-blue-500 rounded-xl px-2.5 py-1 sm:py-1.5 shadow-2xs transition group cursor-pointer">
+                  <BuildingOffice2Icon className="h-4 w-4 text-blue-600 shrink-0 pointer-events-none" />
+                  <div className="flex flex-col text-left leading-none">
+                    <span className="text-[9px] font-black uppercase tracking-wider text-slate-400 mb-0.5 select-none flex items-center gap-1">
+                      <span>Company</span>
+                      <span className="text-[8px] font-bold text-blue-600 bg-blue-50 px-1 py-0.5 rounded border border-blue-100">
+                        {allTenants.length}
+                      </span>
+                    </span>
+                    <select
+                      value={
+                        allTenants.find(t => 
+                          t.name === activeCompanyName || 
+                          t.db === activeTenantDb || 
+                          t.id === activeCompanyCode
+                        )?.id || allTenants[0]?.id || ""
+                      }
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        const match = allTenants.find(t => (t.id || t.db) === val);
+                        if (match) {
+                          handleSwitchCompany(match);
+                        }
+                      }}
+                      className="appearance-none bg-transparent text-[11px] sm:text-xs font-black text-slate-800 pr-5 focus:outline-none cursor-pointer truncate max-w-[110px] xs:max-w-[140px] sm:max-w-[180px]"
+                      title="Select Active Company Context"
+                    >
+                      {allTenants.map((t) => (
+                        <option key={t.id || t.db} value={t.id || t.db} className="font-semibold text-slate-800 py-1">
+                          {t.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <ChevronDownIcon className="h-3.5 w-3.5 text-slate-400 group-hover:text-blue-600 transition shrink-0 pointer-events-none -ml-3" />
+                </div>
+              </div>
+            ) : (
+              /* Admin: Shows Company Name without dropdown switcher across tenants */
+              <div className="flex items-center gap-1.5 sm:gap-2 bg-slate-50 border border-slate-200/90 rounded-xl px-2.5 py-1 sm:py-1.5 shadow-2xs select-none">
+                <BuildingOffice2Icon className="h-4 w-4 text-blue-600 shrink-0" />
+                <div className="flex flex-col text-left leading-none">
+                  <span className="text-[9px] font-black uppercase tracking-wider text-slate-400 mb-0.5">
+                    Company
+                  </span>
+                  <span className="text-[11px] sm:text-xs font-black text-slate-800 truncate max-w-[110px] xs:max-w-[140px] sm:max-w-[180px]">
+                    {activeCompanyName || "NIB Insurance"}
+                  </span>
+                </div>
+              </div>
+            )}
+
+            {/* Branch Switcher Dropdown UI */}
+            <div className="relative flex items-center">
+              <div className={`flex items-center gap-1.5 sm:gap-2 bg-white hover:bg-slate-50 border border-slate-300 hover:border-emerald-500 focus-within:ring-2 focus-within:ring-emerald-500/20 focus-within:border-emerald-500 rounded-xl px-2.5 py-1 sm:py-1.5 shadow-2xs transition group cursor-pointer ${
+                branches.length === 0 ? "opacity-75" : ""
+              }`}>
+                <MapPinIcon className="h-4 w-4 text-emerald-600 shrink-0 pointer-events-none" />
+                <div className="flex flex-col text-left leading-none">
+                  <span className="text-[9px] font-black uppercase tracking-wider text-slate-400 mb-0.5 select-none flex items-center gap-1">
+                    <span>Branch</span>
+                    <span className="text-[8px] font-bold text-emerald-600 bg-emerald-50 px-1 py-0.5 rounded border border-emerald-100">
+                      {branches.length}/50
+                    </span>
+                  </span>
+                  <select
+                    value={
+                      selectedBranchId === "ALL" || branches.some(b => String(b.id) === String(selectedBranchId) || String(b.branchCode || b.branch_code) === String(selectedBranchId))
+                        ? selectedBranchId
+                        : "ALL"
+                    }
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      if (val === "ALL") {
+                        handleSwitchBranch("ALL");
+                      } else {
+                        const match = branches.find(b => String(b.id) === String(val) || String(b.branchCode || b.branch_code) === String(val));
+                        if (match) {
+                          handleSwitchBranch(match);
+                        }
+                      }
+                    }}
+                    onFocus={() => {
+                      if (branches.length === 0) loadBranches();
+                    }}
+                    onClick={() => {
+                      if (branches.length === 0) loadBranches();
+                    }}
+                    className={`appearance-none bg-transparent text-[11px] sm:text-xs font-black text-slate-800 pr-5 focus:outline-none cursor-pointer truncate max-w-[105px] xs:max-w-[130px] sm:max-w-[170px] ${
+                      branches.length === 0 ? "text-slate-400 font-semibold" : ""
+                    }`}
+                    title="Select Active Branch Filter"
+                  >
+                    {branches.length === 0 ? (
+                      <option value="">No Branches (Single Location)</option>
+                    ) : (
+                      <>
+                        <option value="ALL" className="font-semibold text-slate-800 py-1">
+                          All Branches ({branches.length})
+                        </option>
+                        {branches.map((b) => {
+                          const bId = b.id;
+                          const bName = b.branchName || b.branch_name || "Branch";
+                          const bCode = b.branchCode || b.branch_code || "";
+                          return (
+                            <option key={bId} value={bId} className="font-semibold text-slate-800 py-1">
+                              {bName} {bCode ? `(${bCode})` : ""}
+                            </option>
+                          );
+                        })}
+                      </>
+                    )}
+                  </select>
+                </div>
+                {branches.length > 0 && (
+                  <ChevronDownIcon className="h-3.5 w-3.5 text-slate-400 group-hover:text-emerald-600 transition shrink-0 pointer-events-none -ml-3" />
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Messages / Chat Container */}
         <div className="relative" ref={messagesRef}>
           <button 
@@ -714,19 +1184,44 @@ const Navbar = ({ isOpen, setIsOpen }) => {
             <div className="w-8 h-8 rounded-xl bg-blue-600 text-white font-bold text-xs flex items-center justify-center shadow-xs uppercase select-none">
               {initials}
             </div>
-            <div className="hidden sm:flex flex-col text-left leading-tight">
-              <span className="text-xs font-extrabold text-gray-800 capitalize truncate max-w-[170px]">
+            <div className="hidden sm:flex flex-col text-left leading-tight justify-center">
+              <span className="text-xs font-extrabold text-gray-800 capitalize truncate max-w-[180px]">
                 {userName}
               </span>
-              <span className="text-[10px] font-semibold text-gray-400 truncate max-w-[170px]">
-                {userRole}
-              </span>
+              {!isAdmin && !isSuperAdminUser && (
+                <div className="flex items-center gap-1 text-[10px] truncate max-w-[180px]">
+                  {currentDepartment && currentDepartment !== "Administration" ? (
+                    <>
+                      <span className="font-bold text-indigo-600 truncate">{currentDepartment}</span>
+                      <span className="text-gray-400 font-medium shrink-0">• {userRole}</span>
+                    </>
+                  ) : (
+                    <span className="font-semibold text-gray-400 truncate">{userRole}</span>
+                  )}
+                </div>
+              )}
             </div>
             <ChevronDownIcon className="w-3.5 h-3.5 text-gray-400 hidden sm:block" />
           </button>
 
           {isDropdownOpen && (
-            <div className="absolute right-0 mt-2 w-48 bg-white border border-gray-100 rounded-xl shadow-lg py-1.5 z-30 font-sans">
+            <div className="absolute right-0 mt-2 w-56 bg-white border border-gray-100 rounded-xl shadow-lg py-2 z-30 font-sans">
+              <div className="px-4 py-2 border-b border-slate-100 mb-1">
+                <p className="text-xs font-black text-slate-800 truncate">{userName}</p>
+                <p className="text-[11px] text-slate-400 truncate font-medium">{user?.email}</p>
+                {currentDepartment && !isAdmin && !isSuperAdminUser && currentDepartment !== "Administration" && (
+                  <div className="mt-1.5 flex items-center gap-1.5 text-[10px] font-bold text-indigo-700 bg-indigo-50 border border-indigo-100 px-2 py-0.5 rounded-md">
+                    <BriefcaseIcon className="w-3 h-3 text-indigo-500 shrink-0" />
+                    <span className="truncate">Department: {currentDepartment}</span>
+                  </div>
+                )}
+                {employeeAssignedBranch && (
+                  <div className="mt-1 flex items-center gap-1.5 text-[10px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-100 px-2 py-0.5 rounded-md">
+                    <MapPinIcon className="w-3 h-3 text-emerald-500 shrink-0" />
+                    <span className="truncate">Branch: {employeeAssignedBranch}</span>
+                  </div>
+                )}
+              </div>
               <button
                 onClick={() => handleMenuItemClick("Employee Profile")}
                 className="w-full text-left px-4 py-2 text-xs font-bold text-gray-700 hover:bg-slate-50 transition cursor-pointer"

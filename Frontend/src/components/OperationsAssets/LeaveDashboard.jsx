@@ -23,7 +23,7 @@ import {
 
 const LeaveDashboard = ({ dbData = {}, onRefreshData }) => {
   const leaveRequests = useMemo(() => dbData["leave_requests"] || [], [dbData]);
-  const employees = useMemo(() => dbData["employees"] || dbData["employee_profile"] || dbData["Employee Profile"] || [], [dbData]);
+  const employees = useMemo(() => dbData["employees"] || dbData["employee_profile"] || dbData["Employee Profile"] || dbData["Employee"] || [], [dbData]);
   const holidays = useMemo(() => dbData["holidays"] || [], [dbData]);
 
   const [selectedEmpId, setSelectedEmpId] = useState("");

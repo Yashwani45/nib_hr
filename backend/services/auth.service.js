@@ -8,17 +8,29 @@ const logger = require('../config/logger');
 const { QueryTypes } = require('sequelize');
 
 class AuthService {
-  generateTokens(user) {
+  generateTokens(user, extraClaims = {}) {
+    const role = user.role_name || user.role || extraClaims.role || 'Employee';
+    const roleName = typeof role === 'object' ? (role.name || role.roleName || 'Employee') : String(role);
+    const companyCode = user.companyCode || user.company_code || extraClaims.companyCode || '';
+
+    const payload = {
+      id: user.id,
+      email: user.email,
+      role: roleName,
+      companyCode: String(companyCode).toUpperCase(),
+      ...extraClaims
+    };
+
     const accessToken = jwt.sign(
-      { id: user.id, email: user.email },
+      payload,
       process.env.ACCESS_TOKEN_SECRET || 'access_secret_123',
       { expiresIn: '7d' }
     );
 
     const refreshToken = jwt.sign(
-      { id: user.id },
+      { id: user.id, companyCode: String(companyCode).toUpperCase() },
       process.env.REFRESH_TOKEN_SECRET || 'refresh_secret_123',
-      { expiresIn: '7d' }
+      { expiresIn: '30d' }
     );
 
     return { accessToken, refreshToken };
@@ -185,7 +197,14 @@ class AuthService {
     if (masterUser) {
       const isPasswordValid = await bcrypt.compare(password, masterUser.password);
       if (isPasswordValid) {
-        const { accessToken, refreshToken } = this.generateTokens(masterUser);
+        const [primaryTenant] = await masterSequelize.query(
+          `SELECT id, company_name FROM tenants WHERE status = 'Active' ORDER BY created_at ASC LIMIT 1`,
+          { type: QueryTypes.SELECT }
+        );
+        const resolvedCompCode = primaryTenant?.id || '2731b266-27c4-483d-a699-382b022d6c50';
+        const resolvedCompName = primaryTenant?.company_name || 'NIB Insurance';
+
+        const { accessToken, refreshToken } = this.generateTokens(masterUser, { role: masterUser.role_name || 'SuperAdmin', companyCode: resolvedCompCode });
         await masterSequelize.query(
           `UPDATE users SET last_login = NOW() WHERE id = ?`,
           { replacements: [masterUser.id] }
@@ -194,8 +213,8 @@ class AuthService {
           userId: masterUser.id,
           email: masterUser.email,
           role: masterUser.role_name,
-          companyCode: 'NIB',
-          companyName: 'NIB Master Operations',
+          companyCode: resolvedCompCode,
+          companyName: resolvedCompName,
           accessToken,
           refreshToken,
         };
@@ -221,7 +240,7 @@ class AuthService {
       }
 
       if (isValidAdmin) {
-        const { accessToken, refreshToken } = this.generateTokens({ id: tenantAdmin.id, email: tenantAdmin.admin_email });
+        const { accessToken, refreshToken } = this.generateTokens({ id: tenantAdmin.id, email: tenantAdmin.admin_email }, { role: 'Admin', companyCode: tenantAdmin.id });
         const adminDisplayName = tenantAdmin.admin_name || 'Rahul Sharma';
         return {
           userId: tenantAdmin.id,
@@ -264,7 +283,7 @@ class AuthService {
         if (tenantUser) {
           const isPasswordValid = await bcrypt.compare(password, tenantUser.password);
           if (isPasswordValid) {
-            const { accessToken, refreshToken } = this.generateTokens(tenantUser);
+            const { accessToken, refreshToken } = this.generateTokens(tenantUser, { role: tenantUser.role_name, companyCode: tenant.id });
             await tenantDb.query(
               `UPDATE users SET last_login = NOW() WHERE id = ?`,
               { replacements: [tenantUser.id] }
@@ -272,11 +291,11 @@ class AuthService {
 
              // Fetch assigned department and employee info from employees table if available
              const [empInfo] = await tenantDb.query(
-               `SELECT employee_name, first_name, last_name, department, profileStatus, profileCompletion FROM employees WHERE LOWER(email) = ? OR LOWER(company_email) = ? LIMIT 1`,
+               `SELECT id, employeeCode, employeeName, firstName, lastName, department, branch_id, branchName, branch FROM employees WHERE LOWER(email) = ? OR LOWER(officialEmail) = ? LIMIT 1`,
                { replacements: [cleanEmail, cleanEmail], type: QueryTypes.SELECT }
              ).catch(() => [null]);
 
-             const resolvedName = empInfo?.employee_name || (empInfo?.first_name ? `${empInfo.first_name} ${empInfo.last_name || ''}`.trim() : null) || tenantUser.username || tenantUser.name || (tenantUser.role_name === 'Admin' ? 'Rahul Sharma' : tenantUser.email.split('@')[0]);
+             const resolvedName = empInfo?.employeeName || (empInfo?.firstName ? `${empInfo.firstName} ${empInfo.lastName || ''}`.trim() : null) || tenantUser.username || tenantUser.name || (tenantUser.role_name === 'Admin' ? 'Rahul Sharma' : tenantUser.email.split('@')[0]);
 
              return {
                userId: tenantUser.id,
@@ -285,10 +304,15 @@ class AuthService {
                email: tenantUser.email,
                role: tenantUser.role_name,
                departmentName: empInfo?.department || 'General Staff',
+               department: empInfo?.department || 'General Staff',
+               designation: empInfo?.designation || null,
                profileStatus: empInfo?.profileStatus || 'Profile Incomplete',
                profileCompletion: empInfo?.profileCompletion !== undefined && empInfo?.profileCompletion !== null ? Number(empInfo.profileCompletion) : 0,
                companyCode: tenant.id,
                companyName: tenant.company_name,
+               branchId: empInfo?.branch_id || null,
+               branchName: empInfo?.branchName || empInfo?.branch || null,
+               employeeCode: empInfo?.employeeCode || null,
                accessToken,
                refreshToken,
              };
@@ -299,7 +323,7 @@ class AuthService {
  
          // Direct search inside tenant employees table (if user created directly via Add Employee)
          const [empRecord] = await tenantDb.query(
-           `SELECT * FROM employees WHERE LOWER(email) = ? OR LOWER(company_email) = ? LIMIT 1`,
+           `SELECT * FROM employees WHERE LOWER(email) = ? OR LOWER(officialEmail) = ? LIMIT 1`,
            { replacements: [cleanEmail, cleanEmail], type: QueryTypes.SELECT }
          ).catch(() => [null]);
  
@@ -315,17 +339,22 @@ class AuthService {
  
            if (isValidPassword) {
              const empEmail = empRecord.email || empRecord.company_email;
-             const { accessToken, refreshToken } = this.generateTokens({ id: empRecord.id, email: empEmail });
+             const { accessToken, refreshToken } = this.generateTokens({ id: empRecord.id, email: empEmail }, { role: 'Employee', companyCode: tenant.id });
              return {
                userId: empRecord.id,
                email: empEmail,
                employeeName: empRecord.employee_name || empRecord.first_name || 'Employee',
                role: 'Employee',
                departmentName: empRecord.department || 'General Staff',
+               department: empRecord.department || 'General Staff',
+               designation: empRecord.designation || null,
                profileStatus: empRecord.profileStatus || 'Profile Incomplete',
                profileCompletion: empRecord.profileCompletion !== undefined && empRecord.profileCompletion !== null ? Number(empRecord.profileCompletion) : 0,
                companyCode: tenant.id,
                companyName: tenant.company_name,
+               branchId: empRecord.branch_id || null,
+               branchName: empRecord.branchName || empRecord.branch || null,
+               employeeCode: empRecord.employeeCode || null,
                accessToken,
                refreshToken,
              };
@@ -347,7 +376,7 @@ class AuthService {
           }
 
           if (isValidHp) {
-            const { accessToken, refreshToken } = this.generateTokens({ id: deptHr.id, email: deptHr.hr_email });
+            const { accessToken, refreshToken } = this.generateTokens({ id: deptHr.id, email: deptHr.hr_email }, { role: 'DepartmentHR', companyCode: tenant.id });
             let modulesList = [];
             try {
               modulesList = typeof deptHr.assigned_modules === 'string' ? JSON.parse(deptHr.assigned_modules) : (deptHr.assigned_modules || []);

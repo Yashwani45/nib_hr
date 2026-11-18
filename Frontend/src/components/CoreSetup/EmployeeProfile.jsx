@@ -34,8 +34,11 @@ import {
   WrenchScrewdriverIcon,
   FolderArrowDownIcon,
   KeyIcon,
-  EllipsisVerticalIcon
+  EllipsisVerticalIcon,
+  QrCodeIcon
 } from "@heroicons/react/24/outline";
+import EmployeeQrCardModal from "../Attendance/EmployeeQrCardModal";
+import EmployeeQrScannerModal from "../Attendance/EmployeeQrScannerModal";
 import { deleteTableRecord, createTableRecord, updateTableRecord, getTableData, apiFetch } from "../../services/hrApi";
 import { useAuth } from "../../auth/AuthProvider";
 
@@ -343,6 +346,9 @@ const EmployeeProfile = ({ records = [], dbData = {}, openCreateTrigger, onOpenE
 
   // Add/Edit Wizard State
   const [showModal, setShowModal] = useState(false);
+  const [selectedQrEmployee, setSelectedQrEmployee] = useState(null);
+  const [isQrModalOpen, setIsQrModalOpen] = useState(false);
+  const [isScannerModalOpen, setIsScannerModalOpen] = useState(false);
   const [modalTab, setModalTab] = useState("Basic Information");
   const [formFields, setFormFields] = useState(getInitialFormState());
   const [isEditing, setIsEditing] = useState(false);
@@ -1068,39 +1074,14 @@ const EmployeeProfile = ({ records = [], dbData = {}, openCreateTrigger, onOpenE
             </div>
 
             {/* Right Tools */}
-            <div className="flex flex-wrap items-center gap-2">
+            <div className="flex items-center gap-2">
               <button
                 onClick={handleOpenAddForm}
-                className="flex items-center gap-1 px-3 py-2 bg-blue-600 hover:bg-blue-750 text-white rounded-xl text-xs font-black transition border border-blue-600 shadow-2xs"
+                className="flex items-center gap-1.5 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-black transition border border-blue-600 shadow-sm cursor-pointer hover:-translate-y-0.5 active:translate-y-0"
               >
-                <PlusIcon className="w-3.5 h-3.5 text-white" />
+                <PlusIcon className="w-3.5 h-3.5 text-white stroke-[2.5]" />
                 <span>Add Employee</span>
               </button>
-
-              <button
-                onClick={handleDownloadTemplate}
-                className="flex items-center gap-1 px-3 py-2 bg-slate-50 hover:bg-slate-100 text-slate-700 rounded-xl text-xs font-bold transition border border-slate-200"
-              >
-                <ArrowDownTrayIcon className="w-3.5 h-3.5" />
-                <span>Download Template</span>
-              </button>
-
-              <button
-                onClick={handleImport}
-                className="flex items-center gap-1 px-3 py-2 bg-slate-50 hover:bg-slate-100 text-slate-700 rounded-xl text-xs font-bold transition border border-slate-200"
-              >
-                <ArrowUpTrayIcon className="w-3.5 h-3.5" />
-                <span>Import Employees</span>
-              </button>
-
-              <button
-                onClick={handleExport}
-                className="flex items-center gap-1 px-3 py-2 bg-slate-50 hover:bg-slate-100 text-slate-700 rounded-xl text-xs font-bold transition border border-slate-200"
-              >
-                <ArrowDownTrayIcon className="w-3.5 h-3.5" />
-                <span>Export Employees</span>
-              </button>
-
             </div>
           </div>
 
@@ -1398,6 +1379,17 @@ const EmployeeProfile = ({ records = [], dbData = {}, openCreateTrigger, onOpenE
                               <EyeIcon className="w-4 h-4 transition group-hover:scale-110" />
                             </button>
                             <button
+                              type="button"
+                              title="View & Print Attendance QR Badge"
+                              onClick={() => {
+                                setSelectedQrEmployee(e);
+                                setIsQrModalOpen(true);
+                              }}
+                              className="p-1.5 bg-emerald-50 hover:bg-emerald-600 text-emerald-600 hover:text-white rounded-xl transition transform active:scale-95 border border-emerald-200/80 flex items-center justify-center cursor-pointer shadow-2xs group"
+                            >
+                              <QrCodeIcon className="w-4 h-4 transition group-hover:scale-110" />
+                            </button>
+                            <button
                               onClick={() => setActiveActionsMenu(activeActionsMenu === e.id ? null : e.id)}
                               className="p-1.5 hover:bg-slate-100 rounded-xl text-slate-600 transition"
                             >
@@ -1415,6 +1407,17 @@ const EmployeeProfile = ({ records = [], dbData = {}, openCreateTrigger, onOpenE
                                   className="w-full px-3 py-1.5 hover:bg-slate-50 flex items-center gap-2 hover:text-indigo-600 transition text-left"
                                 >
                                   👁️ View Profile
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setActiveActionsMenu(null);
+                                    setSelectedQrEmployee(e);
+                                    setIsQrModalOpen(true);
+                                  }}
+                                  className="w-full px-3 py-1.5 hover:bg-slate-50 flex items-center gap-2 hover:text-emerald-600 transition text-left"
+                                >
+                                  🪪 View QR Badge
                                 </button>
                                 <button
                                   type="button"
@@ -3897,6 +3900,24 @@ const EmployeeProfile = ({ records = [], dbData = {}, openCreateTrigger, onOpenE
           </div>
         </div>
       )}
+      {/* Employee QR Badge Modal */}
+      <EmployeeQrCardModal
+        isOpen={isQrModalOpen}
+        onClose={() => {
+          setIsQrModalOpen(false);
+          setSelectedQrEmployee(null);
+        }}
+        employee={selectedQrEmployee}
+      />
+
+      {/* Live QR Attendance Scanner Kiosk Modal */}
+      <EmployeeQrScannerModal
+        isOpen={isScannerModalOpen}
+        onClose={() => setIsScannerModalOpen(false)}
+        onSuccess={(data) => {
+          showToast(data?.message || 'Attendance verified successfully!', 'success');
+        }}
+      />
     </div>
   );
 };

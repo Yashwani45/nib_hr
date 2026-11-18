@@ -21,6 +21,7 @@ router.use('/core', coreRoutes);
 router.use('/table', tableRoutes);
 router.use('/talent', talentRoutes);
 router.use('/operations', operationsRoutes);
+router.use('/attendance', operationsRoutes);
 router.use('/finance', financeRoutes);
 router.use('/support', supportRoutes);
 router.use('/performance', performanceRoutes);

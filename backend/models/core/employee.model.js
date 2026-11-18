@@ -164,6 +164,66 @@ const Employee = sequelize.define('Employee', {
     allowNull: true,
     field: 'prevDesignation',
   },
+  bankName: {
+    type: DataTypes.STRING,
+    allowNull: true,
+    field: 'bankName',
+  },
+  accountHolderName: {
+    type: DataTypes.STRING,
+    allowNull: true,
+    field: 'accountHolderName',
+  },
+  accountNumber: {
+    type: DataTypes.STRING,
+    allowNull: true,
+    field: 'accountNumber',
+  },
+  ifscCode: {
+    type: DataTypes.STRING,
+    allowNull: true,
+    field: 'ifscCode',
+  },
+  branchId: {
+    type: DataTypes.UUID,
+    allowNull: true,
+    field: 'branch_id',
+  },
+  branchName: {
+    type: DataTypes.STRING,
+    allowNull: true,
+    field: 'branchName',
+  },
+  upiId: {
+    type: DataTypes.STRING,
+    allowNull: true,
+    field: 'upiId',
+  },
+  basicSalary: {
+    type: DataTypes.STRING,
+    allowNull: true,
+    field: 'basicSalary',
+  },
+  grossSalary: {
+    type: DataTypes.STRING,
+    allowNull: true,
+    field: 'grossSalary',
+  },
+  ctc: {
+    type: DataTypes.STRING,
+    allowNull: true,
+    field: 'ctc',
+  },
+  pfApplicable: {
+    type: DataTypes.STRING,
+    allowNull: true,
+    field: 'pfApplicable',
+  },
+  esiApplicable: {
+    type: DataTypes.STRING,
+    allowNull: true,
+    field: 'esiApplicable',
+  },
   profileData: {
     type: DataTypes.TEXT('long'),
     allowNull: true,

@@ -26,7 +26,8 @@ import {
   ChevronRightIcon,
   XMarkIcon,
   InformationCircleIcon,
-  ArrowsUpDownIcon
+  ArrowsUpDownIcon,
+  SparklesIcon
 } from "@heroicons/react/24/outline";
 
 const PREDEFINED_MODULES = [
@@ -48,16 +49,36 @@ const Department = ({ records: legacyRecords, openCreateTrigger }) => {
   const dbData = useSelector((state) => state.hr.dbData) || {};
   const token = useSelector((state) => state.auth.token);
 
-  // State Management
-  const [departments, setDepartments] = useState([]);
-  const [branches, setBranches] = useState([]);
-  const [employees, setEmployees] = useState([]);
+  // Immediate resolution from props / Redux to guarantee 0ms initial render
+  const initialRecords = React.useMemo(() => {
+    if (Array.isArray(legacyRecords) && legacyRecords.length > 0) return legacyRecords;
+    if (Array.isArray(dbData?.Department) && dbData.Department.length > 0) return dbData.Department;
+    if (Array.isArray(dbData?.department) && dbData.department.length > 0) return dbData.department;
+    return [];
+  }, [legacyRecords, dbData]);
+
+  // State Management - Instant initialization
+  const [departments, setDepartments] = useState(initialRecords);
+  const [branches, setBranches] = useState(() => (Array.isArray(dbData?.Branch || dbData?.branch) ? (dbData.Branch || dbData.branch) : []));
+  const [employees, setEmployees] = useState(() => (Array.isArray(dbData?.["Employee Profile"] || dbData?.employees) ? (dbData["Employee Profile"] || dbData.employees) : []));
   const [pagination, setPagination] = useState({
-    totalItems: 0,
-    totalPages: 1,
+    totalItems: initialRecords.length,
+    totalPages: Math.max(1, Math.ceil(initialRecords.length / 10)),
     currentPage: 1,
     limit: 10
   });
+
+  // Keep departments in sync if props or Redux state arrives shortly after mount
+  useEffect(() => {
+    if (departments.length === 0 && initialRecords.length > 0) {
+      setDepartments(initialRecords);
+      setPagination(prev => ({
+        ...prev,
+        totalItems: initialRecords.length,
+        totalPages: Math.max(1, Math.ceil(initialRecords.length / prev.limit))
+      }));
+    }
+  }, [initialRecords, departments.length]);
 
   const [filters, setFilters] = useState({
     search: "",
@@ -108,6 +129,7 @@ const Department = ({ records: legacyRecords, openCreateTrigger }) => {
   });
 
   const [moduleSearchQuery, setModuleSearchQuery] = useState("");
+  const [customModuleInput, setCustomModuleInput] = useState("");
 
   // Persist master modules to localStorage
   useEffect(() => {
@@ -123,17 +145,26 @@ const Department = ({ records: legacyRecords, openCreateTrigger }) => {
     if (!cleanName) return;
 
     // Check duplicate case-insensitively
-    const exists = masterModules.some(
+    const match = masterModules.find(
       m => m.toLowerCase().trim() === cleanName.toLowerCase().trim()
     );
 
-    if (exists) {
-      showToast(`Module '${cleanName}' already exists in the Master Modules list.`, "error");
+    if (match) {
+      // If already present, make sure it is assigned to this department
+      setFormData(prev => ({
+        ...prev,
+        assignedModules: (prev.assignedModules || []).includes(match)
+          ? prev.assignedModules
+          : [...(prev.assignedModules || []), match]
+      }));
+      showToast(`Module '${match}' is already present and is now selected!`, "info");
+      setCustomModuleInput("");
+      setModuleSearchQuery("");
       return;
     }
 
     const updatedMaster = [...masterModules, cleanName];
-    const updatedCustom = [...customModulesList, cleanName];
+    const updatedCustom = Array.from(new Set([...customModulesList, cleanName]));
 
     setMasterModules(updatedMaster);
     setCustomModulesList(updatedCustom);
@@ -141,13 +172,44 @@ const Department = ({ records: legacyRecords, openCreateTrigger }) => {
     // Auto-assign to current department form data
     setFormData(prev => ({
       ...prev,
-      assignedModules: prev.assignedModules.includes(cleanName)
+      assignedModules: (prev.assignedModules || []).includes(cleanName)
         ? prev.assignedModules
-        : [...prev.assignedModules, cleanName]
+        : [...(prev.assignedModules || []), cleanName]
     }));
 
+    try {
+      localStorage.setItem("hrms_master_modules", JSON.stringify(updatedMaster));
+      localStorage.setItem("hrms_custom_modules", JSON.stringify(updatedCustom));
+    } catch (e) {}
+
+    // Dispatch event so Sidebar picks it up immediately
+    window.dispatchEvent(new Event("custom_modules_updated"));
+
     showToast(`New custom module '${cleanName}' created & assigned to department!`, "success");
+    setCustomModuleInput("");
     setModuleSearchQuery("");
+  };
+
+  // Handler to Delete a Custom Module
+  const handleDeleteCustomModule = (modToDelete) => {
+    const updatedMaster = masterModules.filter(m => m !== modToDelete);
+    const updatedCustom = customModulesList.filter(m => m !== modToDelete);
+
+    setMasterModules(updatedMaster);
+    setCustomModulesList(updatedCustom);
+
+    setFormData(prev => ({
+      ...prev,
+      assignedModules: (prev.assignedModules || []).filter(m => m !== modToDelete)
+    }));
+
+    try {
+      localStorage.setItem("hrms_master_modules", JSON.stringify(updatedMaster));
+      localStorage.setItem("hrms_custom_modules", JSON.stringify(updatedCustom));
+    } catch (e) {}
+
+    window.dispatchEvent(new Event("custom_modules_updated"));
+    showToast(`Custom module '${modToDelete}' removed.`, "info");
   };
 
   // Move Module Up / Down (Drag & Drop Reordering Support)
@@ -197,10 +259,10 @@ const Department = ({ records: legacyRecords, openCreateTrigger }) => {
     }
   }, [dispatch, dbData, token]);
 
-  // Fetch paginated departments from server
+  // Fetch paginated departments from server with background revalidation
   const loadDepartments = useCallback(async (isSilent = false) => {
-    const activeToken = token || localStorage.getItem("token") || "active";
-    if (!isSilent) setLoading(true);
+    // Only trigger loading state if we have 0 records to display
+    if (!isSilent && departments.length === 0) setLoading(true);
     try {
       const data = await fetchDepartmentsApi({
         search: filters.search,
@@ -225,16 +287,15 @@ const Department = ({ records: legacyRecords, openCreateTrigger }) => {
       });
     } catch (err) {
       console.error("Failed to load departments:", err);
-      // Fallback to legacy props if API is initializing
       if (legacyRecords && legacyRecords.length > 0) {
         setDepartments(legacyRecords);
       }
     } finally {
-      if (!isSilent) setLoading(false);
+      setLoading(false);
     }
-  }, [filters, pagination.currentPage, pagination.limit, legacyRecords, token]);
+  }, [filters, pagination.currentPage, pagination.limit, legacyRecords, token, departments.length]);
 
-  // Load auxiliary data for dropdowns (Branches & Employees)
+  // Load auxiliary data for dropdowns (Branches & Employees) in background
   useEffect(() => {
     const loadAuxiliaryData = async () => {
       try {
@@ -242,8 +303,8 @@ const Department = ({ records: legacyRecords, openCreateTrigger }) => {
           getTableData("branch").catch(() => []),
           getTableData("employee_profile").catch(() => [])
         ]);
-        setBranches(Array.isArray(branchData) ? branchData : []);
-        setEmployees(Array.isArray(empData) ? empData : []);
+        if (Array.isArray(branchData) && branchData.length > 0) setBranches(branchData);
+        if (Array.isArray(empData) && empData.length > 0) setEmployees(empData);
       } catch (err) {
         console.error("Failed to load dropdown options:", err);
       }
@@ -251,15 +312,17 @@ const Department = ({ records: legacyRecords, openCreateTrigger }) => {
     loadAuxiliaryData();
   }, [token]);
 
+  // Revalidate data whenever filters or pagination change (silent if data is already visible)
   useEffect(() => {
-    loadDepartments();
-  }, [loadDepartments]);
+    const hasData = departments.length > 0 || (legacyRecords && legacyRecords.length > 0);
+    loadDepartments(hasData);
+  }, [filters.search, filters.branchId, filters.status, filters.sortBy, filters.sortOrder, pagination.currentPage, pagination.limit]);
 
-  // Poll for external database modifications silently in the background
+  // Poll for external database modifications silently in the background every 15s
   useEffect(() => {
     const pollInterval = setInterval(() => {
       loadDepartments(true);
-    }, 4000);
+    }, 15000);
     return () => clearInterval(pollInterval);
   }, [loadDepartments]);
 
@@ -593,7 +656,7 @@ const Department = ({ records: legacyRecords, openCreateTrigger }) => {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 text-xs text-slate-700">
-              {loading ? (
+              {loading && departments.length === 0 ? (
                 <tr>
                   <td colSpan="8" className="py-12 text-center text-slate-400">
                     <div className="inline-flex items-center space-x-2">
@@ -946,54 +1009,59 @@ const Department = ({ records: legacyRecords, openCreateTrigger }) => {
                   </div>
                 </div>
 
-                {/* Module Search Bar & Add Custom Module Trigger */}
-                <div className="space-y-2">
-                  <div className="relative flex items-center">
-                    <MagnifyingGlassIcon className="w-3.5 h-3.5 text-slate-400 absolute left-3 pointer-events-none" />
+                {/* Dedicated Visible Add Custom Module Bar */}
+                <div className="bg-indigo-50/80 border border-indigo-200/90 rounded-xl p-2 flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+                  <div className="flex items-center gap-2 flex-1">
+                    <SparklesIcon className="w-4 h-4 text-indigo-600 shrink-0" />
                     <input
                       type="text"
-                      placeholder="Search existing or type custom module name..."
-                      value={moduleSearchQuery}
-                      onChange={(e) => setModuleSearchQuery(e.target.value)}
+                      placeholder="Type custom module name (e.g. Clinical Audit, Legal Compliance)..."
+                      value={customModuleInput}
+                      onChange={(e) => setCustomModuleInput(e.target.value)}
                       onKeyDown={(e) => {
                         if (e.key === 'Enter') {
                           e.preventDefault();
-                          if (moduleSearchQuery.trim()) {
-                            handleCreateCustomModule(moduleSearchQuery);
+                          if (customModuleInput.trim()) {
+                            handleCreateCustomModule(customModuleInput);
                           }
                         }
                       }}
-                      className="w-full pl-8 pr-24 py-1.5 bg-white border border-slate-200 rounded-xl text-xs text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition"
+                      className="w-full bg-white border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition"
                     />
-                    {moduleSearchQuery.trim() && (
-                      <button
-                        type="button"
-                        onClick={() => handleCreateCustomModule(moduleSearchQuery)}
-                        className="absolute right-1 px-2.5 py-1 bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 text-white text-[10px] font-bold rounded-lg shadow-xs transition flex items-center gap-1"
-                      >
-                        <PlusIcon className="w-3 h-3" />
-                        <span>Add Custom</span>
-                      </button>
-                    )}
                   </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (customModuleInput.trim()) {
+                        handleCreateCustomModule(customModuleInput);
+                      }
+                    }}
+                    disabled={!customModuleInput.trim()}
+                    className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-40 text-white text-xs font-bold rounded-lg shadow-2xs transition flex items-center justify-center gap-1.5 shrink-0 cursor-pointer"
+                  >
+                    <PlusIcon className="w-3.5 h-3.5 stroke-[2.5]" />
+                    <span>+ Add Custom Module</span>
+                  </button>
+                </div>
 
-                  {/* Create New Module Banner Option (when search query matches no existing module) */}
-                  {moduleSearchQuery.trim() && !masterModules.some(m => m.toLowerCase().trim() === moduleSearchQuery.trim().toLowerCase()) && (
-                    <div className="p-2 bg-indigo-50/90 border border-indigo-200 rounded-xl flex items-center justify-between animate-fadeIn">
-                      <div className="flex items-center space-x-1.5">
-                        <span className="text-xs">✨</span>
-                        <span className="text-[11px] font-semibold text-indigo-950">
-                          Create New Module: <strong className="font-bold underline decoration-indigo-300">"{moduleSearchQuery.trim()}"</strong>
-                        </span>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => handleCreateCustomModule(moduleSearchQuery)}
-                        className="px-2.5 py-1 bg-indigo-600 hover:bg-indigo-700 text-white text-[10px] font-bold rounded-lg shadow-xs transition"
-                      >
-                        + Create & Assign
-                      </button>
-                    </div>
+                {/* Module Search Bar */}
+                <div className="relative flex items-center">
+                  <MagnifyingGlassIcon className="w-3.5 h-3.5 text-slate-400 absolute left-3 pointer-events-none" />
+                  <input
+                    type="text"
+                    placeholder="Search existing modules..."
+                    value={moduleSearchQuery}
+                    onChange={(e) => setModuleSearchQuery(e.target.value)}
+                    className="w-full pl-8 pr-8 py-1.5 bg-white border border-slate-200 rounded-xl text-xs text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition"
+                  />
+                  {moduleSearchQuery && (
+                    <button
+                      type="button"
+                      onClick={() => setModuleSearchQuery("")}
+                      className="absolute right-2.5 text-slate-400 hover:text-slate-600 text-xs font-bold"
+                    >
+                      ✕
+                    </button>
                   )}
                 </div>
 
@@ -1035,9 +1103,22 @@ const Department = ({ records: legacyRecords, openCreateTrigger }) => {
                               />
                               <span className="truncate">{modName}</span>
                               {isCustom && (
-                                <span className="px-1.5 py-0.2 bg-amber-100 text-amber-800 text-[9px] font-extrabold rounded-md uppercase tracking-wider shrink-0 border border-amber-200">
-                                  Custom
-                                </span>
+                                <div className="flex items-center gap-1 shrink-0 ml-1">
+                                  <span className="px-1.5 py-0.2 bg-amber-100 text-amber-800 text-[9px] font-extrabold rounded-md uppercase tracking-wider border border-amber-200">
+                                    Custom
+                                  </span>
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleDeleteCustomModule(modName);
+                                    }}
+                                    title="Delete custom module"
+                                    className="text-slate-400 hover:text-rose-600 transition p-0.5"
+                                  >
+                                    <TrashIcon className="w-3 h-3" />
+                                  </button>
+                                </div>
                               )}
                             </div>
 

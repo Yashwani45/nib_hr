@@ -24,7 +24,7 @@ const Dashboard = () => {
     return <Navigate to="/manager/dashboard" replace />;
   }
   if (roleName === "departmenthr") {
-    const targetTab = user.departmentName ? encodeURIComponent(user.departmentName) : "Department Dashboard";
+    const targetTab = user?.departmentName ? encodeURIComponent(user.departmentName) : "Department%20Dashboard";
     return <Navigate to={`/hr-hub?category=DEPARTMENT&tab=${targetTab}`} replace />;
   }
 
